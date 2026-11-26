@@ -32,7 +32,9 @@ re-sign the file. Three consequences:
 | The tree cannot be moved | every path names one specific directory |
 | "Install" means "bytes differ per user" | sha256 only describes what was downloaded, not what ends up on disk |
 
-`RELOCATION` is about removing all three, without giving up `wave basedir --set`.
+`RELOCATION` is about removing all three. In 4.x that left the tree movable but the
+install root still user-chosen; 1.0 goes further and fixes the root, so the whole
+"relocate at install time" machinery is gone rather than generalised.
 
 ---
 
@@ -68,8 +70,8 @@ id — every reference is explicit — so the id is advisory.
 
 | Stage | Tool | Action |
 |---|---|---|
-| Build (CI) | `scripts/relocate_stage.sh` → `scripts/relocate_rpath.py` | rewrite references to `@loader_path/...`, ids to `@rpath/...`, ad-hoc sign, then **mark the artifact as prebuilt** |
-| Install | `surfboard/transfer.sh` | prebuilt artifacts: **nothing at all** — no rewrite, no re-sign, not even a scan. Unmarked artifacts: rewrite to relative, re-sign |
+| Build (CI) | `scripts/prepare_bottle.py` → `scripts/relocate_rpath.py` | rewrite references to `@loader_path/...`, ids to `@rpath/...`, ad-hoc sign, then **mark the artifact as prebuilt** |
+| Install (4.x) | `surfboard/transfer.sh` | prebuilt artifacts: **nothing at all**. Unmarked artifacts: rewrite to relative, re-sign. **Deleted in 1.0** — the client now only downloads and unpacks |
 | Migrate an old tree | — | removed in 1.0: `wave transfer` is gone, and `apply_migrations` only moves the old directories into `Shore/` |
 | Move the tree | — | impossible: the install root is fixed at `/opt/macwave`, and `wave basedir --set` was removed |
 
@@ -79,12 +81,12 @@ Two channels, because not every payload can carry a file:
 
 | Form | Carrier | Who writes it |
 |---|---|---|
-| tree / archive payload | `_RELOCATED` file inside `<name>@<version>/` | `relocate_stage.sh`, after `relocate_rpath.py --check` passes |
+| tree / archive payload | `_RELOCATED` file inside `Shore/<name>/<version>/` | `prepare_bottle.py`, after `relocate_rpath.py --check` passes |
 | single-file payload | `relocated: "loader_path"` in the version record | whoever publishes the index record |
 
-Both mean the same thing and produce the same client behaviour: `transfer.sh` returns
-immediately (`--check` and `--rescan` excepted, they exist to really scan), and the
-install tail does not even count the artifact in its "Checking Mach-O files" line.
+Both mark the same thing. In 4.x they meant `transfer.sh` returned immediately and the
+install tail did not count the artifact in its "Checking Mach-O files" line. In 1.0 the
+marker only exists so a later rebuild can skip work — nothing on the client reads it.
 
 Trust: the payload marker is inside the bytes the index `sha256` covers, so it cannot be
 added to someone else's artifact; the record field is as trustworthy as the record
@@ -103,15 +105,17 @@ check reports references it cannot map.
 The build stage requires the staging tree to look like the runtime tree:
 
 ```
-<stage>/bin/<name>@<version>/...
-<stage>/deps/<dep>/<dep>@<version>/lib/...
+<stage>/Shore/<name>/<version>/...
+<stage>/Shore/<dep>/<version>/lib/...
 ```
 
 Relative paths are computed from that layout, so if staging differs from the installed
 layout the numbers are wrong. This is the same constraint as MacPorts `destroot`.
+`scripts/prepare_bottle.py` produces exactly this shape.
 
-Both tools share one judgement — "is this artifact position-independent?" — implemented
-once, in `transfer.sh --check`, which is read-only and does not build a dependency index.
+One judgement — "is this artifact position-independent?" — is implemented once, in
+`scripts/relocate_rpath.py` (the read-only `--check` mode does not build a dependency
+index). The 4.x client-side twin, `transfer.sh --check`, was deleted with `transfer.sh`.
 
 ---
 
@@ -125,15 +129,16 @@ otool -L bin/jq@1.8.2/jq | grep -c '^/Users\|^/opt'      # expect 0
 codesign --verify --verbose=2 bin/jq@1.8.2/jq            # expect "satisfies its Designated Requirement"
 
 # Still works after moving the tree
-mv ~/.local/macwave /tmp/mw && /tmp/mw/links/jq --version
+mv /opt/macwave /tmp/mw && /tmp/mw/bin/jq --version
 
 # Two versions of the same library stay separate
 otool -L bin/A@1.0/A | grep openssl     # .../openssl@3.0.15/...
 otool -L bin/B@1.0/B | grep openssl     # .../openssl@3.2.0/...
 ```
 
-`wave transfer <pkg> --dry-run` reports what would change; `wave basedir --set <path> --dry-run`
-reports the copy size and the config file it would rewrite. Neither touches anything.
+In 1.0 both `wave transfer` and `wave basedir --set` are gone, so there is no dry run to
+offer: `scripts/relocate_rpath.py <stage-dir> --check` is the only inspection tool left,
+and it runs at build time.
 
 ---
 
@@ -178,19 +183,21 @@ Related commands, side by side:
 
 ## 6. Known limits
 
-- **Relative layout is fixed.** You may choose `base_dir`; you may not split `bin/`
-  and `deps/` onto different disks, or move `deps/` elsewhere. Move the tree whole.
+- **Relative layout is fixed.** The install root is hardcoded (`/opt/macwave`), and
+  `Shore/` + `bin/` sit inside it; they cannot be split onto different disks. Move the tree whole.
 - **Only Mach-O/ELF are rewritten.** Text files keep absolute paths: `.pc` files,
   `openssl.cnf`, `#!/abs/path` scripts, a bundled interpreter's `sys.prefix`. Those are
   handled at build time (placeholder, or read an environment variable), not here.
 - **`@rpath`-based plugins** written by upstream may still carry absolute paths; the
   build-side tool reports anything it cannot map instead of guessing.
 - **Old artifacts never gain this property by themselves.** `wave reinstall <pkg>`
-  fetches the build-time relocated copy; `wave transfer <pkg>` converts what is already
-  installed. Both are idempotent.
+  fetches the build-time relocated copy. `wave transfer` used to convert an already
+  installed tree in place; it was removed in 1.0, so reinstall is the only route.
 - **Payloads that come straight from upstream (conda repacks) are not prebuilt yet.**
   Their bytes must stay identical to upstream (`Deps/README.md`: "字节原样搬运"), so they
   carry `@rpath/<name>` + `LC_RPATH=@loader_path/../lib/`, which does not resolve once the
-  libraries live under `deps/`. The client still rewrites those at install time. Moving
-  them to build-time relocation means repacking every dep artifact (new sha256) and
-  publishing them as new versions — a data migration, not a code change.
+  libraries live under `Shore/<dep>/<version>/`. Moving them to build-time relocation means
+  repacking every dep artifact (new sha256) and publishing them as new versions — a data
+  migration, not a code change. **The client no longer rescues them at install time** (that
+  runtime rewrite was removed with `transfer.sh`), so a dep artifact that was never relocated
+  at build time stays broken: it must be repacked.

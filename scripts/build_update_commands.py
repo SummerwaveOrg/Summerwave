@@ -245,7 +245,7 @@ def main():
         delta, dropped_delta = sanitize(args.delta, "--delta")
         dropped = dropped + dropped_delta
         # 空的 delta 不能放行：install_delta 里一条 want 都没有，脚本瞬间成功返回，
-        # 客户端于是写 VERSION.json —— 版本号前进了，文件一个都没换。与「文件下不到
+        # 客户端于是写 var/config.sh —— 版本号前进了，文件一个都没换。与「文件下不到
         # 却报成功」是同一类故障，只是更难发现（连报错都没有）。
         if not delta:
             print("🌊 Error: every entry in --delta was filtered out; "

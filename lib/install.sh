@@ -1058,7 +1058,7 @@ fi
 # ==========================================
 #
 # macwavedata/latest.toml 里的 version 是这次要安装的版本，branch 是配套的代码分支：
-# 两者一起读，保证「下载的代码」和「写进 VERSION.json 的版本号」对应同一个版本。
+# 两者一起读，保证「下载的代码」和「写进 var/config.sh 的版本号」对应同一个版本。
 #
 # 格式是 TOML 的一个子集：平铺的 `key = "value"`，允许行尾 # 注释。
 # 这里用 sed 而不是引 TOML 解析器，因为此刻客户端还没有可用的 Python 环境。
@@ -1106,7 +1106,7 @@ LATEST_BRANCH="$(read_toml_string "$LATEST_VERSION_DATA" branch)"
 # 下面那条 update_commands_sha256（4.6 及更早的机制）。
 EXPECTED_FILES_SHA256="$(read_toml_string "$LATEST_VERSION_DATA" files_sha256)"
 EXPECTED_UPDATE_COMMANDS_SHA256="$(read_toml_string "$LATEST_VERSION_DATA" update_commands_sha256)"
-# 构建号（`323R1250`）：RC 渠道靠它区分「同一版本的第几次构建」，必须落进 VERSION.json
+# 构建号（`323R1250`）：同一秒发布两次时的兜底区分，必须落进 var/config.sh
 BUILD_NUMBER="$(read_toml_string "$LATEST_VERSION_DATA" build_number)"
 # 验 latest.toml 自己的签名（没有公钥 / 没有 .sig 时静默跳过）
 mw_verify_latest_signature "$LATEST_VERSION_DATA" "$LATEST_DATA_URL"
@@ -1193,7 +1193,7 @@ CURRENT_USER=$(whoami)
 # 同一台机器上别的管理员 `wave install` 会 Permission denied —— 而 /opt 这类目录的
 # 本意恰恰是共享安装。
 #
-# 为什么不是 chmod -R 777：任何本地用户都能替换 /opt/macwave/links/jq，而它可能
+# 为什么不是 chmod -R 777：任何本地用户都能替换 /opt/macwave/bin/jq，而它可能
 # 被别的用户、脚本甚至 root 执行 —— 那是教科书式的本地提权路径。
 #
 # 采用的模型：root:<管理员组> 775，目录带 setgid。把写权限收窄到「管理员」这一层，
@@ -1263,7 +1263,7 @@ hand_over_system_install() {
     #
     # mode：u+rwX,g+rwX,o+rX,o-w = 目录 2775（含 setgid）、普通文件 664、
     # 原有的可执行文件 775。o-w 不能省 —— 少了它就回到「任何本地用户都能替换
-    # links/ 里的二进制」。
+    # bin/ 里的链接」。
     local dir="$1" group
     [[ -n "$dir" ]] || return 0
     if mw_dry_run; then

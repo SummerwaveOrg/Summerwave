@@ -34,10 +34,8 @@ trap 'rm -rf "$WORK"' EXIT
 
 ROOT="$WORK/root"
 BASE="$ROOT/opt/macwave"
-mkdir -p "$BASE" "$ROOT/opt/macwave_config"
+mkdir -p "$BASE"
 copy_components "$BASE/" >/dev/null
-printf '{"version": "4.5.0"}\n' > "$ROOT/opt/macwave_config/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$ROOT/opt/macwave_config/config.json"
 
 export MACWAVE_TEST="$ROOT"
 

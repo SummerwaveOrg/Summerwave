@@ -1,15 +1,16 @@
 # 🌊 MacWave 项目结构
 
-> ⚠️ **本文档大部分写于 4.x，1.0（Summerwave 合并线）已经改动了几处结构与约定。**
-> 已按 1.0 更新的是：安装位置（写死 `/opt/macwave`，无菜单/无 `--dir-option`）、
-> 状态文件（只剩树内 `<base>/var/config.sh`）、运行时布局（`Shore/<名>/<版本>/`）。
-> 其余章节（发布流程、数据源细节）仍按 4.x 叙述，等 1.0 的夜间整理统一复核。
+> ✅ **已按 1.0（Summerwave 合并线）复核**：安装位置写死、没有配置文件、没有
+> `--dir-option`；状态只有 `<base>/var/config.sh`；运行时布局是 `Shore/<名>/<版本>/`
+> 加 `bin/` 无版本软链；索引不再分架构，瓶子标签写进记录名；客户端只下载 + 解包，
+> 重定位在打包时做；渠道只有 `stable` / `preview`，客户端版本号是发布时刻。
+> 历史叙述（4.x 的做法）保留在 `docs/RELEASE-*.md` 与 `docs/BRANCH-HISTORY.md` 里。
 
 面向 macOS / Linux 软件开发者的包管理器，主要托管 iOS/iPadOS 相关软件包。
 技术栈：Python + Shell。
 
 - `main` 与版本分支（当前的 `4.1`）：程序代码，两者保持同步
-- `MacWaveOrg/configdata` 仓库的 `main` 分支：**发布线的单一事实来源**（`versiondata/latest_version`：`version` / `release_date` / `build_number` / `branch`）。镜像同步据此决定同步哪些 `core/<分支>/`，工具与人据此知道当前发布线；**客户端不再读它** —— 4.4 起客户端读的是 `MacWaveOrg/Selfupdate` 的探针（`macwavedata/latest.toml`，RC 渠道读 `rcdata/latest.toml`），那份文件才决定装哪个版本、从哪个分支取代码、以及要执行的 `update_commands.sh` 的哈希
+- `MacWaveOrg/configdata` 仓库的 `main` 分支：**发布线的单一事实来源**（`versiondata/latest_version`：`version` / `release_date` / `branch`）。镜像同步据此决定同步哪些 `core/<分支>/`，工具与人据此知道当前发布线；**客户端不再读它** —— 4.4 起客户端读的是 `MacWaveOrg/Selfupdate` 的探针（`macwavedata/latest.toml`；`preview` 渠道读 `prerelease/latest.toml`），那份文件才决定装哪个版本、从哪个分支取代码、以及要执行的 `update_commands.sh` 的哈希
 - `MacWaveOrg/infosource` 仓库的 `main` 分支：纯数据（包与依赖的元数据、下载地址、校验值），依赖数据在 `deps/` 目录下
 
 ---
@@ -41,13 +42,13 @@ MacWave 的配置只有这一处：**用哪些环境变量、默认值是什么�
 | --- | --- |
 | `envvar.py` | **环境变量名单、默认值与说明的唯一来源**：`DOMAINS`（七个 `MACWAVE_*_DOMAIN`，各带默认值与一句话说明）、`PIP_INDEX` / `PIP_DEFAULT`、`TEST_ROOT` / `TEST_ROOT_EXPORT`，以及 `name()` / `default()` / `description()` / `raw()`。只有数据：协议校验与拼 URL 在 `net/domains.py`。两份 shell 脚本里的同名默认值（它们是 `curl \| bash`，没法 source）由 `scripts/check_domain_defaults.py` 与本表逐项比对 |
 | `configpaths.py` | **安装根与运行时布局的唯一来源**：`load_base_dir()` 直接返回 `rooted(DEFAULT_BASE_DIR)`（1.0 起安装根写死，没有配置文件、没有候选目录），另有 `payload_root()` / `bin_dir()` / `pkg_dir()` / `dep_dir()` 拼运行时路径。测试根（`MACWAVE_TEST`）是唯一旁路 |
-| `configerror.py` | 启动前的环境自检：只要两处配置目录里有一处装了 MacWave 就放行；都没装且在 git 仓库里时，报错并提示用 `lib/install.sh` 正式安装 |
+| `configerror.py` | 启动前的环境自检：安装根里有 `var/config.sh` 就放行；没有且在 git 仓库里时，报错并提示用 `lib/install.sh` 正式安装 |
 
 ### lib/ —— 入口与帮助
 
 | 文件 | 作用 |
 | --- | --- |
-| `wave.py` | 主入口。读配置目录（`config.json`）的 `base_dir`，把 `lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；用 `COMMANDS` 字典把 `install / uninstall / list / search / info / version / selfupdate / link / unlink / linkquery` 分发到对应模块，`ARGUMENTS` 处理 `-h/--help/-V/--version`；命令分发**之前**先拦下 `wave <命令> -h|--help`，交给 `help.print_command_help` 打印该命令自己的用法（否则各 handler 的白名单不认 `--help`：`install` 报错、`list` 静默忽略、`selfupdate` 会真的开始自更新） |
+| `wave.py` | 主入口。取写死的安装根（`configpaths.load_base_dir()`），把 `lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；用 `COMMANDS` 字典把 `install / uninstall / list / search / info / version / selfupdate / link / unlink / linkquery` 分发到对应模块，`ARGUMENTS` 处理 `-h/--help/-V/--version`；命令分发**之前**先拦下 `wave <命令> -h|--help`，交给 `help.print_command_help` 打印该命令自己的用法（否则各 handler 的白名单不认 `--help`：`install` 报错、`list` 静默忽略、`selfupdate` 会真的开始自更新） |
 | `help.py` | 帮助与版本文本：`print_custom_help`（`-h` / `--help` 的用法，命令与旗标列表与 README 的 Command Reference 对齐）、`print_version`、`print_error_help`（未知命令时先报错再打帮助）；另有 `COMMAND_HELP` 表与 `print_command_help`（`wave <命令> --help` 的子命令用法，旗标只列该 handler 白名单里真正接受的，不承诺做不到的事） |
 | `install.sh` | 官方安装脚本：安装根写死 `/opt/macwave`、`sudo` 提权、建运行时目录（`Shore` / `bin` / `pkg` / `surfboard` / `lib` / `net` / `cli` / `config` / `man` / `info` / `Keys` / `var` / `downloads/tmp`，还有 `python` 与 `venv`）、写状态文件 `<base>/var/config.sh`、**取 `macwavedata/<版本>/update_commands.sh` 并执行它来拉取全部程序文件**（4.4 起不再有 `files_info`：清单是生成出来的脚本，自己知道该下哪些文件、放哪里、怎么迁移）、**自带便携 Python**（3.1 起：读 `configdata/pythondata/latest_python` 下载并校验 sha256，解到 `python/<版本>/`，`current` 指向它），用它建 `venv/` 并在其中安装依赖（requests / packaging / rich）；下载失败则回退系统 `python3` 并提示、把 `bin/` + `lib/` 写入 PATH（升级时替换旧版只含 `bin`/`lib` 的行）、清理旧版平铺 `bin/` 文件、检查 Xcode 命令行工具（`otool` / `install_name_tool` / `codesign`）、`set -eE` 加 ERR 陷阱（中途失败时打印「安装未完成」、已下载内容可能残留的路径与重跑指引，**刻意不自动删除**）、用户协议**在动手之前问一次**（安装位置已写死，不再需要选择）（直接回车视为同意；4.7 起不再写 `AGREEMENT.json`，也没有「同意后再回滚」这条路径 —— 答 n 时磁盘上还什么都没改）：**非 macOS 一律不装**：`mw_platform` 先看
 `uname -s`，只有 `macos` / `linux` / `unknown` 三种，非 macOS 一律拒绝并指路（Linux 去
@@ -55,10 +56,10 @@ LinuxWave，认不出的报出 `uname -s` 原值），都以退出码 2 收场�
 ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户自己保证**（判据要一种种单独维护，
 猜错却全落在用户身上）。认成 macOS 之后再看版本：`sw_vers -productVersion` 低于 **10.15 Catalina**
 直接拒绝并说明下限（再往下连捆绑的便携 Python 都起不来），读不到版本号时不判。
-`MACWAVE_TEST` 下不判平台 —— 沙箱里宿主是 Linux 是常态。安装位置的数量按架构分叉（Intel 多一个 `/usr/local/macwave`），自定义项编号也随之变化；默认是系统级 `/opt/macwave`，不提问，只在开头确认一次。`MACWAVE_VERSION` 与代码来源分支都从 Selfupdate 的探针（`macwavedata/latest.toml` 的 `version` / `branch`；RC 渠道是 `rcdata/latest.toml`，由 `MACWAVE_CHANNEL=rc` 选择）读取，不写死在脚本里，保证「下载的代码」与「写进 VERSION.json 的版本号」对应同一版本 |
-| `uninstall.sh` | 卸载 MacWave 本体：读两处配置定位 `BASE_DIR`（都读不到则遍历候选路径，Intel 才把 `/usr/local/macwave` 算进候选）、确认后删除安装目录与两处配置目录、清掉 rc 文件里的 PATH 行、最后自删。确认从 **`/dev/tty`** 读，读不到就**中止并退 1**（删除不可逆，stdin 是 EOF 时不能当同意；无人值守请显式 `--force`）。自删有守卫：只有 `$0` 是**含本脚本标记的普通文件**时才删 —— 文档推荐的 `/bin/bash -c "$(curl ...)"` 下 `$0` 是解释器路径或 `--`，旧写法会把 `/bin/bash` 删掉。支持批量/脚本化卸载：`--force` 跳过确认、`--remove-user`（仅为与 LinuxWave 的参数兼容 —— MacWave 没有专用账号，实际不做任何事）、`-h/--help`。退出码有语义：`0` 完成（含「本来就没装」）、`1` 用法错误或无终端可确认、`2` 权限不足（sudo 跑不起来）、`3` 部分失败 —— 删除是「尽量多删、最后汇总」，单个目标删不掉不会中断后面的配置目录与 rc 清理，没删掉的清单写到 stderr |
-| `selfupdate.py` | `wave selfupdate`：先按本机 `VERSION.json` 的版本推出渠道（`X.Y.Z-rc` → RC，读 `rcdata/latest.toml`；其余读 `macwavedata/latest.toml`；beta/alpha/dev 直接拒绝，它们没有自己的探针），把探针里的 `version` / `build_number` 与 `VERSION.json` 按 PEP 440 比较（`lib/versioncompare.py` 的 `newer_release()`：版本优先，版本相同再看构建号）——已是最新则直接返回（`--dry-run` 在**问协议之前**就打印「会从哪个版本更新到哪个版本、分支、构建号、渠道、协议会不会问、超时」然后退 0，不下载、不写 `AGREEMENT.json`、不跑脚本）；RC 渠道没有更新的构建而正式版更新时，置 `MACWAVE_FULL_INSTALL=1` **全量**切到正式版（增量会把两条分支混进一棵树）。确定要更新后，把随安装树发布的 `lib/selfupdate.sh` 复制到临时文件执行（不能在原文件上跑：它会被本次更新覆盖），通过环境变量 `MACWAVE_UPDATE_VERSION` / `MACWAVE_UPDATE_BRANCH` / `MACWAVE_UPDATE_CHANNEL` / `MACWAVE_UPDATE_BUILD` 把目标传下去；执行完**回读 `VERSION.json` 复核**
-| `selfupdate.sh` | 自更新脚本，由 `selfupdate.py` 拉起（也可 `bash lib/selfupdate.sh [分支]`）：按「系统级 → 用户级」定位配置目录与 `BASE_DIR` → 取一次渠道对应的探针（验 `latest.toml.sig`、读出 `update_commands_sha256`）→ 取 `macwavedata/<版本>/update_commands.sh` 并**先比对哈希再 `bash -n`** → 执行它（那份脚本自己按 `want <路径> <0|1> <sha256>` 逐文件下载、建目录、复位可执行位、跑目录迁移）→ 清掉 `__pycache__` → 重写 `VERSION.json`（含 `build_number`）。4.4 起哈希不符**只警告**，`MACWAVE_STRICT_HASHES=1` 才失败。**以后新增文件只改生成器与清单，不用再动本脚本**
+`MACWAVE_TEST` 下不判平台 —— 沙箱里宿主是 Linux 是常态。安装位置**只有一个**（写死的 `/opt/macwave`，无菜单、无 `--dir-option`、无自定义目录），协议与位置合成一次确认。`MACWAVE_VERSION` 与代码来源分支都从 Selfupdate 的探针（`macwavedata/latest.toml` 的 `version` / `branch`；`preview` 渠道是 `prerelease/latest.toml`，由 `MACWAVE_CHANNEL=preview` 选择）读取，不写死在脚本里，保证「下载的代码」与「写进 `var/config.sh` 的版本号」对应同一版本 |
+| `uninstall.sh` | 卸载 MacWave 本体：安装根写死（`configpaths.load_base_dir()`，树不存在就退 0 当「没装」）、确认后删除安装目录、清掉 rc 文件里的 PATH 行、最后自删。确认从 **`/dev/tty`** 读，读不到就**中止并退 1**（删除不可逆，stdin 是 EOF 时不能当同意；无人值守请显式 `--force`）。自删有守卫：只有 `$0` 是**含本脚本标记的普通文件**时才删 —— 文档推荐的 `/bin/bash -c "$(curl ...)"` 下 `$0` 是解释器路径或 `--`，旧写法会把 `/bin/bash` 删掉。支持批量/脚本化卸载：`--force` 跳过确认、`--remove-user`（仅为与 LinuxWave 的参数兼容 —— MacWave 没有专用账号，实际不做任何事）、`-h/--help`。退出码有语义：`0` 完成（含「本来就没装」）、`1` 用法错误或无终端可确认、`2` 权限不足（sudo 跑不起来）、`3` 部分失败 —— 删除是「尽量多删、最后汇总」，单个目标删不掉不会中断后面的配置目录与 rc 清理，没删掉的清单写到 stderr |
+| `selfupdate.py` | `wave selfupdate`：渠道从 `var/config.sh` 的 `MACWAVE_CHANNEL` 读（只有 `stable` / `preview` 两支，`stable` 读 `macwavedata/latest.toml`、`preview` 读 `prerelease/latest.toml`），把探针里的 `version` 与本机版本按**发布时刻**比较（`lib/versioncompare.py` 的 `client_key()`：`2026.11.26-15:52:43` → `99!20261126.155243`，所以任何时间戳都大于任何 4.x 的 PEP 440 版本）——已是最新则直接返回（`--dry-run` 在**问协议之前**就打印「会从哪个版本更新到哪个版本、分支、渠道、协议会不会问、超时」然后退 0，不下载、不跑脚本）；`preview` 没有更新的版本而 `stable` 有时，置 `MACWAVE_FULL_INSTALL=1` **全量**换到另一支（增量会把两条线混进一棵树）。确定要更新后，先看探针的 `selfupdate = "blocked"` 标记（必带 `selfupdate_reason`），命中就解释原因并**退 0**、一个字节都不改；然后才把随安装树发布的 `lib/selfupdate.sh` 复制到临时文件执行（不能在原文件上跑：它会被本次更新覆盖），通过环境变量 `MACWAVE_UPDATE_VERSION` / `MACWAVE_UPDATE_BRANCH` / `MACWAVE_UPDATE_CHANNEL` 把目标传下去；执行完**回读 `var/config.sh` 复核**
+| `selfupdate.sh` | 自更新脚本，由 `selfupdate.py` 拉起（也可 `bash lib/selfupdate.sh [分支]`）：直接用写死的 `BASE_DIR` → 取一次渠道对应的探针（验 `latest.toml.sig`、读出 `update_commands_sha256`）→ 取 `macwavedata/<版本>/update_commands.sh` 并**先比对哈希再 `bash -n`** → 执行它（那份脚本自己按 `want <路径> <0|1> <sha256>` 逐文件下载、建目录、复位可执行位、跑目录迁移）→ 清掉 `__pycache__` → `prune_tree` 删掉清单之外残留的运行时文件 → 重写 `var/config.sh`（含 `MACWAVE_CHANNEL`）。4.4 起哈希不符**只警告**，`MACWAVE_STRICT_HASHES=1` 才失败。**以后新增文件只改生成器与清单，不用再动本脚本**
 
 ### net/ —— 传输层
 
@@ -79,10 +80,10 @@ ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户
 | --- | --- |
 | `pkginstaller.py` | **软件包安装编排**。解析参数（包名取第一个非 flag 的 token，`--limit-rate` / `--proxy` 的值会被跳过）与架构 → 定版本（`@版本`、`--ver` 或远程取最高）→ 拉 `_包名@common` 取 `bin_name` → 拉版本文件取 `url` / `sha256` / `deps` → 下载（rich 进度条、断点续传、限速、代理、30 秒超时+重试询问）→ 调 `pkginstaller.sh` → 通过 `depsinstaller` 递归安装依赖 → 最后调 `linker.link_package()` 把不带版本号的软链接指到刚装好的版本（`--no-link` 可跳过） |
 | `pkginstaller.sh` | **软件包安装入口（binary 模式）**：组装长字符串，调用通用安装核心 `depsmanager.sh` 的 `mw_install_artifact`，输出安装结果。（4.6 起不再写 `installed.json`，见下） |
-| `pkginfohelper.py` | `list`（扫描 `bin/` 下的目录）、`search`（远程匹配包名）、`info`（本地已装版本 + 远程可装版本 + `@common` 描述） |
+| `pkginfohelper.py` | `list`（扫描 `Shore/<包名>/<版本>/`）、`search`（远程匹配包名）、`info`（本地已装版本 + 远程可装版本 + `@common` 描述） |
 | `pkgunzip.sh` | 按扩展名解压：`zip` / `tar.gz` / `tar.bz2` / `tar.xz` / `tar` / `gz` / `bz2` / `xz` / `conda`。裸 `xz` 用 Python 标准库 `lzma`（macOS 不自带 `xz` 命令）；**`.conda` 本质是个 zip，里装两个 zstd 压缩的 tar，只取 `pkg-*.tar.zst` 那个载荷**（`info-*.tar.zst` 是元数据），用 Python 3.14 的 `compression.zstd` 解（macOS 也不自带 `zstd`）—— **所以自带的 Python 必须是 3.14+**（3.1 起由 MacWave 自带，见 `pythondata`）；`extractall` 传 `filter='tar'`，因为 3.14 默认的 `data` 过滤器会拒掉 conda 包里的符号链接 |
-| `uninstaller.py` | **卸载**：扫描 `bin/` 找出该包所有版本；删除包目录与软链接；按 `_DEPS` 删除依赖标记，若某依赖已无任何标记，则连同它自己的依赖一起级联删除（递归时带 `visited` 集合，避免循环依赖 A→B→A 造成无限递归）。卸载完调 `linker` 同步不带版本号的软链接：还有别的版本就改指最高的，一个不剩就删掉；本来就没链接过的不重建（悬空链接也在这里被治好）。加 `--no-link` 则不动这个链接 —— **但如果被删的版本正好是链接当前指向的那个，会报错并拒绝执行**（绝不留下指向已卸载版本的坏链接） |
-| `linker.py` | **不带版本号的软链接**（仅限软件包，不碰依赖）：`link <名>[@latest]` / `link --all`（`-a`）建或改指链接，`unlink <名>` / `unlink --all` 删链接，`linkquery <名>` 看当前指向（输出形如 `🌊 ffmpeg@9.0`；未链接退 1，**指向已不存在的版本也报错退 1**）。`installed_versions` / `linked_version` / `is_dangling` 分别扫 `bin/`、读 `links/` 软链、判断是否悬空；重复 link 会报 `already linked` |
+| `uninstaller.py` | **卸载**：扫描 `Shore/<包名>/` 找出该包所有版本；删除包目录与软链接；按 `_DEPS` 删除依赖标记，若某依赖已无任何标记，则连同它自己的依赖一起级联删除（递归时带 `visited` 集合，避免循环依赖 A→B→A 造成无限递归）。卸载完调 `linker` 同步不带版本号的软链接：还有别的版本就改指最高的，一个不剩就删掉；本来就没链接过的不重建（悬空链接也在这里被治好）。加 `--no-link` 则不动这个链接 —— **但如果被删的版本正好是链接当前指向的那个，会报错并拒绝执行**（绝不留下指向已卸载版本的坏链接） |
+| `linker.py` | **不带版本号的软链接**（仅限软件包，不碰依赖）：`link <名>[@latest]` / `link --all`（`-a`）建或改指链接，`unlink <名>` / `unlink --all` 删链接，`linkquery <名>` 看当前指向（输出形如 `🌊 ffmpeg@9.0`；未链接退 1，**指向已不存在的版本也报错退 1**）。`installed_versions` / `linked_version` / `is_dangling` 分别扫 `Shore/`、读 `bin/` 软链、判断是否悬空；重复 link 会报 `already linked` |
 
 ### surfboard/ —— 依赖处理（2.2 新增）
 
@@ -90,10 +91,10 @@ ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户
 | --- | --- |
 | `depsinstaller.py` | **依赖安装编排（Python）**。校验/解析依赖引用 → 拉 `_依赖名@common` 取 `dep_name` → 拉 `_依赖名@版本号` 取 `url` / `sha256` / `deps` → 复用 `pkginstaller.download_file` 下载（进度条与软件包一致）→ 调 `depsinstaller.sh` → 递归安装子依赖；依赖已安装时只补标记（走 `tagger.sh` 命令行） |
 | `depsinstaller.sh` | **依赖安装入口（tree 模式）**：`source depsmanager.sh` → 调 `mw_install_artifact` → 在依赖目录里创建 `.depped_pkg_*` / `.depped_dep_*` 标记 |
-| `depsmanager.sh` | **通用安装核心**（被 `pkginstaller.sh` 与 `depsinstaller.sh` source，不单独执行）：定位下载到的原文件、SHA256 校验、解压、落盘（`binary` / `tree` 两种形态）、创建 `links/` 软链接、写 `_DEPS`、标记文件辅助函数。`mw_extract_binary` 与 `mw_extract_all` 里各有一串扩展名，**加新格式时两处都得补**，漏一个就会出现“把压缩包当二进制装下去”的静默错误 |
+| `depsmanager.sh` | **通用安装核心**（被 `pkginstaller.sh` 与 `depsinstaller.sh` source，不单独执行）：定位下载到的原文件、SHA256 校验、解压、落盘（`binary` / `tree` 两种形态，1.0 起两者都落在 `Shore/<名>/<版本>/`）、创建 `bin/` 软链接、写 `Note` 收据、标记文件辅助函数。`mw_extract_binary` 与 `mw_extract_all` 里各有一串扩展名，**加新格式时两处都得补**，漏一个就会出现“把压缩包当二进制装下去”的静默错误 |
 | `tagger.sh` | `.depped_*` 标记文件原语：`tagger_create` / `tagger_delete` / `tagger_has_any`，既可 `bash tagger.sh <动作> …` 调用，也可被 source |
-| `transfer.sh` | **路径替换（Homebrew 式）**：把产物里所有 Mach-O 的动态库引用（`LC_LOAD_DYLIB`）与自身 `install name`（`LC_ID_DYLIB`）改写成 `BASE_DIR` 下的绝对路径，运行时 dyld 才找得到依赖；改过的文件自动做 ad-hoc 重签名（Apple Silicon 必需）。解析顺序：产物自己的 `lib/` → `_DEPS` 列出的依赖 → 其它已安装依赖的 `lib`。**改不动时不再静默**（2026-09-29 修）—— 二进制没预留 `headerpad` 时 `install_name_tool` 会报 `larger updated load commands do not fit`，现在会收集并在最后打出 Warning，不然安装报“成功”、一跑就 `Library not loaded`。接不上的引用分两类报告：本地树里其实有、只是没接上 → YELLOW 警告；本地根本没有（上游包自带的外部依赖，如 gettext 的 `libxml2` / `ncurses`）→ 🌊 Note 列出名字并保持原样 |
-| `querier.py` | 查询依赖是否已安装：`deps/{引用名}/{引用名}@{版本号}/` 存在**且含 `_DEPS`** 才算安装完成（避免中途失败留下的空目录被误判）；依赖引用解析（强制 `依赖名@版本号`，名字与版本都过路径白名单，如 `parse_dep_ref`）也在这里 |
+| *（`transfer.sh` 已于 1.0 删除）* | 运行时不再改字节：重定位改在**打包时**做，见 `scripts/relocate_rpath.py`（判据与 4.6 的 `transfer.sh --check` 同一套）。客户端只剩「下载 + 解包」 |
+| `querier.py` | 查询依赖是否已安装：`Shore/{引用名}/{版本号}/` 存在**且含 `Note` 收据**才算安装完成（避免中途失败留下的空目录被误判）；依赖引用解析（强制 `依赖名@版本号`，名字与版本都过路径白名单，如 `parse_dep_ref`）也在这里 |
 
 ### scripts/ 与 CI
 
@@ -102,9 +103,9 @@ ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户
 | `scripts/format_test.sh` | 10 种打包格式（无扩展名 / zip / tar.gz / tar.bz2 / tar.xz / tar / gz / bz2 / xz / **conda**）逐个跑 install → 运行 → uninstall；跑完再断言装完自动建了不带版本号的链接，以及 `install --no-link` 不建链接 |
 | `scripts/audit_deps.py` | **依赖审计**。`data` 模式：查 infosource 数据的 `deps` 引用格式（必须一行一个引用）、`url` / `sha256` / `bin_name` 完整性，以及被引用的 `@common` 与版本文件是否存在（本地有数据就读本地，否则从 GitHub 拉取）；`edges` 模式：把已安装依赖的实测 Mach-O 引用与数据声明对比，找出漏声明的依赖边。`--ignore 正则` 可跳过已知历史问题；加 `--check-urls` 会额外联网逐个确认 url 可达（默认关闭，因为依赖网络；数据里的 `test_*` 测试包故意用假 url，开它时要配 `--ignore 'test_'`）；发现真问题时退出码 1 |
 | `scripts/deps_test.sh` | **依赖链端到端回归**：装一个带依赖链的包（默认 `wget@1.25.0`）→ 跑 `--version` 验证 relink → 检查安装日志里没有未解析的库引用 → 检查 `.depped_*` 标记已写入 → 卸载并确认依赖目录与软链接被级联清理 |
-| `scripts/selfupdate_test.sh` | **自更新回归**（必须放最后，它会真的改安装目录）：① 离线单测 `selfupdate.py` 的 `parse_version_data`（含 `<<<`/`>>>` 多行命令）与 `version_key`；② 把 `VERSION.json` 写成 `9999.0`，断言 `wave selfupdate` 短路为「已是最新」且退出码 0；③ 写成 `0.1`，跑真实自更新，最后断言 `VERSION.json` 等于探针（`macwavedata/latest.toml`）声明的版本 |
+| `scripts/selfupdate_test.sh` | **自更新回归**（必须放最后，它会真的改安装目录）：① 离线单测 `selfupdate.py` 的 `parse_version_data`（含 `<<<`/`>>>` 多行命令）与 `version_key`；② 把 `var/config.sh` 写成 `9999.0`，断言 `wave selfupdate` 短路为「已是最新」且退出码 0；③ 写成 `0.1`，跑真实自更新，最后断言 `var/config.sh` 等于探针（`macwavedata/latest.toml`）声明的版本 |
 | `scripts/link_test.sh` | **不带版本号软链接回归**：装完自动建链接 → 不带版本号能跑 → `link` / `unlink` / `linkquery` → `-a` 批量 → 卸掉最高版自动降级（先复制一份目录造出 2.0，不依赖 infosource 真有该版本）→ `uninstall --no-link` 不降级 → `install --no-link` 不建链接 → 卸掉最后一个版本时删掉链接 |
-| `scripts/configpath_test.sh` | **配置目录解析回归**（离线）：把 `configpaths` 的两个候选目录换成临时目录，验证「系统级优先 / 用户级回落 / 系统级损坏或缺字段也回落 / 都没有则退 1」 |
+| `scripts/configpath_test.sh` | **安装根与布局回归**（离线）：安装根写死、`Shore/` + `bin/` 布局常量、状态只从 `<base>/var/config.sh` 读、软链接越界守卫 |
 | `scripts/sandbox_test.sh` | **安装器 / 卸载器隔离回归**（仅 macOS）：用 `sandbox-exec` 起一个「默认拒绝、只允许写沙箱目录 + `/dev` + 临时目录」的沙箱，配合 `file://` 离线镜像与替身 `sudo`，**不需要网络、也写不到 `/opt`、`/usr/local`、`/etc` 与真实家目录**。64 条断言覆盖：用户级安装目录端到端、系统级目录的落位（越过沙箱边界即失败，并打印选中的安装/配置目录）、参数校验、协议顺序与拒绝后的回滚、中途失败的指引且不误删、卸载确认语义（无终端 / n / y / `--force`）、卸载器自删（`$0` 是文件 vs 解释器，且 `/bin/bash` 必须存活）、复用 `link_test.sh`。沙箱自检那组用来证明隔离真的生效 |
 | `.github/workflows/format-test.yml` | 在 `macos-latest` 上按 `scripts/components.txt` 把各组件目录部署到 `/tmp/macwave-test`，依次跑配置目录回归、依赖审计、格式回归、依赖链回归、链接回归、**selfupdate 回归** |
 
@@ -145,18 +146,20 @@ BASE_DIR/var/config.sh                        已安装的版本与构建号（�
 软件包：
 
 ```
-pkg/pkginfo_{arch}/{包名}/_{包名}@common     bin_name / des / hom / lic / aut
-pkg/pkginfo_{arch}/{包名}/_{包名}@{版本号}    url / sha256 / deps
+pkg/pkginfo/{包名}/_{包名}@common                     bin_name / des / hom / lic / aut
+pkg/pkginfo/{包名}/_{包名}@{版本号}.{os}-{arch}        url / sha256 / deps
 ```
 
 依赖：
 
 ```
-deps/depsinfo_{arch}/{依赖名}/_{依赖名}@common     dep_name / des / hom / lic / aut
-deps/depsinfo_{arch}/{依赖名}/_{依赖名}@{版本号}     url / sha256 / deps
+deps/depsinfo/{依赖名}/_{依赖名}@common                 dep_name / des / hom / lic / aut
+deps/depsinfo/{依赖名}/_{依赖名}@{版本号}.{os}-{arch}     url / sha256 / deps
 ```
 
-- `{arch}` 为 `arm64` 或 `amd64`
+- 索引**不再按架构分目录**：单远端，架构写在记录名与产物文件名的瓶子标签里
+- 标签词表封闭：`{os}` 为 `macos` / `linux`，`{arch}` 为 `arm64` / `amd64`（`x86_64` 归一成 `amd64`），
+  由 `config/platforminfo.bottle_tag()` 生成，见 `docs/DATA-LAYER.md` 末节
 - 下载地址强制 `https://`
 - **`deps` 写在版本文件里**（不是 `@common`），每行一个 `依赖名@版本号`，多行书写：
 
@@ -168,39 +171,45 @@ deps: "gettext@0.21.0"
 
 - 简易 DSL 解析规则：行内第一个引号**前**有 `字段:` 声明，该行属于该字段；否则向上回溯到最近的字段声明；同一字段多行合并为列表。`deps` 字段缺失即视为无依赖
 - 依赖引用格式强制 `依赖名@版本号`，不合规直接报错退出
-- 依赖名/版本在 `depsinfo_{arch}/` 里找不到时报错退出
+- 依赖名/版本在 `deps/depsinfo/` 里找不到时报错退出
 
-## 五、数据源（`MacWaveOrg/configdata` 仓库的 `updatedata/`）
+## 五、目录迁移与自更新边界
 
-当某个版本**改动了目录结构**（例如 2.5 把用户级安装的配置从 `/opt/macwave_config` 挪到 `~/.config/macwave_config`）时，`install.sh` 与 `selfupdate.sh` 会在下载程序文件之前执行一段**数据驱动**的迁移：
+1.0 起**没有任何配置目录**，状态只有 `<base>/var/config.sh` 一份，于是 4.x 那套
+「`updatedata/{版本}/dir_structure_change` + `transfer_commands`」的数据驱动迁移
+连同 `MACWAVE_INSTALL_DIR` 注入一起删掉了 —— 结构再变也只有一个方向：往新布局搬。
+
+留下来的是 `install.sh` 里的 `apply_migrations`，只做**目录搬家**（幂等、可重复跑）：
 
 ```
-updatedata/{版本号}/dir_structure_change   只有一个字符：Y/y = 目录结构变了，N/n = 没变
-updatedata/{版本号}/transfer_commands      Y/y 时执行这个脚本（bash -c "$(curl …)"）
+bin/<名>@<版本>/   → Shore/<名>/<版本>/
+deps/<名>/<名>@<版本>/ → Shore/<名>/<版本>/
+links/*           → bin/（无版本号的软链接）
 ```
 
-- `{版本号}`：`install.sh` 用从 configdata 读到的版本号；`selfupdate.sh` 用 `latest_version` 里的目标版本
-- 标记文件拉不到（不存在/网络失败）→ 按「没变」处理，静默跳过；标记为 Y/y 但**迁移脚本拉不到** → 报错退出（避免留下半迁移状态）
-- 执行迁移脚本前会 `export MACWAVE_INSTALL_DIR`（安装目录）等，脚本据此**自己判断要不要搬**（例如只对用户级安装迁移）
-- **迁移会搬走配置目录，所以迁移后必须重新解析**：`selfupdate.sh` 会再解析一次（否则 `VERSION.json` 会被写回旧位置）；`selfupdate.py` 的升级后复核也用 `version_file()` 每次重新解析（否则会误报「更新没有完成」）。`configpaths.py` 的模块级常量只在**进程启动时**解析一次，跨迁移的复核不能用它
-- ⚠️ **从 2.5 之前的版本升级必须用 `install.sh`**：2.5 之前发布的 `selfupdate.py` 把 `VERSION_FILE` 写死在 `/opt/macwave_config/VERSION.json`，配置被搬走后升级完的复核会读不到、**误报失败**（其实升级成功了）。2.5 及以后没有这个问题，可以正常用 `wave selfupdate`
-- 以后目录结构再变，只需在 configdata 仓库加 `updatedata/{新版本}/` 这两个文件，**不用改任何代码**
-- **跨大版本不允许 `selfupdate`**：`lib/selfupdate.sh` 开头有守卫，目标版本与当前已装版本的大版本号不同时直接拒绝并提示改用 `install.sh`——所以每个大版本的第一个版本天然只能靠 `install.sh` 安装。守卫写在 `selfupdate.sh` 里、随目标分支下发，对新大版本自动生效
+- 只在目录结构确实变过时才生效；搬完立刻删掉旧目录，不保留兼容读取路径
+- 运行时文件的多余残留交给 `sync_tree` 之后的 `prune_tree`：只删 `MANAGED_ROOTS`
+  （`cli config lib net pkg surfboard man info Keys`）里清单之外的文件，绝不碰
+  `Shore/`、`var/`、`venv/`、`python/`、`downloads/`。这是跨版本升级能自愈的关键
+- **不存在「跨大版本禁止 selfupdate」**：客户端版本号就是发布时刻（`2026.11.26-15:52:43`），
+  按「大版本号」比较在 1 月 1 日会把每一次升级都判成跨大版本。该拦的时候由发布方在
+  探针里写 `selfupdate = "blocked"`（必带 `selfupdate_reason`），两处执行点都会礼貌拒绝并退 0
 
 ## 六、关键机制
 
-1. **目录 + 软链接**：包与依赖都不再以“单个文件”形式存在，而是目录；`links/` 里放软链接并已加入 PATH。`名字@版本号` 永远可用；想让 `名字` 也能直接跑，用 `wave link <名>` 建一条不带版本号的软链接（自动跟随最高已装版本），或装的时候默认就会建（`--no-link` 可关掉）
+1. **目录 + 软链接**：包与依赖都不再以“单个文件”形式存在，而是目录；`bin/` 里放软链接并已加入 PATH。`名字@版本号` 永远可用；想让 `名字` 也能直接跑，用 `wave link <名>` 建一条不带版本号的软链接（自动跟随最高已装版本），或装的时候默认就会建（`--no-link` 可关掉）
 2. **两种安装形态**（共用 `depsmanager.sh` 的同一套流程）：
    - `binary`（软件包）：解压后只取一个可执行文件，同名优先，找不到同名则取第一个并打 YELLOW 警告
-   - `tree`（依赖）：保留整棵解压目录（库包不能只取一个文件）；`bin/` 下的每个文件都软链到 `links/{名字}@{版本号}`，因此不依赖“与包同名的可执行文件”
+   - `tree`（依赖）：保留整棵解压目录（库包不能只取一个文件）；包内 `bin/` 下的每个文件都软链到 `<根>/bin/{名字}@{版本号}`，因此不依赖“与包同名的可执行文件”
 3. **`_DEPS`**：安装后写入，每行形如 `"a@1.0"`；卸载时据此清理依赖
 4. **`.depped_*` 标记**：记录“谁依赖了我”
    - `.depped_pkg_{包名}@{版本号}`：被某个软件包依赖
    - `.depped_dep_{依赖名}@{版本号}`：被某个依赖依赖
    - 卸载时先删掉自己的标记；某依赖已无任何标记，才连同它自己的依赖一起级联删除，多个依赖者共享时不会被误删
 5. **递归**：依赖自身的 `deps` 会被继续安装（先装下层、再装自己）
-6. **动态库路径替换**：依赖包里的库不会自动被 dyld 找到（conda 包的 install name 是 `@rpath/xxx.dylib`，自带 rpath 只有 `@loader_path/`，跨目录必然失败）。安装完成后由 `surfboard/transfer.sh` 用 `otool` + `install_name_tool` 把引用改成 `BASE_DIR` 下的绝对路径，并 `codesign --force --sign -` 重签名。替换统一放在**全部产物就位之后**做（先逐个处理 `deps/*/*`，再处理软件包目录），因为依赖声明顺序与实际库依赖顺序未必一致——例如 `wget` 的 `deps` 里 `libidn2` 排在 `libunistring` 前面，而 `libidn2.0.dylib` 恰好引用 `libunistring.5.dylib`，提前替换会解析不到
-7. **网络**：所有请求 30 秒超时；下载超时或连接失败时询问是否重试
+6. **动态库路径（构建端完成）**：依赖包里的库不会自动被 dyld 找到（conda 包的 install name 是 `@rpath/xxx.dylib`，自带 rpath 只有 `@loader_path/`，跨目录必然失败）。1.0 起这道改写由 `scripts/relocate_rpath.py` 在**打包时**统一做完（先处理依赖再处理软件包，因为声明顺序与实际库依赖顺序未必一致——例如 `wget` 的 `deps` 里 `libidn2` 排在 `libunistring` 前面，而 `libidn2.0.dylib` 恰好引用 `libunistring.5.dylib`），客户端装完不再扫产物。判据与 4.6 的 `transfer.sh --check` 相同：`@rpath/<名>` 不能无条件算数
+7. **收据**：`Shore/<名>/<版本>/Note` 是「这个东西装好了」的唯一凭据，`requested` 区分软件包与依赖
+8. **网络**：所有请求 30 秒超时；下载超时或连接失败时询问是否重试
 
 ## 七、代码约定
 
@@ -246,27 +255,27 @@ updatedata/{版本号}/transfer_commands      Y/y 时执行这个脚本（bash -
 
 | # | 程序 | 做什么 |
 | --- | --- | --- |
-| 1 | `lib/wave.py` | 读 `base_dir`，把 `lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；按 `COMMANDS` 字典把 `install` 分发给 `pkginstaller.handle_install("wave install wget@1.25.0")` |
+| 1 | `lib/wave.py` | 取写死的安装根并把 `cli/`、`config/`、`lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；按 `COMMANDS` 字典把 `install` 分发给 `pkginstaller.handle_install("wave install wget@1.25.0")` |
 | 2 | `pkg/pkginstaller.py` | 解析下载参数（`-v` / `-C` / `--skip-ssl` / `--limit-rate` / `--proxy`，白名单校验）；解析包名与架构 |
 | 3 | `pkg/pkginstaller.py` | 定版本：`@版本号` → `--ver` → 都没有则调 `fetch_max_version()`（GitHub API，`MacWaveOrg/infosource` 仓库的 main，带 `?ref=main`） |
 | 4 | `pkg/pkginstaller.py` | 拉 `_wget@common`，解析出 `bin_name`（缺失即报错） |
-| 5 | `pkg/pkginstaller.py` | 拉 `_wget@1.25.0`，解析出 `url` / `sha256` / **`deps`**（多行，向上回溯的 DSL 解析）；校验 `url` 必须是 https |
+| 5 | `pkg/pkginstaller.py` | 拉 `_wget@1.25.0.macos-arm64`（记录名带瓶子标签），解析出 `url` / `sha256` / **`deps`**（多行，向上回溯的 DSL 解析）；校验 `url` 必须是 https |
 | 6 | `pkg/pkginstaller.py` | `download_file()` 下载到 `downloads/tmp/`（rich 进度条、`.partial` + 断点续传、限速、代理、30 秒超时后询问重试），完成后去掉 `.partial` 后缀 |
-| 7 | `pkg/pkginstaller.py` → `pkg/pkginstaller.sh` | 传 8 行长字符串（含目标目录 `bin/wget@1.25.0`）与依赖列表，`pkginstaller.sh` 用 `binary` 模式安装 wget 本体 |
-| 8 | `surfboard/depsmanager.sh` | `mw_install_artifact`：定位原文件 → SHA256 校验 → 解压 → 取一个可执行文件（同名优先，否则取第一个并打警告）→ `chmod 755` → 建软链接 `links/wget@1.25.0` → 写 `_DEPS`（7 行依赖） |
+| 7 | `pkg/pkginstaller.py` → `pkg/pkginstaller.sh` | 传长字符串（含目标目录 `Shore/wget/1.25.0`）与依赖列表，`pkginstaller.sh` 用 `binary` 模式安装 wget 本体 |
+| 8 | `surfboard/depsmanager.sh` | `mw_install_artifact`：定位原文件 → SHA256 校验 → 解压 → 取一个可执行文件（同名优先，否则取第一个并打警告）→ `chmod 755` → 整目录落在 `Shore/wget/1.25.0/` → 建软链接 `bin/wget@1.25.0` → 写 `_DEPS` |
 | 9 | `pkg/pkginstaller.sh` | 打印安装结果（4.6 起不再维护 `installed.json`） |
 | 10 | `pkg/pkginstaller.py` | 调 `depsinstaller.install_dependencies()`，逐个安装 7 个依赖 |
-| 11 | `surfboard/depsinstaller.py` | 每个依赖 `ensure_dependency()`：校验引用格式 → `querier.is_installed()` 判断是否已装 |
-| 12 | `surfboard/depsinstaller.py` | 未装时：拉 `_依赖名@common` 取 `dep_name`、拉 `_依赖名@版本号` 取 `url` / `sha256` / `deps`；找不到则报 `Dependency '…' not found in depsinfo.` 并退出 |
+| 11 | `surfboard/depsinstaller.py` | 每个依赖 `ensure_dependency()`：校验引用格式 → `querier.is_installed()` 判断是否已装（`Shore/<依赖>/<版本>/` 存在且带 `Note` 收据） |
+| 12 | `surfboard/depsinstaller.py` | 未装时：拉 `_依赖名@common` 取 `dep_name`、拉 `_依赖名@<版本>.<标签>` 取 `url` / `sha256` / `deps`；找不到则报 `Dependency '…' not found in depsinfo.` 并退出 |
 | 13 | `surfboard/depsinstaller.py` | **先递归装下层依赖**（`gettext` 会先把 `libiconv` 装好）→ 再下载自己（复用第 6 步的同一个 `download_file`，进度条一致）→ 调 `surfboard/depsinstaller.sh` |
-| 14 | `surfboard/depsinstaller.sh` → `depsmanager.sh` | `tree` 模式安装：整棵解压目录落到 `deps/{依赖名}/{依赖名}@{版本号}/`，单顶层目录自动下沉一层，`bin/` 下每个文件都 `chmod 755` 并各建一条软链接进 `links/`，写 `_DEPS` |
+| 14 | `surfboard/depsinstaller.sh` → `depsmanager.sh` | `tree` 模式安装：整棵解压目录落到 `Shore/{依赖名}/{版本}/`（与软件包同构），单顶层目录自动下沉一层，包内 `bin/` 下每个文件都 `chmod 755` 并各建一条软链接进 `bin/`，写 `Note` 收据 |
 | 15 | `surfboard/depsinstaller.sh` | 按传入的依赖者信息创建标记：被包依赖 → `.depped_pkg_wget@1.25.0`，被依赖依赖 → `.depped_dep_gettext@0.21.0` |
-| 16 | `surfboard/depsinstaller.py` | 只负责装依赖，不在此时做路径替换（见第 18 步） |
-| 17 | `surfboard/depsinstaller.py` | 已安装的依赖：跳过下载，只调 `tagger.sh` 补标记（例如 `libiconv` 同时被 `gettext` 和 `wget` 依赖，就会有两条标记） |
-| 18 | `surfboard/depsinstaller.py` | 已安装的依赖：跳过下载，只调 `tagger.sh` 补标记（例如 `libiconv` 同时被 `gettext` 和 `wget` 依赖，就会有两条标记） |
-| 18 | `pkg/pkginstaller.py` → `surfboard/depsinstaller.py` → `surfboard/transfer.sh` | 依赖与软件包全部就位后，调 `transfer_installed_artifacts()`：先逐个 `deps/*/*` 处理，再处理包目录——建「库文件名 → 本地实际路径」索引（产物自身 `lib/` → 该产物 `_DEPS` 列出的依赖 → 其它已安装依赖兜底），对每个 Mach-O 用 `install_name_tool -change` 改写动态库引用、给有 id 的 dylib 改 `-id`，最后 `codesign --force --sign -` 重签名 |
-| 19 | `surfboard/transfer.sh` | 幂等：已正确的引用直接跳过，重复执行零副作用（可作为修复既有安装的手段） |
-| 20 | `pkg/linker.py` | 路径替换完成后，把 `links/wget` 指向 `bin/wget@1.25.0/wget`（不带 `--no-link` 时）；已于 18 步建好的 `links/wget@1.25.0` 不受影响 |
+| 16 | `surfboard/depsinstaller.py` | 已安装的依赖：跳过下载，只调 `tagger.sh` 补标记（例如 `libiconv` 同时被 `gettext` 和 `wget` 依赖，就会有两条标记） |
+| 17 | `pkg/pkginstaller.py` → `pkg/linker.py` | 依赖全部就位后，把 `bin/wget` 指向 `Shore/wget/1.25.0/wget`（不带 `--no-link` 时）；第 8 步建好的 `bin/wget@1.25.0` 不受影响 |
+| 18 | `pkg/receipt.py` | 最后写 `Shore/wget/1.25.0/Note`：收据里的 `requested` 区分「用户点名装的包」与「顺带装的依赖」，卸载与体检据此判断谁是主角 |
+
+> **路径重定位不在这个流程里**：1.0 起客户端只做「下载 + 解包」，Mach-O 的 `@loader_path`
+> 改写与 ad-hoc 重签名都在打包时由 `scripts/relocate_rpath.py` 完成，所以装完不用再扫一遍。
 
 ### 时序
 
@@ -277,14 +286,13 @@ sequenceDiagram
     participant S as pkg/pkginstaller.sh
     participant M as surfboard/depsmanager.sh
     participant D as surfboard/depsinstaller.py
-    participant X as surfboard/transfer.sh
 
     W->>P: handle_install("wave install wget@1.25.0")
     P->>P: 版本 / bin_name / url / sha256 / deps
     P->>P: download_file()（进度条）
-    P->>S: 8 行长字符串 + deps 列表
+    P->>S: 长字符串 + deps 列表
     S->>M: mw_install_artifact（binary 模式）
-    M-->>S: 落盘 + links/ + _DEPS
+    M-->>S: 落盘 Shore/ + bin/ 链接 + _DEPS
     S-->>P: 安装成功
     P->>D: install_dependencies(7 个依赖)
     loop 每个依赖（先子后己）
@@ -292,25 +300,26 @@ sequenceDiagram
         D->>D: 递归装下层依赖
         D->>M: depsinstaller.sh（tree 模式）
     end
-    P->>X: transfer_installed_artifacts(包目录)
-    Note over X: 先逐个 deps/*/*，再处理包目录
+    P->>P: linker.link_package + receipt.write_note
 ```
 
 ### 为什么要这个顺序
 
-- **路径替换必须最后统一做**：`transfer.sh` 把引用指向 `deps/…/lib` 里的真实文件，所以要求目标库已经落盘。而 `deps` 的声明顺序与实际库依赖顺序未必一致（`libidn2` 排在 `libunistring` 前，但前者引用后者），因此逐产物即时替换会漏改；统一放到“全部产物就位之后”才能一次解析干净
-- **`_DEPS` 先写**：`transfer.sh` 靠它确定"该去找哪些依赖的 lib"，同时它是卸载时清理依赖的唯一依据
+- **依赖先于收据**：`Note` 里的 `requested` 要写清「这个包为什么在这儿」，而只有依赖装完才知道自己是不是被牵连进来的
+- **`_DEPS` 先写**：它是卸载时清理依赖的唯一依据
 - **标记文件在最后打**：只有依赖真正装好了才记录"谁依赖了我"，避免中途失败留下错误标记
+- **不再需要统一改写路径**：4.x 因为「引用指向 `deps/…/lib` 里的真实文件、而声明顺序与实际库依赖顺序未必一致」才必须攒到最后一次性改写；这份工作现在在构建端完成，客户端没有这一步
 
 ### 这条命令跑完后的目录形态
 
 ```
-BASE_DIR/bin/wget@1.25.0/        wget 二进制 + _DEPS（7 行依赖）
-BASE_DIR/deps/gettext/gettext@0.21.0/     bin/ lib/ include/ … + _DEPS + .depped_pkg_wget@1.25.0
-BASE_DIR/deps/libiconv/libiconv@1.16/     … + _DEPS + .depped_pkg_wget@1.25.0 + .depped_dep_gettext@0.21.0
-BASE_DIR/deps/{libidn2,libunistring,openssl,pcre2,zlib}/…  各自整树 + _DEPS + .depped_pkg_wget@1.25.0
-BASE_DIR/links/                  wget@1.25.0，以及每个依赖 bin/ 下可执行文件的一条链接
-                                 （如 openssl@3.0.15、iconv@1.16、msgfmt@0.21.0 …）—— 此目录已在 PATH 上
+BASE_DIR/Shore/wget/1.25.0/                    wget 二进制 + _DEPS + Note
+BASE_DIR/Shore/gettext/0.21.0/                 bin/ lib/ include/ … + Note + .depped_pkg_wget@1.25.0
+BASE_DIR/Shore/libiconv/1.16/                   … + Note + .depped_pkg_wget@1.25.0 + .depped_dep_gettext@0.21.0
+BASE_DIR/Shore/{libidn2,libunistring,openssl,pcre2,zlib}/<版本>/   各自整树 + Note + .depped_pkg_wget@1.25.0
+BASE_DIR/bin/                     wget（不带版本号）与 wget@1.25.0，
+                                  以及每个依赖 bin/ 下可执行文件的一条带版本链接
+                                  （如 openssl@3.0.15、iconv@1.16、msgfmt@0.21.0 …）—— 此目录已在 PATH 上
 ```
 
 卸载时的逆向动作见「六、关键机制」第 3、4 条：先删自己的标记，某个依赖再无任何标记时才连同它的依赖一起级联删除。
@@ -325,7 +334,7 @@ BASE_DIR/links/                  wget@1.25.0，以及每个依赖 bin/ 下可执
 
 | # | 改哪里 | 改成什么 |
 | --- | --- | --- |
-| 1 | `MacWaveOrg/configdata` 的 `versiondata/latest_version` | `branch` 指向新分支（新分支成为发布线时），`version` / `release_date` / `build_number` 一并更新 |
+| 1 | `MacWaveOrg/configdata` 的 `versiondata/latest_version` | `branch` 指向新分支（新分支成为发布线时），`version` / `release_date` 一并更新（1.0 起没有 `build_number`） |
 | 2 | `.github/workflows/format-test.yml` | 把新分支名加进 `on.push.branches` 与 `on.pull_request.branches` |
 | 3 | `docs/PROJECT_CONTEXT.md` 开头的「版本分支（当前的 `4.1`）」 | 改成新分支 |
 | 4 | `README.md` / `README.zh-Hans.md` 的 `Latest Version` / `最新版本` | 正式发布时更新 |

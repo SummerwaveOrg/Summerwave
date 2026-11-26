@@ -18,9 +18,9 @@
 #   python3 scripts/relocate_rpath.py <stage-dir> --check    只检查；有绝对路径则 exit 1
 #   python3 scripts/relocate_rpath.py <stage-dir> --no-sign  只改不签（实验用）
 #
-# <stage-dir> 必须是**运行时布局**：里面有 bin/<包名>@<版本>/ 与
-# deps/<依赖名>/<依赖名>@<版本>/。相对路径按这个布局算，所以 staging 时就要摆成
-# 这个样子（和 MacPorts 的 destroot 一个意思）。
+# <stage-dir> 必须是**运行时布局**：里面有 Shore/<名>/<版本>/（包与依赖同构）。
+# 相对路径按这个布局算，所以 staging 时就要摆成这个样子
+# （和 MacPorts 的 destroot 一个意思）。
 #
 # 只处理 Mach-O；系统库（/usr/lib、/System、/Library/Apple）不动，因为它们在
 # dyld shared cache 里，既改不了也不需要改。
@@ -85,7 +85,7 @@ def is_position_independent(path, file_path=None):
 
     `@rpath/<名>` 不能无条件算数：conda 产物普遍是「引用写 @rpath/<名>、LC_RPATH
     指向 @loader_path/../lib」，那个 ../lib 是相对包自己的老布局；依赖实际装在
-    deps/<依赖>/<依赖>@<版本>/lib 下，必须由重定位改写才对得上。
+    Shore/<依赖>/<版本>/lib 下，必须由重定位改写才对得上。
     客户端 4.6 就是因为「@rpath 一律放过」导致装完 Library not loaded
     （2026-11-24 的 htop / ncdu / tmux）。构建端必须用同一套判据，
     否则会给 conda 产物打上"已就位"的标记，客户端于是跳过改写，装完跑不起来。

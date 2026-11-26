@@ -11,7 +11,8 @@
 #      指定版本号的包里，1~2 个给「不存在的版本」，1~2 个给「非法版本」，其余正常。
 #   4. 三种特殊模式各至少一次：-C 断点续传（随机打断 0~3 次，含进度条渲染）、
 #      --skip-ssl（提示 + 正常下载）、--limit-rate（全程限速监测 + 结尾复核平均速度）。
-#   4b. 每个普通安装另有 5% 概率在 Mach-O 重定向（surfboard/transfer.sh）中途被 SIGINT 打断，
+#   4b. 每个普通安装另有 5% 概率在下载中途被 SIGINT 打断（1.0 起安装期不再重定位，
+#       所以打断点落在下载/落盘上），
 #       只要求「不崩 + 再装一次能收敛到正确状态」。打断会真的杀掉 install_name_tool，
 #       所以有可能留下半改写的 Mach-O——这正是要观察的。
 #   5. 固定命令覆盖：list / search / info / selfupdate / link / linkquery / unlink
@@ -1119,7 +1120,7 @@ def binary_runs(wave, plan, checks, label):
 
 
 def run_transfer_interrupt_case(wave, plan, checks):
-    """Mach-O 重定向（transfer.sh）中途打断：允许留半成品，但必须能再装一次收敛。
+    """安装中途打断：允许留半成品，但必须能再装一次收敛。
 
     打断会连 install_name_tool 一起杀掉，所以可能留下半改写的 Mach-O。
     这里不判定「半成品」本身是失败（只 WARN 记录），硬性要求是：
@@ -1132,7 +1133,7 @@ def run_transfer_interrupt_case(wave, plan, checks):
     result = wave.run_in_pty(install_args(plan.token), interrupt_when=transfer_watcher(),
                              timeout=1800)
     if not result.interrupted:
-        checks.warn(f"{label}: 没抓到 transfer.sh 的窗口，本轮按普通安装校验")
+        checks.warn(f"{label}: 没抓到安装中途的窗口，本轮按普通安装校验")
         expect(checks, result.as_result, 0, f"install {plan.token}",
                must_contain=("Successfully installed",))
         return verify_installed(wave, plan, checks, f"install {plan.token}")
@@ -1162,7 +1163,7 @@ def run_transfer_interrupt_case(wave, plan, checks):
 
 
 def transfer_watcher(interval=1.0):
-    """节流过的 transfer.sh 观察器：run_in_pty 每 50ms 会问一次，别每次都去 ps。"""
+    """节流过的安装进程观察器：run_in_pty 每 50ms 会问一次，别每次都去 ps。"""
     state = {"next": 0.0}
 
     def watch():
@@ -1176,13 +1177,13 @@ def transfer_watcher(interval=1.0):
 
 
 def transfer_running():
-    """surfboard/transfer.sh 是否正在跑（用进程表判断，transfer.sh 自己不打进度）。"""
+    """安装进程是否还在跑（用进程表判断，它自己不打进度）。"""
     try:
         listing = subprocess.run(["ps", "-Ao", "command="],
                                  capture_output=True, text=True, timeout=10).stdout
     except Exception:
         return False
-    return "transfer.sh" in listing
+    return "pkginstaller" in listing or "wave.py" in listing
 
 
 def run_resume_case(wave, rng, plan, checks):
@@ -1478,7 +1479,7 @@ def installed_bin_names(wave):
 
 
 def linked_names(wave):
-    """links/ 下真实存在的不带版本号的链接名。"""
+    """bin/ 下真实存在的不带版本号的链接名。"""
     links_dir = wave.layout.bin_dir()
     names = set()
     if links_dir.is_dir():
@@ -1491,7 +1492,7 @@ def linked_names(wave):
 def phase_command_battery(wave, rng, checks):
     """list/search/info/selfupdate/link/linkquery/unlink 各 5 次。install/uninstall 不在此处。
 
-    每轮都按 bin/ 与 links/ 的真实内容重算状态：link/unlink 互相影响，
+    每轮都按 bin/ 的真实内容重算状态：link/unlink 互相影响，
     静态快照跑几轮之后必然对不上（实测 wget 在 install 阶段就被 --skip-ssl
     用例卸掉了，快照却一直认为它装着）。
     """
@@ -1585,7 +1586,7 @@ def phase_global_invariants(wave, checks):
            ", ".join(p.name for p in downloads[:5]))
 
     links = list((wave.layout.base_dir / "links").glob("*"))
-    verify("links/ 没有残留", not links, ", ".join(p.name for p in links[:5]))
+    verify("bin/ 里没有残留的悬空链接", not links, ", ".join(p.name for p in links[:5]))
 
     bins = list((wave.layout.base_dir / "bin").glob("*"))
     verify("bin/ 没有残留", not bins, ", ".join(p.name for p in bins[:5]))

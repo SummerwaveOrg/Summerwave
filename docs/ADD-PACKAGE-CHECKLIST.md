@@ -24,7 +24,7 @@
 
 | # | 位置 | 谁读它 | 漏了的后果 |
 | --- | --- | --- | --- |
-| 1 | `infosource/pkg/pkginfo_{arm64,amd64}/<包名>/` | `wave install` / `search` / `info` | 装不上，或装到一半 404 |
+| 1 | `infosource/pkg/pkginfo/<包名>/` | `wave install` / `search` / `info` | 装不上，或装到一半 404 |
 | 2 | **Bottle 仓库的 Release（tag = 包名）** | `wave install` 的下载步骤 | 索引有记录但下不到文件 |
 | 3 | `infosource/README.md` 的 Supported Packages | 人 | 说明与事实不符 |
 | 4 | **`MacWave/README.md` + `README.zh-Hans.md`** | 人 | 同上，中英各一份 |
@@ -82,7 +82,7 @@ Foundation / GNU Project）的，包名与 `bin_name` 都加 `g`：`gtar` / `gpa
 
 ### 1. `bin_name` == 用户在终端敲的命令
 
-`bin_name` 决定 `bin/` 与 `links/` 下的目录名，也决定用户敲什么。
+`bin_name` 决定 `Shore/<包名>/` 里的树形与 `bin/` 下链接的名字，也决定用户敲什么。
 
 | 情况 | 做法 | 先例 |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ Foundation / GNU Project）的，包名与 `bin_name` 都加 `g`：`gtar` / `gpa
 # 加完包之后，一次核对全部，不该有任何输出
 python3 - <<'PY'
 import re, pathlib
-root = pathlib.Path("pkg/pkginfo_arm64")
+root = pathlib.Path("pkg/pkginfo")
 for d in sorted(p for p in root.iterdir() if p.is_dir()):
     common = d / f"_{d.name}@common"
     if not common.exists():
@@ -167,13 +167,17 @@ gh release view <tag> -R <owner>/<repo> --json assets \
 ### 第 2 步：写索引记录
 
 ```
-infosource/pkg/pkginfo_arm64/<包名>/_<包名>@common
-infosource/pkg/pkginfo_arm64/<包名>/_<包名>@<版本>
-infosource/pkg/pkginfo_amd64/<包名>/_<包名>@common
-infosource/pkg/pkginfo_amd64/<包名>/_<包名>@<版本>
+infosource/pkg/pkginfo/<包名>/_<包名>@common
+infosource/pkg/pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>
 ```
 
-`_<包名>@common`（两个架构各一份）：
+**索引不再按架构分目录**：单远端，架构写在记录名（和产物名）的瓶子标签里。
+词表只有 `macos|linux` + `arm64|amd64`（`x86_64` 归一成 `amd64`），由
+`config/platforminfo.bottle_tag()` 定义，见 `docs/DATA-LAYER.md` 末节。
+所以同一个包的两个架构是**同一个目录下的两条记录**：
+`_delta@0.20.1.macos-arm64` 与 `_delta@0.20.1.macos-amd64`。
+
+`_<包名>@common`（两个架构共用一份）：
 
 ```
 des: "A syntax-highlighting pager for git, diff, grep, rg --json, and blame output"
@@ -183,7 +187,7 @@ aut: "dandavison"
 bin_name: "delta"
 ```
 
-`_<包名>@<版本>`：
+`_<包名>@<版本>.<os>-<arch>`：
 
 ```
 sha256: "<64 位小写十六进制>"
@@ -236,7 +240,7 @@ Actions → Sync payloads → Run workflow
 
 ```
 Bottle Release tag  = <包名>
-资产名              = <包名>@<版本>.<架构><扩展名>      例：delta@0.20.1.arm64.tar.gz
+资产名              = <包名>@<版本>.<os>-<arch><扩展名>   例：delta@0.20.1.macos-arm64.tar.gz
 ```
 
 回读校验，**三个架构的文件都要对得上**：
@@ -296,7 +300,7 @@ import re, pathlib
 SIMPLE = {"jq": "Stephen Dolan, Nicolas Williams, et al.",
           "tree": "Steve Baker, Thomas Moore, et al."}
 
-root = pathlib.Path("pkg/pkginfo_arm64")     # arm64 与 amd64 的包集合应当相同
+root = pathlib.Path("pkg/pkginfo")           # 单目录，架构在记录名里
 rows = []
 for d in sorted(p for p in root.iterdir() if p.is_dir()):
     if d.name.startswith("test_"):           # 测试包不进清单
@@ -355,7 +359,7 @@ site = site_rows("Pages/index.html")
 print(f"{'Pages/index.html':<32} {len(site):>2} 行  "
       f"{'与 README 一致' if site == names else '不一致 ← 与 README'}")
 
-real = sorted(p.name for p in pathlib.Path("infosource/pkg/pkginfo_arm64").iterdir()
+real = sorted(p.name for p in pathlib.Path("infosource/pkg/pkginfo").iterdir()
               if p.is_dir() and not p.name.startswith("test_"))
 print("清单缺:", [x for x in real if x not in site])
 print("清单多:", [x for x in site if x not in real])
@@ -496,11 +500,11 @@ min_os: "12.0"
 写错值（既不是 `binary` 也不是 `tree`）客户端会直接拒绝安装，`validate_update_records.py`
 也会拦下。
 
-安装时 `depsmanager.sh` 会在安装目录写一个空文件 `bin/{名}@{版本}/.is_a_tree`。
+安装时 `depsmanager.sh` 会在包目录根下写一个空文件 `Shore/{名}/{版本}/.is_a_tree`。
 它是**给装好之后的逻辑看的**，索引里不写它：
 
-- `linker` 据此把链接指向 `…/bin/{名}@{版本}/bin/{名}`，并从链接反推版本时跳过中间那层 `bin/`
-- `bin/` 下其余可执行文件也各有一条 `links/{命令名}`（`dtc` 的 `fdtget`/`fdtput`、
+- `linker` 据此把链接指向 `…/Shore/{名}/{版本}/bin/{名}`，反推版本时知道要多走一层
+- 包内 `bin/` 下其余可执行文件也各有一条带版本号的链接在 `<根>/bin/`（`dtc` 的 `fdtget`/`fdtput`、
   `testdisk` 的 `photorec`、`dpkg` 的 `dpkg-deb`…）。只链主命令等于把包装残：
   这些命令是同一个包里必须一起用的，`wave unlink` 会把它们一起摘掉
 - `uninstall` / `upgrade` 删的是整个目录，不关心内部结构
@@ -512,13 +516,13 @@ min_os: "12.0"
   `sha256`/`file`/`url`，把整树当单二进制装会立刻坏。
 
 自建包还要额外注意编译期写死的路径：`git` 的 `--libexecdir` 是绝对路径，装到
-`~/.local/macwave/bin/git@…` 就对不上。收法是产物里带一个两行的 wrapper：
+`/opt/macwave/Shore/git/…` 就对不上。收法是产物里带一个两行的 wrapper：
 设好 `GIT_EXEC_PATH` / `GIT_TEMPLATE_DIR` 后 `exec` 真正的 `libexec/git-core/git`。
 
 ### 四道闸门（顺序不能换）
 
 **① 构建脚本必须可复现。** 固定上游 tag，不跟 `main`；两个架构分别编（不要
-universal —— 索引是「每架构一份」）；编完 `codesign --force --sign -`。
+universal —— 索引里每个架构各一条记录）；编完 `codesign --force --sign -`。
 
 **② `scripts/selfbuilt_check.sh` 必须全绿。** 一条命令查完架构、签名、min_os、
 依赖闭包、sha256、实跑：
@@ -540,7 +544,7 @@ universal —— 索引是「每架构一份」）；编完 `codesign --force --
 `install_name_tool` 会改写依赖、`codesign` 会重签，装完的 sha256 **必然**与 Release
 里的不同。所以 `--expect-sha` 只对上传前的原始产物用。
 
-**④ 索引最后写。** 客户端只有从 `pkginfo_*/` 看到记录才会去装；记录不写，谁也不知道它
+**④ 索引最后写。** 客户端只有从 `pkginfo/` 看到记录才会去装；记录不写，谁也不知道它
 存在。所以顺序是：产物 → Ports + Bottle → 沙箱实测 → 索引 → 镜像同步 → 三处清单。
 
 ### tree 包必须声明 `min_client_version`
@@ -551,7 +555,7 @@ universal —— 索引是「每架构一份」）；编完 `codesign --force --
 
 ```
 bin/git@2.56.1/git                                       ← 只有一个文件，3.7 MB
-$ …/links/git --exec-path
+$ /opt/macwave/bin/git --exec-path
 /Users/<builder>/build/git/stage-arm64/libexec/git-core   ← 构建机路径，本机不存在
 ```
 
@@ -633,9 +637,9 @@ $ …/links/git --exec-path
 修法是给两个架构的记录各加一行 `deps: "openssl@3.0.15"`。修完实测：
 
 ```
-$ otool -L ~/.local/macwave/bin/choma@1.0-macwaveteam2/choma | tail -n +2
+$ otool -L /opt/macwave/Shore/choma/1.0-macwaveteam2/bin/choma | tail -n +2
    /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
-   /Users/<你>/.local/macwave/deps/openssl/openssl@3.0.15/lib/libcrypto.3.dylib
+   @loader_path/../../../openssl/3.0.15/lib/libcrypto.3.dylib
    /usr/lib/libSystem.B.dylib
 $ choma
 Options: …            ← 跑起来了
@@ -649,7 +653,7 @@ Options: …            ← 跑起来了
 
 ```bash
 # 索引里的记录数与产物数应当对得上
-ls ~/Projects/MacWaveOrg/infosource/pkg/pkginfo_arm64 | grep -vc "^test_"
+ls ~/Projects/MacWaveOrg/infosource/pkg/pkginfo | grep -vc "^test_"
 gh release list -R MacWaveOrg/Bottle --limit 100 | wc -l
 ```
 

@@ -65,10 +65,10 @@ make_pkg() {
     mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/pkg/pkginfo/$name"
     printf '#!/bin/sh\necho %s %s\n' "$name" "$version" > "$dir/$name"
     chmod 755 "$dir/$name"
-    tar czf "$MIRROR/bottle/$name/$name@$version.$ARCH.tar.gz" -C "$dir" "$name"
+    tar czf "$MIRROR/bottle/$name/$name@$version.$BOTTLE_TAG.tar.gz" -C "$dir" "$name"
 
     local sha
-    sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@$version.$ARCH.tar.gz" | cut -d' ' -f1)
+    sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@$version.$BOTTLE_TAG.tar.gz" | cut -d' ' -f1)
     [ -f "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" ] || cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" <<EOF
 bin_name: "$name"
 des: "multi-uninstall probe"
@@ -79,7 +79,7 @@ EOF
     cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@$version.$BOTTLE_TAG" <<EOF
 sha256: "$sha"
 file: "${name}_${ARCH}.tar.gz"
-url: "http://127.0.0.1:$PORT/bottle/$name/$name%40$version.$ARCH.tar.gz"
+url: "http://127.0.0.1:$PORT/bottle/$name/$name%40$version.$BOTTLE_TAG.tar.gz"
 min_os: "12.0"
 EOF
 }

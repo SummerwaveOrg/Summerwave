@@ -175,21 +175,17 @@ fi
 # -------------------- 6. 依赖闭包 --------------------
 
 # 系统库不参与（SIP 保护、每台机器都有）。其余每一个引用都必须落在用户会有东西的
-# 地方：要么在 MacWave 的 deps 树里，要么它的 basename 能在 deps 索引里找到 ——
+# 地方：要么在 MacWave 的 Shore/<依赖>/<版本>/ 树里，要么它的 basename 能在
+# deps 索引里找到 ——
 # 后者意味着必须在索引记录里声明 deps，否则用户不会装那个依赖。
-BASE_DIR=""
-for cfg in /opt/macwave_config/config.json "$HOME/.config/macwave_config/config.json"; do
-    if [[ -f "$cfg" ]]; then
-        BASE_DIR=$(python3 -c '
-import json, sys
-try:
-    print(json.load(open(sys.argv[1])).get("base_dir", ""))
-except Exception:
-    print("")
-' "$cfg" 2>/dev/null)
-        [[ -n "$BASE_DIR" ]] && break
-    fi
-done
+# 安装根写死（见 config/platforminfo.py），本机装了就直接用那棵树。
+BASE_DIR="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import platforminfo
+print(platforminfo.DEFAULT_BASE_DIR)
+' "$REPO_DIR/config" 2>/dev/null)"
+[[ -d "$BASE_DIR" ]] || BASE_DIR=""
 
 printf '%s\n' "$WANT_DEPS" | tr ' ' '\n' > /tmp/selfbuilt_deps.$$
 trap 'rm -f /tmp/selfbuilt_deps.$$' EXIT
@@ -205,7 +201,7 @@ while IFS= read -r ref; do
     base="${ref##*/}"
 
     # 已经指向 MacWave 的 deps 树 → 用户装同样的依赖就有
-    if [[ -n "$BASE_DIR" && "$ref" == "$BASE_DIR"/deps/* ]]; then
+    if [[ -n "$BASE_DIR" && "$ref" == "$BASE_DIR"/Shore/* ]]; then
         pass "依赖 $base → deps 树内"
         EXTERNAL=$((EXTERNAL + 1))
         continue
@@ -215,7 +211,7 @@ while IFS= read -r ref; do
     # 只有声明了对应的依赖，安装时的路径改写才找得到它
     owner=""
     if [[ -n "$BASE_DIR" ]]; then
-        for lib in "$BASE_DIR"/deps/*/*/lib/"$base" "$BASE_DIR"/deps/*/*/"$base"; do
+        for lib in "$BASE_DIR"/Shore/*/*/lib/"$base" "$BASE_DIR"/Shore/*/*/"$base"; do
             [[ -e "$lib" ]] || continue
             owner=$(basename "$(dirname "$(dirname "$lib")")")
             break

@@ -69,17 +69,11 @@ jobs:
       - name: Install Python dependencies
         run: python3 -m pip install requests packaging urllib3 rich
 
-      - name: Setup MacWave config
+      # 安装根写死（config/platforminfo.py），不需要任何配置文件；脚本里的
+      # 离线测试各自用 MACWAVE_TEST 造自己的根，这里只准备一份共享的组件树。
+      - name: Setup component tree
         run: |
-          sudo mkdir -p /opt/macwave_config
-          sudo tee /opt/macwave_config/config.json > /dev/null << EOF
-          {"base_dir": "/tmp/macwave-test"}
-          EOF
-          sudo tee /opt/macwave_config/VERSION.json > /dev/null << EOF
-          {"version": "2.1.0"}
-          EOF
-          sudo chown -R $(whoami) /opt/macwave_config
-          mkdir -p /tmp/macwave-test/bin /tmp/macwave-test/links /tmp/macwave-test/downloads/tmp
+          mkdir -p /tmp/macwave-test/bin /tmp/macwave-test/downloads/tmp
           for dir in $(sed -e 's/#.*//' scripts/components.txt); do
             mkdir -p "/tmp/macwave-test/$dir"
           done
@@ -163,7 +157,7 @@ jobs:
         run: |
           /bin/bash scripts/minos_test.sh
 
-      # 安装树的互斥锁：两个 wave 同时改树会把 bin/、links/、.depped_* 写坏。
+      # 安装树的互斥锁：两个 wave 同时改树会把 Shore/、bin/、.depped_* 写坏。
       - name: Check install tree locking
         run: |
           /bin/bash scripts/lock_test.sh

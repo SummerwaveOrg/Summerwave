@@ -34,11 +34,11 @@ if [[ ! -f "$WAVE_BIN" ]]; then
 fi
 
 # ==========================================
-# 隔离：这个测试会**真的**跑一次 selfupdate（下载文件、落盘、写 VERSION.json 与
+# 隔离：这个测试会**真的**跑一次 selfupdate（下载文件、落盘、写 var/config.sh 与
 # 状态目录），所以它必须在自己的沙箱里跑。
 #
 # 2026-11-24 之前它用的是真实配置目录与真实安装树，于是「跑一次测试」=
-# 「把现有安装刷成测试版本」：`/opt/macwave_config/VERSION.json` 被写成
+# 「把现有安装刷成测试版本」：`<base>/var/config.sh` 被写成
 # 4.0.1/TEST，真实安装树也被换成了 4.0.1。
 # AGENTS.md 里那条「会改动系统的测试必须先设 MACWAVE_TEST」说的就是这件事。
 #
@@ -568,7 +568,7 @@ fi
 
 # 目标版本取自上面那份本地数据（SU_VERSION，与 4.0.0 同大版本、高一档），
 # 于是这里真的会走一遍完整流程：取 <selfupdate>/macwavedata/<版本>/update_commands.sh
-# → 按它的 want 清单下载代码 → 全部到位后写 VERSION.json。
+# → 按它的 want 清单下载代码 → 全部到位后写 var/config.sh。
 INSTALLED="4.0.0"
 TARGET="$SU_VERSION"
 

@@ -135,7 +135,8 @@ def fetch_version_min_os(pkg_name, arch, version, budget=None):
 
     pkg_name = require_safe_token(pkg_name, "package name")
     version = require_safe_token(version, "version")
-    version_url = f"{domains.api_domain()}/pkg/pkginfo_{arch}/{pkg_name}/_{pkg_name}@{version}"
+    version_url = (f"{domains.api_domain()}/pkg/pkginfo/{pkg_name}/"
+                   f"_{pkg_name}@{version}.{platforminfo.bottle_tag(arch)}")
     try:
         resp = requests.get(version_url, timeout=_to(budget or _fallback()),
                             headers=github_api_headers(version_url),
@@ -157,8 +158,8 @@ LIST_COLUMNS = 2
 
 def handle_list(budget=None, raw=False):
 
-    # 直接扫描 BASE_DIR/bin 目录下的子目录，列出所有已安装的包
-    # （2.2 起每个包是一个 <包名>@<版本号> 目录）。
+    # 直接扫描 <根>/Shore 目录下的子目录，列出所有已安装的包
+    # （每个包是一个 <包名> 目录，下面再分版本）。
     #
     # --raw 是给脚本用的：一行一个、不带 🌊、不做竖列对齐。
     # 空列表时它也一个字符都不输出 —— 「没有包」由退出码和空输出表达，
@@ -322,8 +323,8 @@ def handle_info(pkg_name, output_format=None, budget=None):
 
     arch = get_arch()
 
-    # 1. 扫描本地 bin 目录，找出所有该包的已安装版本
-    # （2.2 起每个版本对应一个 <包名>@<版本号> 目录）
+    # 1. 扫描 <根>/Shore/<包名>，找出所有该包的已安装版本
+    # （每个版本对应一个 <版本号> 子目录）
     installed_versions = []
     package = PAYLOAD / pkg_name
     if package.is_dir():

@@ -67,10 +67,10 @@ make_pkg() {
     mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/pkg/pkginfo/$name"
     printf '#!/bin/sh\necho %s\n' "$name" > "$dir/$name"
     chmod 755 "$dir/$name"
-    tar czf "$MIRROR/bottle/$name/$name@1.0.$ARCH.tar.gz" -C "$dir" "$name"
+    tar czf "$MIRROR/bottle/$name/$name@1.0.$BOTTLE_TAG.tar.gz" -C "$dir" "$name"
 
     local sha
-    sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@1.0.$ARCH.tar.gz" | cut -d' ' -f1)
+    sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@1.0.$BOTTLE_TAG.tar.gz" | cut -d' ' -f1)
     cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" <<EOF
 bin_name: "$name"
 des: "multi-install probe"
@@ -81,7 +81,7 @@ EOF
     cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@1.0.$BOTTLE_TAG" <<EOF
 sha256: "$sha"
 file: "${name}_${ARCH}.tar.gz"
-url: "http://127.0.0.1:$PORT/bottle/$name/$name%401.0.$ARCH.tar.gz"
+url: "http://127.0.0.1:$PORT/bottle/$name/$name%401.0.$BOTTLE_TAG.tar.gz"
 min_os: "12.0"
 EOF
 }

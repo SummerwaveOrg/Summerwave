@@ -31,7 +31,7 @@ import silent
 BASE_DIR = load_base_dir()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 
-# 依赖的元数据（depsinfo_*）属于索引，跟着 MACWAVE_API_DOMAIN 走；
+# 依赖的元数据（deps/depsinfo/）属于索引，跟着 MACWAVE_API_DOMAIN 走；
 # 依赖的二进制包本身才跟 MACWAVE_DEPS_DOMAIN 走（见 domains.dep_url）。
 DEPSINFO_BASE = f"{domains.api_domain()}/deps"
 TAGGER_SCRIPT = Path(__file__).resolve().parent / "tagger.sh"
@@ -434,7 +434,7 @@ def ensure_dependency(dep_ref, arch, config, input_string, depender, visited=Non
 
     # 写收据（Note）。**只写不读**：_DEPS 与 .depped_* 仍然照旧。
     # requested=False 表示"它是被带进来的"；linked 与 commands 从落盘的 bin/ 判断
-    # （依赖的可执行文件由 depsmanager.sh 链进 links/<名>@<版本>）。
+    # （依赖的可执行文件由 depsmanager.sh 链进 bin/<名>@<版本>）。
     import receipt
     commands = receipt.tree_commands(target_dir)
     receipt.write_note(

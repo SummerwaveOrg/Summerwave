@@ -33,8 +33,8 @@ ARCHIVE_SUFFIXES = (".zip", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", "
 
 
 def version_records(data_dir):
-    # 版本记录都在 pkg/pkginfo_<arch>/<包名>/ 与 deps/depsinfo_<arch>/<依赖名>/ 下，
-    # 文件名形如 _<名字>@<版本号>；元数据记录叫 _<名字>@common。
+    # 版本记录都在 pkg/pkginfo/<包名>/ 与 deps/depsinfo/<依赖名>/ 下，
+    # 文件名形如 _<名字>@<版本号>.<os>-<arch>；元数据记录叫 _<名字>@common。
     for root in (data_dir / "pkg", data_dir / "deps"):
         if not root.is_dir():
             continue

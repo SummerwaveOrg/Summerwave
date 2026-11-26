@@ -2,12 +2,12 @@
 
 # linker.py
 
-# 软件包的“不带版本号软链接”管理：
-#   binary -> ../bin/{名称}@{版本号}/{名称}
-#   tree   -> ../bin/{名称}@{版本号}/bin/{名称}   （安装目录里有 .is_a_tree）
-#   tree 的其余命令（dtc 的 fdtget、testdisk 的 photorec…）各链一条：
-#            ../bin/{名称}@{版本号}/bin/{另一个命令}
-# 只处理软件包（bin/ 下的目录），不碰依赖（deps/ 下的整棵树）。
+# 软件包的“不带版本号软链接”管理。1.0 的布局（见 configpaths）：
+#   binary -> ../Shore/{名称}/{版本号}/{名称}
+#   tree   -> ../Shore/{名称}/{版本号}/bin/{名称}   （安装目录里有 .is_a_tree）
+#   tree 的其余命令（dtc 的 fdtget、testdisk 的 photorec…）各链一条。
+# 链接全部落在 <根>/bin/（PATH 里唯一的目录），包与依赖同构地放在 Shore/ 下，
+# 靠 Note 里的 requested 区分 —— 所以这里不用再分「包目录」与「依赖目录」。
 # 装完软件包后会自动改指到最高版本；早期装的包可以用 `wave link` 补上，
 # 用 `wave unlink` 撤掉。
 
@@ -157,20 +157,20 @@ def _owner_from_target(target):
 
 
 def linked_version(name):
-    # links/{名称} 当前指向哪个版本；没链接、或指向别的名字时返回 None
+    # bin/{名称} 当前指向哪个版本；没链接、或指向别的名字时返回 None
     name = require_safe_token(name, "package name")
     owner = _link_owner(name)
     return owner[1] if owner and owner[0] == name else None
 
 
 def is_dangling(name):
-    # links/{名称} 是不是指向一个已经不存在的版本（已卸载，或目录被手动删掉）
+    # bin/{名称} 是不是指向一个已经不存在的版本（已卸载，或目录被手动删掉）
     version = linked_version(name)
     return version is not None and version not in installed_versions(name)
 
 
 def unversioned_links():
-    # links/ 下所有不带版本号的软链接（带版本号的链接名里一定有 @）
+    # bin/ 下所有不带版本号的软链接（带版本号的链接名里一定有 @）
     if not BIN_DIR.is_dir():
         return []
 
@@ -184,7 +184,7 @@ def unversioned_links():
 # -------------------- 链接操作 --------------------
 
 def create_link(name, version):
-    # 建立或重指 links/{名称}；已存在（含悬空链接）先删掉再建
+    # 建立或重指 bin/{名称}；已存在（含悬空链接）先删掉再建
     name = require_safe_token(name, "package name")
     version = require_safe_token(version, "package version")
     BIN_DIR.mkdir(parents=True, exist_ok=True)
@@ -211,7 +211,7 @@ def create_link(name, version):
 
 
 def linked_bin_names(name):
-    # links/ 下所有指回 {名称}@{版本} 这个包的命令（含主命令与其余命令）
+    # bin/ 下所有指回 {名称}@{版本} 这个包的命令（含主命令与其余命令）
     if not BIN_DIR.is_dir():
         return []
 
@@ -247,11 +247,11 @@ def remove_package_links(name):
 
 
 def remove_versioned_links(name, version):
-    """摘掉 `links/{链接名}@{版本}` 这一类链接 —— 安装时由 depsmanager.sh 建的。
+    """摘掉 `bin/{链接名}@{版本}` 这一类链接 —— 旧布局（4.x）安装时留下的。
 
     整树包的每个可执行文件各有一条（`git-upload-pack@2.56.1`），链接名不等于包名，
     只能靠目标路径里的 `{包名}@{版本}` 段认领。卸载只删主命令那一条会留下这些，
-    random_test 的「links/ 没有残留」就是这么红的。
+    random_test 的「bin/ 没有残留」就是这么红的。
     """
     name = require_safe_token(name, "package name")
     version = require_safe_token(version, "package version")
@@ -388,7 +388,7 @@ def handle_unlink_command(input_string=""):
     unlinked = 0
     for target in targets:
         name = target.partition("@")[0]
-        # 整树包的其余命令也一起摘掉，不然 links/ 里会留下没人认领的软链
+        # 整树包的其余命令也一起摘掉，不然 bin/ 里会留下没人认领的软链
         removed = remove_package_links(name)
         if removed:
             silent.say(f"🌊 {', '.join(removed)}: unlinked")
@@ -436,7 +436,7 @@ def _link_notice(message, raw, colour):
 
 
 def report_all_links(raw=False):
-    """`linkquery -a`：按**包名**逐个报，而不是按 links/ 里的条目名。
+    """`linkquery -a`：按**包名**逐个报，而不是按 bin/ 里的条目名。
 
     整树包会给树里的每个可执行文件各建一条链接（git 的 git-upload-pack、
     dtc 的 fdtget…）。拿这些名字去 bin/ 里找 {名字}@{版本} 目录永远找不到，
@@ -477,7 +477,7 @@ def report_all_links(raw=False):
             continue  # 主命令已经在上面按包报过了
         owner = _link_owner(link_name)
         if owner is None:
-            _link_notice(f"Warning: links/{link_name} is not a link MacWave made.",
+            _link_notice(f"Warning: bin/{link_name} is not a link Summerwave made.",
                          raw, YELLOW)
             missing += 1
         elif owner[0] not in packages or owner[1] not in installed_versions(owner[0]):

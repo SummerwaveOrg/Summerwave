@@ -143,7 +143,7 @@ def installed_bin_names():
 # -------------------- 包名解析 --------------------
 
 def resolve_package_name(bin_name, names):
-    # bin/ 与 links/ 用的是 bin_name，索引里的是包名，两者不一定相同（choma -> ChOma）。
+    # 安装树里用的是 bin_name，索引里的是包名，两者不一定相同（choma -> ChOma）。
     # 名字清单已经在手，先精确、再忽略大小写，都不中就当它同名 —— 查不到会显示 UNKNOWN。
     if not names:
         return bin_name

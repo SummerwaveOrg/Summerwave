@@ -75,7 +75,7 @@ def main():
     parser.add_argument("--infosource", required=True, type=Path,
                         help="path to a checkout of MacWaveOrg/infosource (written in place)")
     parser.add_argument("--mirror", required=True, type=Path,
-                        help="mirror root; its bottle/ and deps/ subdirs decide what gets listed")
+                        help="mirror root; its bottle/ and deps/ subtrees decide what gets listed")
     args = parser.parse_args()
 
     if not (args.infosource / "pkg").is_dir():

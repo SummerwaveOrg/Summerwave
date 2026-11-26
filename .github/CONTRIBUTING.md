@@ -39,7 +39,7 @@ shellcheck -S warning lib/*.sh pkg/*.sh surfboard/*.sh scripts/*.sh
 ```
 
 Anything that installs or uninstalls for real must set `MACWAVE_TEST`, or it
-will write into `~/.local/macwave`:
+will write into `/opt/macwave`:
 
 ```bash
 MACWAVE_TEST=/tmp/mw-test bash scripts/format_test.sh

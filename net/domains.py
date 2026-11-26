@@ -38,6 +38,7 @@ RESET = '\033[0m'
 # shell 侧的三份副本由 scripts/check_domain_defaults.py 比对。
 
 import envvar
+import platforminfo
 
 # 允许的协议：https 是常态；file 给离线安装与测试用；http 只接受回环地址
 ALLOWED_SCHEMES = ("https", "file")
@@ -238,8 +239,10 @@ def payload_suffix(upstream_filename):
 
 
 def payload_filename(name, version, arch, upstream_filename):
-    # <包名>@<版本>.<架构><扩展名>。落盘也用它，因为 pkgunzip.sh 靠扩展名选解压器。
-    return f"{name}@{version}.{arch}{payload_suffix(upstream_filename)}"
+    # <包名>@<版本>.<os>-<arch><扩展名>，例如 jq@1.8.2.macos-arm64.tar.gz。
+    # 标签与索引记录名同源（config/platforminfo.bottle_tag），一个平台一份产物。
+    # 落盘也用它，因为 pkgunzip.sh 靠扩展名选解压器。
+    return f"{name}@{version}.{platforminfo.bottle_tag(arch)}{payload_suffix(upstream_filename)}"
 
 
 def payload_url(kind, name, filename):

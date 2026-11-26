@@ -214,10 +214,10 @@ lib/innocent.dylib -> /Users/someone/.ssh/id_rsa
   11 项全部失败，而报错完全看不出是环境问题。
 - **会真装真卸的测试必须自带沙箱**：`format_test.sh`、`deps_test.sh`、`link_test.sh`、
   `selfupdate_test.sh` 都用 `scripts/components.sh` 里的 `sandbox_install_tree` 造一棵
-  隔离的安装树 + 配置目录，并 `export MACWAVE_TEST` —— 绝不读真实安装的 `base_dir`。
-  （2026-11-24 之前它们读真的，`selfupdate_test.sh` 跑一次就把 `/opt/macwave_config`
-  的 `VERSION.json` 写成 `4.0.1/TEST`、把树刷成测试版本。）
-  新写这类测试时照抄同一套：**不要**图省事去读 `/opt/macwave_config`。
+  隔离的安装树，并 `export MACWAVE_TEST` —— 绝不读真实的 `/opt/macwave`。
+  （2026-11-24 之前它们读真的，`selfupdate_test.sh` 跑一次就把真实安装的 `var/config.sh`
+  写成 `4.0.1/TEST`、把树刷成测试版本。）
+  新写这类测试时照抄同一套：**不要**图省事去读 `/opt/macwave`。
 
 ### 只为 CI 加的旁路，必须用边界注释标出来
 
@@ -244,10 +244,10 @@ fi
 
 ### 手工验证一条命令时
 
-`MACWAVE_TEST=<临时目录>` 是单条命令的隔离手段：程序把该目录当作 `/`，配置目录、
-安装目录、下载缓存与 `HOME` 全部挂进去（实现见 `config/configpaths.py` 的
+`MACWAVE_TEST=<临时目录>` 是单条命令的隔离手段：程序把该目录当作 `/`，安装目录、
+状态文件、下载缓存与 `HOME` 全部挂进去（实现见 `config/configpaths.py` 的
 `_resolve_test_root`，三份 shell 脚本各自读同一个 `MACWAVE_TEST`）。不隔离就会读写本机真实的
-`~/.local/macwave`、`~/.config/macwave_config`，**包括真删掉你装着的包**。
+`/opt/macwave`，**包括真删掉你装着的包**。
 
 ```bash
 MACWAVE_TEST=/tmp/mw-probe python3 lib/wave.py mirror
@@ -310,11 +310,10 @@ LC_ALL=en_US.UTF-8 LC_CTYPE=en_US.UTF-8 /bin/bash lib/install.sh --help --zh
 
 ### 为什么不隔离会很隐蔽
 
-`config_dir_candidates()` 是**系统级优先**：`/opt/macwave_config` 存在就用它。
-CI 会预先写好那份文件，于是同一个脚本在 CI 上读到的是宿主配置，本地却因为文件
-不存在而一直是绿的 —— 本地绿、CI 红，报错还指不到原因。同一个脚本里有多个互不
-相干的沙箱时，每个沙箱要有**自己的**测试根，否则共享的 `MACWAVE_TEST` 会让它们
-互相看见。细节见 [`docs/CODE-MAP.md`](./docs/CODE-MAP.md) 的 2.6 节与 3.5 节。
+安装根是**写死**的 `/opt/macwave`，而开发机上它真的存在（早就装过了）。不隔离时
+程序读到的就是宿主那棵树，测试在开发机上绿、在 CI 上红，报错还指不到原因。同一个
+脚本里有多个互不相干的沙箱时，每个沙箱要有**自己的**测试根，否则共享的
+`MACWAVE_TEST` 会让它们互相看见。细节见 [`docs/CODE-MAP.md`](./docs/CODE-MAP.md) 的 2.6 节与 3.5 节。
 
 ### 怎么跑
 

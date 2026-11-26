@@ -105,19 +105,27 @@ jobs:
           SHA = re.compile(r'^sha256:\s*"([0-9a-f]{64})"\s*$', re.M)
           URL = re.compile(r'^url:\s*"([^"]+)"\s*$', re.M)
 
+          # 1.0 起索引不再按架构分目录：记录名是 _<名>@<版本>.<os>-<arch>，
+          # 架构（也就是 PROBE 行最后一段）从标签里剥出来。
+          VOCAB = (("macos", "linux"), ("arm64", "amd64"))
           todo = []
-          for arch_dir in sorted(root.glob("pkginfo_*")):
-              for rec in sorted(arch_dir.glob("*/_*@*")):
-                  if rec.name.endswith("@common"):
-                      continue
-                  text = rec.read_text()
-                  sha, url = SHA.search(text), URL.search(text)
-                  if not sha or sha.group(1) != "0" * 64 or not url:
-                      continue
-                  name, _, version = rec.name[1:].partition("@")
-                  if only and name not in only:
-                      continue
-                  todo.append((arch_dir.name.replace("pkginfo_", ""), name, version, url.group(1)))
+          for rec in sorted(root.glob("pkginfo/*/_*@*")):
+              if rec.name.endswith("@common"):
+                  continue
+              text = rec.read_text()
+              sha, url = SHA.search(text), URL.search(text)
+              if not sha or sha.group(1) != "0" * 64 or not url:
+                  continue
+              name, _, version = rec.name[1:].partition("@")
+              if only and name not in only:
+                  continue
+              # 没有合法标签的记录是数据缺陷，跳过而不是猜
+              tag = version.rpartition(".")[2]
+              os_name, _, arch = tag.partition("-")
+              if os_name not in VOCAB[0] or arch not in VOCAB[1]:
+                  print(f"::warning::{rec} has no bottle tag, skipped", flush=True)
+                  continue
+              todo.append((arch, name, version.rpartition(".")[0], url.group(1)))
 
           print(f"🌊 {len(todo)} placeholder record(s)", flush=True)
           for arch, name, version, url in todo:

@@ -192,7 +192,7 @@ def confirm_min_client_version(record_text, pkg_name, pkg_version, force=False):
     构建机的路径（实测 `/Users/<builder>/build/git/stage-arm64/libexec/git-core`），
     依赖系统 git 提供 helper。所以默认硬拦，只有 -F/--force 越过。
 
-    字段缺失时静默跳过；本机版本读不到（VERSION.json 不存在）时也跳过 —— 猜不出
+    字段缺失时静默跳过；本机版本读不到（var/config.sh 不存在）时也跳过 —— 猜不出
     就别拦人。
     """
     match = re.search(r'min_client_version:\s*"([^"]*)"', record_text)
@@ -825,7 +825,7 @@ def _as_request_timeout(value):
 
 
 def fetch_common_fields(package_name, timeout=DEFAULT_TIMEOUT):
-    # 包名与 bin_name 不一定相同（例如 choma -> ChOma），而 bin/ 与 links/ 用的是 bin_name。
+    # 包名与 bin_name 不一定相同（例如 choma -> ChOma），而安装树里用的是 bin_name。
     # 所以任何要「按名字找已安装版本」的命令都必须先读这个文件。
     url = package_common_url(package_name)
     steplog.detail(f"GET {domains.redact_url(url)}")
@@ -1248,7 +1248,7 @@ def _install_single_locked(input_string):
     # 5.1.0 「这份产物构建时就重定位好了」的声明。两种写法都认：
     #   * 版本记录里写 relocated: "loader_path"（单文件产物没法带标记文件，
     #     只能用这条）；
-    #   * 产物里带 _RELOCATED 标记（整树包里随之落地，见 surfboard/transfer.sh）。
+    #   * 产物里带 _RELOCATED 标记（整树包里随之落地，见 scripts/relocate_rpath.py）。
     # 声明为真时客户端**一个字节都不改**，连扫描都不做 —— 这就是「用户端不再构建」。
     # 声明本身受两个东西保护：索引记录是信任起点，产物字节由 sha256 锁死。
     prebuilt = (get_field(version_fields, "relocated") or "").strip() == "loader_path"

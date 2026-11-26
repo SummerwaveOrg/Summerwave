@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 # sync_payloads.py
-# 把 infosource 里登记的产物抓下来，按 4.0 的约定命名，写成一棵树。
+# 把 infosource 里登记的产物抓下来，按瓶子标签命名，写成一棵树。
 #
-#   <out>/bottle/<包名>/<包名>@<版本>.<架构><扩展名>
-#   <out>/deps/<依赖名>/<依赖名>@<版本>.<架构><扩展名>
+#   <out>/bottle/<包名>/<包名>@<版本>.<os>-<arch><扩展名>
+#   <out>/deps/<依赖名>/<依赖名>@<版本>.<os>-<arch><扩展名>
+#
+# 平台标签只有一支词表（macos|linux + arm64|amd64，由 config/platforminfo.bottle_tag
+# 决定），单远端靠文件名里的标签区分架构，不再按架构分目录。
 #
 # 这棵树同时是两种东西：
 #   1. 上传到 Bottle / Deps 仓库 Release 的内容（CI 用）

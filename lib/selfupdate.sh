@@ -498,7 +498,7 @@ direct() {
 # 是同一个人群，权限并没有变大；其他用户仍然只读。
 #
 # 为什么 selfupdate 也要做：4.3.0 只让 install.sh 做了这一步，升级上来的
-# 系统级安装仍然归安装者所有 —— links/<名> 于是对该用户可写，而它会被别的
+# 系统级安装仍然归安装者所有 —— bin/<名> 于是对该用户可写，而它会被别的
 # 用户、脚本甚至 root 执行，本地提权路径照旧成立。升级是最常见的路径，
 # 漏在这里等于没修。
 #
@@ -532,7 +532,7 @@ hand_over_system_install() {
 
     # 已经收尾过（属主是 root）就不用再动 —— 组可写的树现在 NEED_SUDO 是 false，
     # 光看它会把「老安装仍归安装者所有」这种情况漏掉：那次正是要让 root 接手，
-    # 否则 links/ 里的二进制对该用户可写，而它会被别人执行。
+    # 否则 bin/ 里的链接对该用户可写，而它会被别人执行。
     owner="$(stat -f '%Su' "$dir" 2>/dev/null || stat -c '%U' "$dir" 2>/dev/null)"
     if [[ "$owner" == "root" ]] && [[ "$NEED_SUDO" != "true" ]]; then
         return 0
@@ -1188,7 +1188,7 @@ if [[ "$NEED_SUDO" == "true" ]]; then
         echo "🌊 Administrators can still install and remove packages without sudo."
     else
         echo -e "${YELLOW}🌊 Warning: could not hand $BASE_DIR over to root:$(admin_group).${RESET}"
-        echo "🌊 The tree is still writable by ${CURRENT_USER}; links/ can be replaced by that account."
+        echo "🌊 The tree is still writable by ${CURRENT_USER}; bin/ can be replaced by that account."
         echo "🌊 Re-run this command, or reinstall with lib/install.sh."
     fi
 fi

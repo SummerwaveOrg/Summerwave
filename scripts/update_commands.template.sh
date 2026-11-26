@@ -18,7 +18,7 @@
 #   MACWAVE_LANG             zh = 中文输出；未设置或其它值 = 英文
 #
 # 约定：
-#   - 任何一步失败都要 exit 非零；客户端据此判定「什么都没更新」，不写 VERSION.json
+#   - 任何一步失败都要 exit 非零；客户端据此判定「什么都没更新」，不写 var/config.sh
 #   - 必须幂等：重跑一次不能把已经就位的东西弄坏
 
 set -u
@@ -216,7 +216,7 @@ want() {
         # 必须 exit 而不是 return：install_fresh / install_delta 是一串裸的
         # `want ...`，没有 `|| exit`，脚本也没有 set -e。用 return 1 的话
         # 调用方不看返回值，于是「有文件没下到」会被当成更新成功，客户端照旧
-        # 写 VERSION.json —— 安装树缺文件但版本号已经前进了，这种状态最难查。
+        # 写 var/config.sh —— 安装树缺文件但版本号已经前进了，这种状态最难查。
         # 2026-10-30 的 4.1.1 就是这样：两个 __pycache__ 路径 404 之后，
         # 那一步仍然打印了 "MacWave has been updated to 4.1.1!"。
         exit 1
@@ -268,7 +268,7 @@ tree_complete() {
 }
 
 main() {
-    # 「已经是这个版本」也要先确认树是完整的。VERSION.json 只证明「上次跑完过」，
+    # 「已经是这个版本」也要先确认树是完整的。var/config.sh 只证明「上次跑完过」，
     # 不证明文件还在 —— 只信版本号的话，一棵坏树会永远停在 "Already at"，
     # 无论跑多少次都不会修好（这正是 2026-11-15 那次的形态）。
     if [ "${MACWAVE_FULL_INSTALL:-}" != "1" ] \

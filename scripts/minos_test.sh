@@ -28,19 +28,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 PYTHON=${PYTHON:-python3}
 
-# `import pkginstaller` 在模块级就会调 load_base_dir()：找不到配置文件直接
-# sys.exit(1)。CircleCI 刻意保持零配置（见 .circleci/config.yml 开头），所以那里
-# 必须造一份。只在缺配置时才伪造 HOME —— 一律伪造会让 python 找不到用户级的
-# site-packages（本机 requests 就装在那里），反而把测试弄坏。
+# 安装根已写死（config/platforminfo.DEFAULT_BASE_DIR），本测试不碰安装树，
+# 也就不需要造任何配置文件。
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-
-if [[ ! -f /opt/macwave_config/config.json \
-      && ! -f "$HOME/.config/macwave_config/config.json" ]]; then
-    export HOME="$WORK/home"
-    mkdir -p "$HOME/.config/macwave_config" "$WORK/base/bin"
-    printf '{"base_dir": "%s"}\n' "$WORK/base" > "$HOME/.config/macwave_config/config.json"
-fi
 
 PASSED=0
 FAILED=0
@@ -194,7 +185,7 @@ else:
 
 # -------------------- 3.5 min_client_version：硬拦，不问 --------------------
 print("# min_client_version")
-# 本机版本由 VERSION.json 决定；测试里直接替换 get_version，别去改文件。
+# 本机版本由 var/config.sh 决定；测试里直接替换 get_version，别去改文件。
 real_get_version = inst.get_version
 
 

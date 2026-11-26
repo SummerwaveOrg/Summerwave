@@ -13,7 +13,7 @@
 #
 #   2. want 失败只 return 1，而 install_fresh / install_delta 是一串裸的 want
 #      调用，脚本没有 set -e，调用方也不看返回值 —— 于是「有文件没下到」被当成
-#      更新成功，客户端照旧写 VERSION.json，留下版本号前进但安装树残缺的状态。
+#      更新成功，客户端照旧写 var/config.sh，留下版本号前进但安装树残缺的状态。
 #
 # 还有一条安全断言：报错里的地址必须打码。用镜像时 MACWAVE_CORE_URL 里带凭据。
 
@@ -245,7 +245,7 @@ if command -v python3 >/dev/null 2>&1; then
     if [ "$rc" -ne 0 ]; then
         pass "有文件 404 时整次更新失败（退出码 ${rc}）"
     else
-        fail "有文件 404 却报告成功 —— 客户端会写 VERSION.json 留下残缺安装树"
+        fail "有文件 404 却报告成功 —— 客户端会写 var/config.sh 留下残缺安装树"
     fi
     expect "报错点名了缺的那个文件" "$out" "pkg/missing.py"
     expect_absent "报错里没有明文密码" "$out" "no-such-secret"
@@ -417,11 +417,11 @@ fi
 
 # ==========================================================
 echo
-echo "========== 12. 安装树不完整必须自愈（不能只信 VERSION.json）=========="
+echo "========== 12. 安装树不完整必须自愈（不能只信 var/config.sh）=========="
 # 2026-11-15 真机上出现过：wave 一启动就 ModuleNotFoundError，因为树里
 # lib/configerror.py 被上一条迁移删了、lib/wave.py 却还是旧版的。
 # 当时无论怎么重装都没用 —— 脚本只判断 lib/wave.py 在不在，于是永远走增量
-# （那次增量只有 1 个文件），而 VERSION.json 说「已经是这个版本」时更是直接
+# （那次增量只有 1 个文件），而 var/config.sh 说「已经是这个版本」时更是直接
 # 返回 "Already at"，连下载都不做。四条断言把自愈行为钉死。
 if command -v python3 >/dev/null 2>&1; then
     mkdir -p "$WORK/www4/main/lib"

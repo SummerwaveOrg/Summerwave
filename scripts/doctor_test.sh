@@ -143,10 +143,10 @@ echo "========== 6. --list-checks / 未知旗标 =========="
 
 doctor --list-checks
 [[ "$RC" -eq 0 ]] && pass "--list-checks 退出码 0" || fail "--list-checks 返回 ${RC}"
-for name in base-dir tree installed links dependencies downloads position; do
+for name in base-dir tree installed links dependencies downloads; do
     [[ "$OUT" == *"$name"* ]] || fail "--list-checks 少了 ${name}"
 done
-pass "--list-checks 列出了全部七项"
+pass "--list-checks 列出了全部六项"
 
 doctor --bogus
 [[ "$RC" -ne 0 ]] && pass "未知旗标被拒绝" || fail "未知旗标被放过了"
@@ -156,9 +156,9 @@ echo
 echo "========== 7. 只读：跑完树一个字节都没变 =========="
 
 build_tree broken
-BEFORE=$(cd "$BASE" && find bin links deps downloads -exec sh -c 'printf "%s %s\n" "$1" "$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1")"' _ {} \; 2>/dev/null | sort)
+BEFORE=$(cd "$BASE" && find bin Shore downloads var -exec sh -c 'printf "%s %s\n" "$1" "$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1")"' _ {} \; 2>/dev/null | sort)
 doctor > /dev/null
-AFTER=$(cd "$BASE" && find bin links deps downloads -exec sh -c 'printf "%s %s\n" "$1" "$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1")"' _ {} \; 2>/dev/null | sort)
+AFTER=$(cd "$BASE" && find bin Shore downloads var -exec sh -c 'printf "%s %s\n" "$1" "$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1")"' _ {} \; 2>/dev/null | sort)
 [[ "$BEFORE" == "$AFTER" ]] && pass "doctor 没有改动安装树（含 mtime）" \
     || fail "doctor 改了东西：$(diff <(echo "$BEFORE") <(echo "$AFTER") | head -5)"
 

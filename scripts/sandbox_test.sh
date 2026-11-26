@@ -604,16 +604,17 @@ cat > "$SANDBOX_DIR/profile.sb" << SBEOF
 (allow file-ioctl)
 SBEOF
 
-# 被测的「系统级安装路径」必须在沙箱里**看不见**：开发机上 /opt/macwave 是
-# 真的存在的（早就装过了），不遮掉的话，安装器会把宿主机的安装当成「已有安装」
-# 去读它的配置，卸载器会拿宿主机的 /opt/macwave_config 去 sudo 删——
-# 测试断言的是沙箱里那台「干净的机器」，不是开发者这台机器。
-for _host_path in /opt/macwave /opt/macwave_config /opt/macwave_custom /usr/local/macwave; do
+# 被测的「写死安装根」必须在沙箱里**看不见**：开发机上 /opt/macwave 真的存在
+# （早就装过了），不遮掉的话，安装器会把宿主机的安装当成「已有安装」去读它的
+# var/config.sh，卸载器会拿宿主机的树去 sudo 删——测试断言的是沙箱里那台
+# 「干净的机器」，不是开发者这台机器。
+for _host_path in /opt/macwave; do
     echo "(deny file-read* (subpath \"$_host_path\"))" >> "$SANDBOX_DIR/profile.sb"
     echo "(deny file-write* (subpath \"$_host_path\"))" >> "$SANDBOX_DIR/profile.sb"
 done
 
-# bash 的 here-document 在配合函数/内建以外的命令时要落一个真实临时文件，位置写死在# /tmp（即 /private/tmp），不看 TMPDIR——安装器写 config.json / VERSION.json 正是这样。
+# bash 的 here-document 在配合函数/内建以外的命令时要落一个真实临时文件，
+# 位置写死在 /tmp（即 /private/tmp），不看 TMPDIR——安装器写 var/config.sh 正是这样。
 # 放开这个公共临时目录，沙箱目录本身也在它下面。
 echo "(allow file-write* (subpath \"/private/tmp\"))" >> "$SANDBOX_DIR/profile.sb"
 

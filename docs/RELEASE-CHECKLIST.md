@@ -56,45 +56,34 @@ git switch -c 4.2 main
 
 ---
 
-## 一点六、构建号（`build_number`）怎么算
+## 一点六、版本号与构建号（1.0 起：只剩版本号）
 
-每次发版都要换一个，格式固定 8 个字符：
+1.0 起**版本号就是发布时刻**，`build_number` 整个取消：
 
 ```
-323R1250
-└┬┘│└─┬─┘
- │ │  └── 发布时刻 HHMM（24 小时制）
- │ └───── 字母：见下表（正式版 A–G／H 特殊日期，Beta I–O／P，RC 固定 R）
- └─────── 今天距离 2026-01-01 的天数，3 位补零（2026-01-01 → 001）
+2026.11.26-15:52:43
+└────┬────┘└──┬───┘
+   日期      时分秒
 ```
-
-字母规则：
-
-| 普通版本 | Beta 版 | RC 版本 |
-| --- | --- | --- |
-| `A`-`G` 对应周一-周日，`H` 为特殊日期 | `I`-`O` 对应周一-周日，`P` 为特殊日期 | `R` |
-
-例：2026-11-19 是周四、距年初 323 天，12:50 发布一个 RC → `323R1250`。
-
-取当前值一行命令（别手算，闰年与跨年是坑）：
 
 ```bash
-printf '%sA%s\n' "$(( ( $(date +%s) - $(date -j -f %Y-%m-%d 2026-01-01 +%s) ) / 86400 + 1 ))" "$(date +%H%M)"
-# Beta 把 A 换成当天的 I-O（周一=I）；RC 直接用 R
+date +%Y.%m.%d-%H:%M:%S      # 这就是新版本号，别手写
 ```
 
-三条容易错的地方：
+三条规则：
 
-- **第四位不是「第几次构建」。** 它编码的是渠道与周几：正式版 `A`-`G`、Beta `I`-`O`、
-  RC 永远是 `R`。4.3.3 之前所有构建号第四位都是 `A`，多数与真实周几不符 —— 这条
-  规则以前没被实现过。**历史号不回改**：它只是标识，改了会让旧发布说明、
-  `Selfupdate/<版本>/` 目录与 tag 对不上。
-- **`HHMM` 只用于区分同一天内的多次发布**，不参与版本比较。客户端比的是
-  `version`（PEP 440），版本相同时才比构建号的天数与时分（`lib/versioncompare.py`
-  的 `build_key` / `is_newer_build`），字母只给人看。
-- **三处必须写同一个值**：`configdata/versiondata/latest_version`、
-  对应渠道的探针（正式版 `macwavedata/latest.toml`、RC `rcdata/latest.toml`）、
-  发布说明头部「发布日期 · 构建号」那一行。
+- **只用来比大小。** 客户端把它转成 `99!20261126.155243` 再比（`lib/versioncompare.py`
+  的 `client_key()`），epoch 99 保证任何时间戳都大于任何 4.x 的 PEP 440 版本 ——
+  所以 4.x → 1.0 不需要「跨大版本」特判。
+- **不递增、不规划。** 滚动更新想发几次发几次；一秒钟内发两版这件事没人信会发生，
+  真发生了就等一秒。发布慢几分钟无所谓。
+- **没有 beta / RC 标记。** 渠道只有两支：`stable`（`macwavedata/latest.toml`）与
+  `preview`（`prerelease/latest.toml`）。要预发布就往 `preview` 推，它天然是
+  「比 stable 新但还没转正」的线。想阻止某个版本被自更新，在探针里写
+  `selfupdate = "blocked"`（必带 `selfupdate_reason`），见 [`VERSIONING.md`](./VERSIONING.md)。
+
+**三处必须写同一个值**：`configdata/versiondata/latest_version`、对应渠道的探针
+（`macwavedata/latest.toml` 或 `prerelease/latest.toml`）、发布说明头部那一行。
 
 ---
 
@@ -129,9 +118,8 @@ git switch -c 4.1          # 从 main 切出，保证历史连续
 
 ```bash
 # configdata/versiondata/latest_version
-version: "<新版本>"
-build_number: "<构建号，算法见一点六>"
-branch: "4.1"
+version: "YYYY.MM.DD-HH:MM:SS"      # 见一点六
+branch: "1.0"
 update_command: <<< …/MacWave/4.1/lib/selfupdate.sh >>>
 ```
 
@@ -237,55 +225,36 @@ grep -E 'want (lib/(install|uninstall)\.sh|.*__pycache__|.*\.pyc)' /tmp/update_c
 > 4.4 客户端拿到它会**只警告**不符；`MACWAVE_STRICT_HASHES=1` 时才失败。
 
 ```toml
-version = "<新版本>"
+version = "YYYY.MM.DD-HH:MM:SS"      # 见一点六，别手写
 release_date = "YYYY-MM-DD"
-build_number = "<构建号，算法见一点六>"
 branch = "<新分支>"
 ```
 
-### 第 5.5 步：发 RC（渠道隔离，不要碰正式版探针）
+### 第 5.5 步：发预览版（`preview` 渠道，不要碰正式版探针）
 
-RC 走**自己的探针**，正式版用户完全看不到它：
+预览版走**自己的探针**，`stable` 用户完全看不到它：
 
 ```
-Selfupdate/rcdata/latest.toml              ← RC 探针（只此一份，正式版探针不动）
+Selfupdate/prerelease/latest.toml                  ← 预览探针（正式版探针不动）
 Selfupdate/macwavedata/<版本>/update_commands.sh   ← 两渠道共用，按版本冻结
 ```
 
-**版本号**用 `4.4.1-rc`（PEP 440 会把没编号的 `-rc` 补成 `rc0`，所以同一个
-`X.Y.Z-rc` 反复发多次都合法）。**构建号**字母固定 `R`，例如 `323R1250`：
-
 ```toml
-# Selfupdate/rcdata/latest.toml
-version = "4.4.1-rc"
-build_number = "323R1250"
-branch = "4.4"                 # RC 也在发布分支上，不能写 main
+# Selfupdate/prerelease/latest.toml
+version = "2026.11.26-15:52:43"
+release_date = "2026-11-26"
+branch = "1.0"
 update_commands_sha256 = "<第 4 步生成器打印的那一行>"
 ```
 
 三条与正式版不同的地方：
 
-- **探针路径不同**（`rcdata/` 而不是 `macwavedata/`）。这正是为了让两者互不覆盖：
-  正式版探针每次发版都被改写，RC 一天可能发好几次。
-- **`version` 是预发布**，客户端据此选渠道。装的是 RC → `wave selfupdate` 只读
-  `rcdata/latest.toml`；装的是正式版 → 永远不读它。
-- **`build` 必填**。同一版本可能构建多次，只比 `version` 会得出「已是最新」。
-  构建号进入 `VERSION.json` 的 `build` 字段，比较规则见
-  `lib/versioncompare.py` 的 `newer_release()`。
-
-装一台 RC 试用（`MACWAVE_CHANNEL=rc` 让安装器读 RC 探针）：
-
-```bash
-MACWAVE_CHANNEL=rc /bin/bash -c \
-  "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)"
-```
-
-RC 渠道收尾（正式版已经比 RC 新）时，客户端会**全量**切到正式版：置
-`MACWAVE_FULL_INSTALL=1`，把安装树整体替换，而不是把正式版的增量铺在 RC 树上 ——
-后者就是 2026-11-15 那次「两条分支混装、wave 启动即崩」的成因。
-
-`latest.toml.sig` 对 RC 探针同样有效：签名的是探针内容，与它放在哪个路径无关。
-RC 探针建议也签，否则 `wave selfupdate` 在 RC 上会打「这份数据没有签名」的警告。
+- **探针路径不同**（`prerelease/` 而不是 `macwavedata/`）。这正是为了让两者互不覆盖：
+  正式版探针每次发版都被改写，预览版一天可能发好几次。
+- **渠道存在客户端的状态文件里**（`var/config.sh` 的 `MACWAVE_CHANNEL`），不是从版本号推。
+  装的是 `preview` → `wave selfupdate` 只读 `prerelease/latest.toml`；装的是 `stable`
+  → 永远不读它。4.x 那种「版本号带 `-rc` 后缀就切渠道」的做法已经不成立（时间戳没有后缀）。
+- **没有构建号要填**。同一个版本号只可能对应一次发布。
 
 ### 第 6 步：更新官网版本号与 Release 正文
 

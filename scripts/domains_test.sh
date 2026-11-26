@@ -143,29 +143,29 @@ payload = domains.resolve_payload(
     upstream_url="https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64",
     from_source=False)
 check("transport", payload["transport"], "https")
-check("文件名带架构", payload["filename"], "jq@1.7.1.arm64")
+check("文件名带平台标签", payload["filename"], "jq@1.7.1.macos-arm64")
 check("地址形状", payload["url"],
-      "https://github.com/MacWaveOrg/Bottle/releases/download/jq/jq%401.7.1.arm64")
+      "https://github.com/MacWaveOrg/Bottle/releases/download/jq/jq%401.7.1.macos-arm64")
 check("不出现上游主机", "github.com/jqlang" in payload["url"], False)
 
 # 3.2 两个架构不撞名（arm64 / amd64 是同名同版本的两条索引记录）
 amd = domains.resolve_payload("bottle", "jq", "1.7.1", "amd64",
                               upstream_filename="jq-macos-arm64", upstream_url="",
                               from_source=False)
-check("amd64 文件名", amd["filename"], "jq@1.7.1.amd64")
+check("amd64 文件名", amd["filename"], "jq@1.7.1.macos-amd64")
 check("两架构不同名", amd["filename"] != payload["filename"], True)
 
 # 3.3 扩展名跟随上游（字节原样搬运，落盘要带对后缀供解压器识别）
 payload = domains.resolve_payload("bottle", "jq", "1.7.1", "arm64",
                                   upstream_filename="jq-1.7.1.zip", upstream_url="",
                                   from_source=False)
-check("zip 后缀", payload["filename"], "jq@1.7.1.arm64.zip")
+check("zip 后缀", payload["filename"], "jq@1.7.1.macos-arm64.zip")
 
 # 3.4 多段扩展名完整保留，不能被截成 .gz
 payload = domains.resolve_payload("deps", "libidn2", "2.3.7", "arm64",
                                   upstream_filename="libidn2-darwin.tar.gz", upstream_url="",
                                   from_source=False)
-check("多段后缀", payload["filename"], "libidn2@2.3.7.arm64.tar.gz")
+check("多段后缀", payload["filename"], "libidn2@2.3.7.macos-arm64.tar.gz")
 check("依赖专用仓库", payload["url"].split("/releases")[0],
       "https://github.com/MacWaveOrg/Deps")
 
@@ -173,7 +173,7 @@ check("依赖专用仓库", payload["url"].split("/releases")[0],
 payload = domains.resolve_payload("bottle", "choma", "1.0", "amd64",
                                   upstream_filename="ChOma", upstream_url="",
                                   from_source=False)
-check("裸二进制", payload["filename"], "choma@1.0.amd64")
+check("裸二进制", payload["filename"], "choma@1.0.macos-amd64")
 
 # 3.6 --install-from-source 回到 3.x 的做法：读 url、按末段命名
 payload = domains.resolve_payload(
@@ -188,7 +188,7 @@ check("from-source 文件名", payload["filename"], "jq.zip")
 payload = domains.resolve_payload("bottle", "jq", "1.7.1-1", "arm64",
                                   upstream_filename="jq.tar.gz", upstream_url="",
                                   from_source=False)
-check("重建后缀", payload["filename"], "jq@1.7.1-1.arm64.tar.gz")
+check("重建后缀", payload["filename"], "jq@1.7.1-1.macos-arm64.tar.gz")
 
 raise SystemExit(0 if ok else 1)
 PY

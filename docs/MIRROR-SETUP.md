@@ -147,7 +147,7 @@ mirror.repohub.top    A    <服务器公网 IP>
     │   └── HEAD/                     ← ref 那一层，客户端默认地址里就有
     │       ├── README.md
     │       ├── versions              ← 包名清单（build_versions_index.py 生成）
-    │       └── pkg/pkginfo_arm64/
+    │       └── pkg/pkginfo/
     │           ├── versions          ← 版本号清单（同上）
     │           └── jq/
     │               └── versions
@@ -159,10 +159,10 @@ mirror.repohub.top    A    <服务器公网 IP>
     │   └── 4.4/…                     ← 分支就是那一层
     ├── bottle/
     │   └── jq/
-    │       └── jq@1.7.1.arm64
+    │       └── jq@1.7.1.macos-arm64
     └── deps/
         └── libidn2/
-            └── libidn2@2.3.7.arm64.tar.gz
+            └── libidn2@2.3.7.macos-arm64.tar.gz
 ```
 
 **只有 `infosource/` 在地址里多一层 ref，其余都没有。** 这不是设计不一致而是跟着上游
@@ -296,14 +296,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 浏览器直接打开（注意 `@` 在 URL 里写作 `%40`）：
 
 ```
-https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.arm64
+https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64
 ```
 
 能下载就说明镜像站可用。再量一下速度：
 
 ```bash
 curl -o /dev/null -w '速度 %{speed_download} B/s\n' \
-  https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.arm64
+  https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64
 ```
 
 **在服务器上自查时不要用 `http://127.0.0.1/…`。** 站点开了「强制 HTTPS」，这个地址
@@ -313,14 +313,14 @@ curl -o /dev/null -w '速度 %{speed_download} B/s\n' \
 ```bash
 # A. 带 Host 头，让 nginx 用对 server 块（http 会 301，所以用 https）
 curl -sk --resolve mirror.repohub.top:443:127.0.0.1 \
-     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo_arm64/versions | wc -l
+     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/versions | wc -l
 
 # B. 直接走域名（最省事）
-curl -s https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo_arm64/versions | wc -l
+curl -s https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/versions | wc -l
 
 # C. 只看状态码时记得跟随跳转
 curl -sL -o /dev/null -w '%{http_code}\n' \
-     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo_arm64/columbula/versions
+     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/columbula/versions
 ```
 
 另外 `nginx -T` 里还有一个 `server_name 127.0.0.1` 的监控块（只放 `nginx_status`），
@@ -329,8 +329,8 @@ curl -sL -o /dev/null -w '%{http_code}\n' \
 同时确认校验值没被中间环节改坏：
 
 ```bash
-curl -fsSL https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.arm64 | shasum -a 256
-# 与 infosource 里 _jq@1.7.1 的 sha256 应当逐字相同
+curl -fsSL https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64 | shasum -a 256
+# 与 infosource 里 _jq@1.7.1.macos-arm64 的 sha256 应当逐字相同
 ```
 
 ## 第八步：首次安装就走镜像
@@ -437,7 +437,7 @@ export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate
 验证真的走了镜像：
 
 ```bash
-curl -sI "$MACWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.arm64" | head -1
+curl -sI "$MACWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.macos-arm64" | head -1
 # 期望 HTTP/2 200
 wave install jq
 ```
@@ -562,8 +562,7 @@ ssh -o ControlPath=$HOME/.ssh/cm-lw root@<服务器> \
 ssh -o ControlPath=$HOME/.ssh/cm-lw root@mirror.repohub.top \
   'M=/www/wwwroot/mirror.repohub.top/MacWave
    grep ^version $M/selfupdate/macwavedata/latest.toml
-   grep ^version $M/selfupdate/rcdata/latest.toml
-   grep ^build_number $M/selfupdate/macwavedata/latest.toml
+   grep ^version $M/selfupdate/prerelease/latest.toml
    ls -l $M/core/4.4/lib/selfupdate.sh $M/selfupdate/macwavedata/latest.toml.sig'
 ```
 
@@ -571,7 +570,7 @@ ssh -o ControlPath=$HOME/.ssh/cm-lw root@mirror.repohub.top \
 那会留在 shell 历史里）：
 
 ```bash
-for u in selfupdate/macwavedata/latest.toml selfupdate/rcdata/latest.toml \
+for u in selfupdate/macwavedata/latest.toml selfupdate/prerelease/latest.toml \
          core/4.4/lib/selfupdate.sh; do
   printf '%-46s ' "$u"
   curl -u '<账号>' -s -o /dev/null -w '%{http_code}\n' "https://mirror.repohub.top/MacWave/$u"
@@ -717,12 +716,12 @@ done
 ```bash
 MP=$(awk '$1=="REPOHUBUSER1"{print $2; exit}' /root/macwave-passwords.txt)
 for u in \
-  /MacWave/infosource/HEAD/pkg/pkginfo_arm64/versions \
+  /MacWave/infosource/HEAD/pkg/pkginfo/versions \
   /MacWave/selfupdate/macwavedata/latest.toml \
   /MacWave/python/pythondata/latest.toml \
   /MacWave/core/4.4/lib/wave.py \
   /MacWave/core/4.0/lib/wave.py \
-  /MacWave/bottle/jq/jq%401.8.2.arm64 ; do
+  /MacWave/bottle/jq/jq%401.8.2.macos-arm64 ; do
     printf '%s  %s\n' \
       "$(curl -s -o /dev/null -w '%{http_code}' -u "REPOHUBUSER1:$MP" "https://mirror.repohub.top$u")" "$u"
 done
@@ -807,7 +806,7 @@ locale 会把中文首字节吃进变量名）；`"${ARR[@]}"` 在空数组上�
 | 资产数 | 217 个 |
 | 总体积 | 2.2 GB |
 | 平均 | 10.4 MB |
-| 最大单文件 | `ollama@0.40.11.arm64.tgz` **172.9 MB** |
+| 最大单文件 | `ollama@0.40.11.macos-arm64.tgz` **172.9 MB** |
 | 超 50 MB 的 | 6 个（全是 ollama），合计 0.9 GB = 全站 **40%** |
 
 所以「被刷」的最坏画像是**有人循环拉 ollama**：一次 172.9 MB。月流量 1 TB 的话，
@@ -953,7 +952,7 @@ grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
    要写 `https://mirror.repohub.top/MacWave/bottle`，不是 `https://mirror.repohub.top/bottle`；
 3. 环境变量是不是又漏了 `bottle` / `deps` 后缀（客户端只往后再接 `/<包名>/<文件名>`）。
 
-**`@` 到底要不要编码。** 两种形式 nginx 都接受：`jq%401.7.1.arm64` 与 `jq@1.7.1.arm64` 指向同一个文件。客户端拼地址时会编码（与 GitHub 给出的规范地址一致）。
+**`@` 到底要不要编码。** 两种形式 nginx 都接受：`jq%401.7.1.macos-arm64` 与 `jq@1.7.1.macos-arm64` 指向同一个文件。客户端拼地址时会编码（与 GitHub 给出的规范地址一致）。
 
 **下载是 200 但内容是 404 页面。** 宝塔的「伪静态」或默认站点配置接管了请求。镜像站不需要任何 rewrite 规则，把伪静态设为「无」。
 

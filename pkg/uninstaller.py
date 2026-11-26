@@ -217,7 +217,7 @@ def remove_one(pkg_name, version):
         if link_path.is_symlink() or link_path.exists():
             link_path.unlink()
 
-    # 整树包的每个可执行文件各有一条 links/<名>@<版本>（安装时由 depsmanager.sh 建），
+    # 整树包的每个可执行文件各有一条 bin/<名>@<版本>（安装时由 depsmanager.sh 建），
     # 上面那两条只覆盖了主命令那一条 —— 其余留在这里就成了死链。
     linker = _import_linker()
     if linker is not None:
@@ -255,7 +255,7 @@ def refresh_link(pkg_name):
         silent.say(f"🌊 Unversioned link now points to {pkg_name}@{version}")
     else:
         # 整树包的附属命令链接也得一起摘 —— 只删主链接会把 git-upload-pack、
-        # fdtdump 这类留在 links/ 里，指向已经删掉的目录。
+        # fdtdump 这类留在 bin/ 里，指向已经删掉的目录。
         linker.remove_package_links(pkg_name)
         silent.say(f"🌊 Removed the unversioned link for {pkg_name}")
 
@@ -277,7 +277,7 @@ def uninstall_versions(pkg_name, versions, keep_link=False):
     if keep_link:
         broken = broken_link_target(pkg_name, versions)
         if broken:
-            print(f"{RED_BOLD}🌊 Error: links/{pkg_name} points to {pkg_name}@{broken}, which is being uninstalled.{RESET}")
+            print(f"{RED_BOLD}🌊 Error: bin/{pkg_name} points to {pkg_name}@{broken}, which is being uninstalled.{RESET}")
             print(f"{RED_BOLD}🌊 {NO_LINK_CANONICAL} would leave that link broken, so nothing was uninstalled.{RESET}")
             print(f"{RED_BOLD}🌊 Drop {NO_LINK_CANONICAL} (the link then falls back to the next installed version), or run 'wave unlink {pkg_name}' first.{RESET}")
             sys.exit(1)

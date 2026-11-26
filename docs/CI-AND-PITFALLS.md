@@ -89,12 +89,12 @@ setup-uv **只把解释器登记给自己用**，PATH 上的 `python3` 还是 Ho
 全部报错退出：
 
 ```
-Error: Unsafe uninstall path escapes …/links: …/bin/htop@3.5.3/htop
+Error: Unsafe uninstall path escapes …/bin: …/Shore/htop/3.5.3/htop
 ```
 
 **根因**：加固时写的 `assert_inside()` 用 `Path.resolve()` 归一化，会**跟随最后一段**
-的软链接。而 `links/` 里放的就是软链接（指向 `bin/<名字>@<版本>/<名字>`），
-于是"删除这个链接"被解析成"删除 bin 里的可执行文件"，判定为逃出 `links/`。
+的软链接。而命令入口目录里放的就是软链接（指向 `Shore/<名字>/<版本>/<名字>`），
+于是"删除这个链接"被解析成"删除包里的可执行文件"，判定为逃出链接目录。
 **修法**：拆成两个函数 —— 会被**写进去**或**递归删除**的路径用严格的
 `assert_inside()`（跟随软链接）；只是**操作链接本身**（删除/重指）的用
 `assert_inside_entry()`（只校验父目录 + 文件名，不跟随最后一段）。
@@ -139,7 +139,8 @@ Warning: 1 library reference(s) exist in this installation but could not be link
 ### 5. 依赖数据：`--ver` / 版本 / 路径全链路
 
 - 依赖产物 URL 曾经在 `surfboard/depsinfo_<arch>/` 下，3.0 起搬到独立仓库
-  `MacWaveOrg/infosource` 的 `deps/depsinfo_<arch>/`。**改数据前先确认改的是哪个仓库** ——
+  `MacWaveOrg/infosource` 的 `deps/depsinfo/`（1.0 起不再按架构分目录）。
+  **改数据前先确认改的是哪个仓库** ——
   我在这上面推错过一次（MacWave 仓库里还留着一个旧结构的 `infosource` 分支镜像）。
 - `tmux@3.6` 的二进制需要 `_tiparm_s`，而 infosource 里的 `ncurses@6.4`（只有
   `_tiparm`）和 conda-forge 的 `6.6`（两个都没有）都**不导出**它 ——
@@ -264,7 +265,7 @@ install_delta() {
 **没有 `|| exit`，脚本也没有 `set -e`，调用方 `install_delta || return 1` 拿不到
 任何信号** —— `return 1` 的返回值被下一行 `want` 覆盖了。
 
-于是脚本退出码 0 → `lib/selfupdate.sh` 认为成功 → 写 `VERSION.json` →
+于是脚本退出码 0 → `lib/selfupdate.sh` 认为成功 → 写 `var/config.sh` →
 **版本号前进了，但安装树少了文件**。这种状态最难查：用户以为升好了，
 下次报错的地方和原因隔了几百行。
 

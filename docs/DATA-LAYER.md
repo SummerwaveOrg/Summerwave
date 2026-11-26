@@ -78,10 +78,9 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 ```
 <MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/MacWaveOrg/infosource/HEAD
     pkg/                        注意：ref 段（HEAD）在域名里，不在这里
-        pkginfo_arm64/<包名>/<版本>      一条记录一个文件
-        pkginfo_amd64/<包名>/<版本>
-        pkginfo_arm64/versions           一行一个包名（镜像生成）
-        pkginfo_arm64/<包名>/versions     一行一个版本号（镜像生成）
+        pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>   一条记录一个文件
+        pkginfo/versions                           一行一个包名（镜像生成）
+        pkginfo/<包名>/versions                     一行一条记录名（镜像生成）
 ```
 
 记录是 `field: "value"` 的平铺文本。4.0 起新增 `file` 字段（上游那份文件的名字）：
@@ -122,8 +121,8 @@ min_os: "12.1"
 一台机器，镜像站无法等价提供。因此设置了 `MACWAVE_API_DOMAIN` 时要求镜像自己提供清单：
 
 ```
-<MACWAVE_API_DOMAIN>/pkg/pkginfo_<arch>/versions             一行一个包名
-<MACWAVE_API_DOMAIN>/pkg/pkginfo_<arch>/<包名>/versions       一行一个版本号
+<MACWAVE_API_DOMAIN>/pkg/pkginfo/versions             一行一个包名
+<MACWAVE_API_DOMAIN>/pkg/pkginfo/<包名>/versions       一行一条记录名
 ```
 
 ### 3.3 自更新数据（Selfupdate）
@@ -139,15 +138,15 @@ min_os: "12.1"
 `latest.toml` 是平铺 TOML：
 
 ```toml
-version = "4.0.0"
-release_date = "2026-11-14"
-build_number = "318F1452"
-branch = "4.0"
+version = "2026.11.26-15:52:43"
+release_date = "2026-11-26"
+branch = "1.0"
 ```
 
-`build_number` 是「年内第几天 + 周几字母（周一=A … 周日=G）+ HHMM」共 8 个字符，
-算法与取值命令见 [`RELEASE-CHECKLIST.md`](./RELEASE-CHECKLIST.md) 的一点六。
-三处指针（本文件、`configdata`、发布说明）必须写同一个值。
+1.0 起**版本号就是发布时刻**（`YYYY.MM.DD-HH:MM:SS`），只需要比大小，不再有人工
+递增的语义版本；滚动更新因此不需要「够不够用」的讨论，`build_number` 也随之取消。
+比较规则与 `selfupdate = "blocked"` 见 [`VERSIONING.md`](./VERSIONING.md)。
+两份探针（`macwavedata/` 与 `prerelease/`）必须写各自的同一个值。
 
 为什么分两个文件：`latest.toml` 每次发版都变，`update_commands.sh` 按版本冻结。混在一起
 就没法让装了旧版本的用户继续用他们那份说明——而旧版本仍在运行。
@@ -159,6 +158,7 @@ branch = "4.0"
 | 变量 | 含义 |
 | --- | --- |
 | `MACWAVE_INSTALL_DIR` | 安装根目录 |
+| `MACWAVE_CHANNEL` | `stable` / `preview`，写进 `var/config.sh` 供下次自更新沿用 |
 | `MACWAVE_CORE_URL` | 代码地址前缀（不含分支） |
 | `MACWAVE_BRANCH` | 代码分支 |
 | `MACWAVE_CURRENT_VERSION` | 已装版本；**为空表示首次安装**，走全量清单 |
@@ -217,7 +217,7 @@ amd64_sha256 = "600c..."
 2. 取 `macwavedata/<版本>/update_commands.sh`（先 `bash -n` 校验，再执行）；
 3. 脚本按 `MACWAVE_CURRENT_VERSION` 空 / 不空选全量或增量清单，从 `<core>/<分支>/…` 下载；
 4. 每个文件先写 `<目标>.macwave-part` 再 `mv`，重试期间目标位置不会出现半个文件；
-5. 全部就位后才写 `VERSION.json`。任一步失败即 `exit` 非零，客户端据此判定「什么都没更新」。
+5. 全部就位后才写 `var/config.sh`。任一步失败即 `exit` 非零，客户端据此判定「什么都没更新」。
 
 `--install-from-source` / `--install-python-from-source` 是**唯一**会绕开自有存储、
 直接回上游的两条路。

@@ -295,8 +295,8 @@ mw_install_tree() {
 }
 
 mw_link_tree_binaries() {
-    # 把依赖包里 bin/ 下的可执行文件软链到 links/{名字}@{版本号}，
-    # 由已在 PATH 上的 links/ 目录提供命令，不再依赖“与包同名的二进制”。
+    # 把依赖包里 bin/ 下的可执行文件软链到 bin/{名字}@{版本号}，
+    # 由已在 PATH 上的 bin/ 目录提供命令，不再依赖“与包同名的二进制”。
     local base_dir="$1"
     local relative_dir="$2"
     local version="$3"
@@ -323,7 +323,7 @@ mw_link_tree_binaries() {
 # -------------------- 软链接 --------------------
 
 mw_create_link() {
-    # links/{链接名}@{版本号} -> ../{相对目录}/{目标名}
+    # bin/{链接名}@{版本号} -> ../{相对目录}/{目标名}
     # 软件包：链接名 = 可执行文件名；依赖：每个 bin/ 下的可执行文件各一条
     local base_dir="$1"
     local relative_dir="$2"
@@ -499,8 +499,8 @@ mw_install_artifact() {
     # 软件包与依赖共用的安装流程，区别只在安装形态：
     #   binary：只取一个可执行文件（软件包）
     #   tree  ：保留整棵解压目录
-    #            - 软件包：整树落在 bin/{名}@{版本}/，bin/ 下每个可执行文件各链一条
-    #            - 依赖：整树落在 deps/...，bin/ 下每个文件都链到 links/
+    #            - 软件包与依赖同构：整树落在 Shore/{名}/{版本}/，
+    #              它的 bin/ 下每个可执行文件各链一条到 <根>/bin/
     local info_str="$1"
     local deps_str="$2"
     local install_mode="${3:-}"

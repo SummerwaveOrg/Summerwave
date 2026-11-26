@@ -174,19 +174,7 @@ else
 fi
 
 # -------------------- 3. 依赖引用解析（从 depsversionparser 搬到 querier） --------------------
-# `import querier` 在模块级就会调 load_base_dir()：找不到配置文件直接 sys.exit(1)。
-# CircleCI 刻意保持零配置，所以那里必须造一份；本机已有配置时不要覆盖（一律伪造
-# 会让 python 找不到用户级 site-packages）。
-CONFIG_PROBE=(/opt/macwave_config/config.json "$HOME/.config/macwave_config/config.json")
-NEED_FAKE_HOME=1
-for candidate in "${CONFIG_PROBE[@]}"; do
-    [[ -f "$candidate" ]] && NEED_FAKE_HOME=0
-done
-if [[ "$NEED_FAKE_HOME" -eq 1 ]]; then
-    export HOME="$WORK/home"
-    mkdir -p "$HOME/.config/macwave_config" "$WORK/base/bin"
-    printf '{"base_dir": "%s"}\n' "$WORK/base" > "$HOME/.config/macwave_config/config.json"
-fi
+# `import querier` 在模块级就会调 load_base_dir()，而安装根已写死，不再需要任何配置文件。
 
 OUTPUT=$("$PYTHON" - "$REPO_DIR" <<'PYEOF'
 import sys

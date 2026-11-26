@@ -13,10 +13,10 @@
 #   1. **只读**。不修、不删、不改字节。每条发现后面给出该跑哪条 `wave` 命令 ——
 #      与 `brew doctor` 学到的最有用的一点：发现的价值在于「下一步做什么」。
 #   2. **退出码 = 发现的问题数**，0 表示全绿。可以进脚本、进 CI。
-#   3. **拿不准就说拿不准**。位置无关性用 `transfer.sh --check` 的三态：
-#      0 相对 / 1 绝对 / 2 判断不了（缺 otool）。2 记成 note，不当成坏包。
+#   3. **拿不准就说拿不准**。唯一需要外部工具的判断记成 note，不当成坏包。
 #
-# 慢检查排在最后（逐个产物扫 Mach-O 是这里唯一的重活），让前几项先给出结论。
+# 位置无关性（4.x 的 `wave transfer` / `transfer.sh --check`）不再检查：1.0 起
+# 重定位只在打包时做（scripts/relocate_rpath.py），运行时没有可查的偏差来源。
 
 import os
 import sys
@@ -37,10 +37,6 @@ BIN_DIR = bin_dir()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 COMPONENTS = ("cli", "config", "lib", "net", "pkg", "surfboard")
 TREE_MARKER = ".is_a_tree"
-
-TRANSFER_SCRIPT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "surfboard", "transfer.sh")
 
 
 # -------------------- 发现 --------------------
@@ -196,34 +192,6 @@ def check_downloads():
                     severity="note")]
 
 
-def check_position():
-    """已装产物是否已经是位置无关的（@loader_path）。三态：坏、好、判断不了。"""
-    if not os.path.isfile(TRANSFER_SCRIPT):
-        return []
-    from transferrer import all_installed_dirs, position_independence
-
-    findings = []
-    unknown = []
-    for label, path in all_installed_dirs():
-        state = position_independence(path)
-        if state is None:
-            unknown.append(label)
-            continue
-        if state:
-            continue
-        package = label.split("/")[-1].partition("@")[0]
-        findings.append(Finding("position",
-                                f"{label} still names an absolute install path",
-                                f"wave transfer {package}"))
-    if unknown and not findings:
-        findings.append(Finding("position",
-                                f"cannot inspect {len(unknown)} artifact(s) "
-                                f"(otool or non-Darwin platform)",
-                                "nothing to do; position independence was not checked",
-                                severity="note"))
-    return findings
-
-
 CHECKS = (
     ("base-dir", check_base_dir, "install root exists and is writable"),
     ("tree", check_tree, "the six component directories are present"),
@@ -231,7 +199,6 @@ CHECKS = (
     ("links", check_links, "unversioned links exist and point at something"),
     ("dependencies", check_dependencies, "no dependency tree is orphaned"),
     ("downloads", check_downloads, "downloads/tmp is not full of abandoned partials"),
-    ("position", check_position, "installed artifacts no longer name an absolute path"),
 )
 
 

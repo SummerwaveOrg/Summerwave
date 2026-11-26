@@ -53,7 +53,7 @@ def _resolve_test_root():
 TEST_ROOT = _resolve_test_root()
 
 if TEST_ROOT is not None:
-    # HOME 一起搬进测试根：~/.config/macwave_config、~/.local/macwave 都该隔离。
+    # HOME 一起搬进测试根：~/.local 与 ~/.config 下的东西都该隔离。
     # 子进程（bash 脚本）继承这个 HOME，所以整条链路都在测试根里。
     _real_home = Path(os.environ.get("HOME") or Path.home())
     _test_home = TEST_ROOT / (_real_home.relative_to("/") if _real_home.is_absolute() else "home")
@@ -65,7 +65,7 @@ if TEST_ROOT is not None:
 
 def rooted(path):
     # 把绝对路径映射到测试根之下；没开测试模式时原样返回。
-    # 例如 /opt/macwave_config → $MACWAVE_TEST/opt/macwave_config
+    # 例如 /opt/macwave → $MACWAVE_TEST/opt/macwave
     path = Path(path)
     if TEST_ROOT is None or not path.is_absolute():
         return path
@@ -347,9 +347,9 @@ def assert_inside(path, root, what):
 
 
 def assert_inside_entry(path, root, what):
-    # 与 assert_inside 相同，但**不跟随**最后一段的软链接。links/ 下的链接本身就
-    # 是软链接，指向 bin/ 里的可执行文件：跟随过去会把"删除/重指这个链接"这种
-    # 再正常不过的操作误判成越界。只能用于"操作链接本身"、不会穿透写入的调用点。
+    # 与 assert_inside 相同，但**不跟随**最后一段的软链接。bin/ 下的链接本身就
+    # 是软链接，指向 Shore/<名>/<版本>/ 里的可执行文件：跟随过去会把"删除/重指这个
+    # 链接"这种再正常不过的操作误判成越界。只能用于"操作链接本身"、不会穿透写入的调用点。
     #
     # 选哪个：「这个链接文件本身在不在树内」用这个；「顺着它写会不会跑出去」用
     # assert_inside。两者不能互换。
@@ -374,7 +374,7 @@ def assert_inside_entry(path, root, what):
 # unzip 与 tar 命令行同样不管目标。所以越界链接只能解压之后自己扫。
 #
 # 危害两头：链接指向隐私文件 → 随包附带的程序读到不该读的东西；链接指向
-# MacWave 之后要写的路径（transfer.sh 的重定位改写、.part → mv、卸载的 rm -rf）
+# Summerwave 之后要写的路径（.part → mv、安装时的落盘、卸载的 rm -rf）
 # → 以用户身份在树外写或删。
 #
 # 例外只给系统库位置，两个条件必须同时成立：SIP 连 root 都拒绝写这些路径，

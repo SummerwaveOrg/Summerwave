@@ -71,13 +71,12 @@ BASE="$WORK/base"
 TEST_ROOT="$WORK/root"
 MIRROR="$WORK/mirror"
 
-# 与 info_format_test 同样的理由：系统级配置优先，CI 上那份会盖住这里的沙箱。
+# 安装根写死成 /opt/macwave：MACWAVE_TEST 把它映射进测试根，组件拷进那棵树。
 export MACWAVE_TEST="$TEST_ROOT"
-mkdir -p "$TEST_ROOT/opt/macwave_config" "$HOME_DIR/.config/macwave_config" "$BASE"
-copy_components "$BASE/"
-printf '{"version": "4.4.0"}\n' > "$BASE/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$TEST_ROOT/opt/macwave_config/config.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config.json"
+BASE="$TEST_ROOT/opt/macwave"
+mkdir -p "$HOME_DIR" "$BASE/var"
+copy_components "$BASE"
+printf "MACWAVE_VERSION='4.4.0'\n" > "$BASE/var/config.sh"
 
 # 装依赖在用户级 site-packages 里，而下面每条命令都把 HOME 换成沙箱目录 ——
 # 不补这一条，wave 会报「缺 requests / packaging / rich」而不是跑测试。
@@ -88,16 +87,20 @@ if [[ -d "$USER_SITE" ]]; then
 fi
 
 ARCH=$(python3 -c 'import platform; m=platform.machine().lower(); print("arm64" if m in ("arm64","aarch64") else "amd64")')
+case "$(uname -s)" in
+    Darwin) BOTTLE_TAG="macos-$ARCH" ;;
+    *)      BOTTLE_TAG="linux-$ARCH" ;;
+esac
 
 # -------------------- 假索引 + 假产物 --------------------
 
 NAME="rawpkg"
-INDEX="$MIRROR/pkg/pkginfo_$ARCH"
+INDEX="$MIRROR/pkg/pkginfo"
 mkdir -p "$INDEX/$NAME" "$MIRROR/$NAME"
 
 printf '%s\n' "$NAME" > "$INDEX/versions"
 # 清单里每个版本占一行，@common 那一条也列出来（客户端会跳过它）。
-printf '%s@1.0\n%s@common\n' "$NAME" "$NAME" > "$INDEX/$NAME/versions"
+printf '_%s@1.0.%s\n_%s@common\n' "$NAME" "$BOTTLE_TAG" "$NAME" > "$INDEX/$NAME/versions"
 # 落盘名与线上文件同名：包名前的下划线属于文件名，详见 pkg/pkginstaller.py 的取值。
 printf 'bin_name: "%s"\n' "$NAME" > "$INDEX/$NAME/_${NAME}@common"
 
@@ -107,10 +110,10 @@ PAYLOAD_DIR="$WORK/payload"
 mkdir -p "$PAYLOAD_DIR"
 printf '#!/bin/sh\necho raw\n' > "$PAYLOAD_DIR/$NAME"
 head -c 300000 /dev/zero | tr '\0' 'x' >> "$PAYLOAD_DIR/$NAME"
-tar -czf "$MIRROR/$NAME/${NAME}@1.0.${ARCH}.tar.gz" -C "$PAYLOAD_DIR" "$NAME"
+tar -czf "$MIRROR/$NAME/${NAME}@1.0.${BOTTLE_TAG}.tar.gz" -C "$PAYLOAD_DIR" "$NAME"
 
-SHA=$(shasum -a 256 "$MIRROR/$NAME/${NAME}@1.0.${ARCH}.tar.gz" | awk '{print $1}')
-cat > "$INDEX/$NAME/_${NAME}@1.0" <<EOF
+SHA=$(shasum -a 256 "$MIRROR/$NAME/${NAME}@1.0.${BOTTLE_TAG}.tar.gz" | awk '{print $1}')
+cat > "$INDEX/$NAME/_${NAME}@1.0.${BOTTLE_TAG}" <<EOF
 sha256: "$SHA"
 file: "${NAME}-1.0-${ARCH}.tar.gz"
 url: "https://example.invalid/${NAME}-1.0-${ARCH}.tar.gz"
@@ -127,7 +130,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo_$ARCH/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
     sleep 0.1
 done
 
@@ -263,7 +266,7 @@ install_dry() {
     root=$(mktemp -d "$WORK/inst.XXXXXX")
     MACWAVE_TEST="$root" \
         MACWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
-        /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 "$@" 2>&1
+        /bin/bash "$INSTALL_SH" --dry-run "$@" 2>&1
 }
 
 out=$(install_dry)
@@ -290,7 +293,7 @@ mw_raw() { return 0; }
 CURL_CACERT=""
 eval "$(sed -n "/^mw_download()/,/^}/p" "$1")"
 mw_download "$2" "$3" 30
-' _ "$INSTALL_SH" "http://127.0.0.1:$PORT/$NAME/${NAME}@1.0.${ARCH}.tar.gz" "$WORK/bar.out" 2>&1)
+' _ "$INSTALL_SH" "http://127.0.0.1:$PORT/$NAME/${NAME}@1.0.${BOTTLE_TAG}.tar.gz" "$WORK/bar.out" 2>&1)
 if printf '%s' "$out" | grep -qE '^#{10}  [0-9]+$'; then
     pass "mw_download 的 --raw 刻度是十个井号加字节数"
 else

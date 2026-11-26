@@ -5,16 +5,15 @@
 #
 # 为什么需要它：Deps / 一部分 Bottle 的字节与上游一致（conda、上游 release），
 # 它们的引用是 `@rpath/<名>` + `LC_RPATH=@loader_path/../lib/` —— 装完之后库在
-# `deps/<名>/<名>@<版本>/lib/` 下，那串 rpath 解析不到，所以客户端必须现场改写。
-# 本脚本在**服务端**把这一步做掉，产物里就是显式的 `@loader_path/../../../deps/...`，
-# 客户端只剩「下载 + 解包」。
+# `Shore/<名>/<版本>/lib/` 下，那串 rpath 解析不到，所以必须改写。
+# 本脚本在**服务端**把这一步做掉，产物里就是显式的 `@loader_path/../../<名>/<版本>/lib/...`，
+# 客户端只剩「下载 + 解包」——运行时不再改字节，也就不再需要 `wave transfer`。
 #
-# 布局必须是运行时布局（与 Ports/scripts/relocate_stage.sh 同一套要求）：
+# 布局必须是运行时布局（1.0 起包与依赖同构，见 config/configpaths.py）：
 #
-#     <stage>/bin/<包名>@<版本>/...            软件包自己那一棵
-#     <stage>/deps/<名>/<名>@<版本>/...        依赖（含它自己的依赖）
+#     <stage>/Shore/<名>/<版本>/...            软件包与依赖都在这里
 #
-# 于是相对路径在用户机上同样成立（`wave basedir --set` 也不受影响：全相对）。
+# 于是相对路径在用户机上同样成立（安装根写死也不受影响：全相对）。
 #
 # 用法：
 #   python3 scripts/prepare_bottle.py --kind deps --name libidn2 --version 2.3.8
@@ -39,6 +38,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 RELOCATE = REPO / "scripts" / "relocate_rpath.py"
+# 平台标签与客户端同源（config/platforminfo.bottle_tag），不在这里再抄一份词表。
+sys.path.insert(0, str(REPO / "config"))
+import platforminfo  # noqa: E402
 DEFAULT_INFOSOURCE = Path.home() / "Projects" / "MacWaveOrg" / "infosource"
 MARKER = "_RELOCATED"
 
@@ -46,9 +48,10 @@ MARKER = "_RELOCATED"
 # -------------------- 索引 --------------------
 
 def record_path(infosource, kind, arch, name, version):
-    if kind == "pkg":
-        return infosource / "pkg" / f"pkginfo_{arch}" / name / f"_{name}@{version}"
-    return infosource / "deps" / f"depsinfo_{arch}" / name / f"_{name}@{version}"
+    # 1.0 起索引不再按架构分目录，平台标签编在记录名里（_<名>@<版本>.<os>-<arch>）。
+    root = "pkg/pkginfo" if kind == "pkg" else "deps/depsinfo"
+    tag = platforminfo.bottle_tag(arch)
+    return infosource / root / name / f"_{name}@{version}.{tag}"
 
 
 def parse_fields(text):
@@ -162,9 +165,9 @@ def repack(version_dir, out_file):
 # -------------------- 主流程 --------------------
 
 def stage_target(stage, kind, name, version):
-    if kind == "pkg":
-        return stage / "bin" / f"{name}@{version}"
-    return stage / "deps" / name / f"{name}@{version}"
+    # 包与依赖同构（1.0 起）：<stage>/Shore/<名>/<版本>/。kind 只影响记录字段，
+    # 不影响落盘位置 —— 这正是「卸载只要看一个根」的来源。
+    return stage / "Shore" / name / version
 
 
 def prepare(infosource, kind, name, version, arch, out_dir, keep):

@@ -82,8 +82,8 @@ MacWave 的做法：
 
 ```
 selfupdate/<产品>data/latest.toml     version = "4.1.0" 等
-infosource/pkg/pkginfo_<架构>/versions          一行一个包名
-infosource/pkg/pkginfo_<架构>/<包名>/versions    一行一条版本记录
+infosource/pkg/pkginfo/versions                 一行一个包名
+infosource/pkg/pkginfo/<包名>/versions           一行一条记录名
 ```
 
 因为「指针」是手写的、而真正决定装哪一版的是**版本目录**，两者一旦不同步，
@@ -105,7 +105,7 @@ infosource/pkg/pkginfo_<架构>/<包名>/versions    一行一条版本记录
 ### 3.1 产物命名
 
 ```
-<包名>@<版本>.<架构><扩展名>
+<包名>@<版本>.<os>-<arch><扩展名>
 例：jq@1.8.2.arm64.tar.gz
 ```
 
@@ -116,7 +116,7 @@ infosource/pkg/pkginfo_<架构>/<包名>/versions    一行一条版本记录
 ### 3.2 索引记录
 
 ```
-infosource/pkg/pkginfo_<架构>/<包名>/<包名>@<版本>
+infosource/pkg/pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>
 ```
 
 内容：
@@ -133,8 +133,8 @@ deps: "<依赖>"                      # 可选，多行
 ### 3.3 版本清单（镜像自备）
 
 ```
-pkg/pkginfo_<架构>/versions              一行一个包名
-pkg/pkginfo_<架构>/<包名>/versions        一行一条版本记录文件名
+pkg/pkginfo/versions                     一行一个包名
+pkg/pkginfo/<包名>/versions               一行一条记录文件名
 ```
 
 **只列镜像里真实存在的产物**。索引里有记录但产物没同步时，若仍写进清单，
@@ -157,7 +157,7 @@ pkg/pkginfo_<架构>/<包名>/versions        一行一条版本记录文件名
 
 ```
 tag    = 包名
-资产名 = <包名>@<版本>.<架构><扩展名>
+资产名 = <包名>@<版本>.<os>-<arch><扩展名>
 ```
 
 ### 扩展名不统一，这是重点
@@ -196,20 +196,21 @@ GitHub 那 45 个走 `gh api -H "Accept: application/octet-stream"` 取，实测
 
 ```
 /www/wwwroot/mirror.repohub.top/LinuxWave/
-├── bottle/<包名>/<包名>@<版本>.<架构><扩展名>            69 个   ← 产物
-├── deps/<包名>/<包名>@<版本>.<架构><扩展名>              30 个   ← 依赖产物
+├── bottle/<包名>/<包名>@<版本>.<os>-<arch><扩展名>       69 个   ← 产物
+├── deps/<包名>/<包名>@<版本>.<os>-<arch><扩展名>         30 个   ← 依赖产物
 ├── infosource/                                          311 个  ← 索引 + 生成的版本清单
-│   ├── pkg/pkginfo_<架构>/versions                        一行一个包名
-│   ├── pkg/pkginfo_<架构>/<包名>/versions                 一行一条版本记录名
-│   ├── pkg/pkginfo_<架构>/<包名>/_<包名>@<版本>
-│   ├── pkg/pkginfo_<架构>/<包名>/_<包名>@common
-│   └── deps/depsinfo_<架构>/<依赖>/…
+│   ├── pkg/pkginfo/versions                              一行一个包名
+│   ├── pkg/pkginfo/<包名>/versions                       一行一条记录名
+│   ├── pkg/pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>
+│   ├── pkg/pkginfo/<包名>/_<包名>@common
+│   └── deps/depsinfo/<依赖>/…
 ├── core/3.1/                                             87 个  ← 当前发布线
 ├── core/main/                                            87 个  ← HEAD 安装
 └── selfupdate/                                           21 个  ← = configdata 全量
-    ├── versiondata/{latest_version,files_info,latest_test_version}
-    ├── pythondata/latest_python
-    └── updatedata/<版本>/{dir_structure_change,transfer_commands}
+    ├── macwavedata/latest.toml                            稳定线探针
+    ├── prerelease/latest.toml                             预览线探针
+    ├── macwavedata/<版本>/update_commands.sh
+    └── pythondata/latest_python
 ```
 
 合计 **506 个文件 / 4.0 MB**（不含产物），全量与本地逐字节对账通过。
@@ -251,7 +252,7 @@ GitHub 那 45 个走 `gh api -H "Accept: application/octet-stream"` 取，实测
 1. 拉 `infosource`，解析每条记录的 `sha256` / `url`；
 2. 按来源分流：GitHub 走 `gh api`，conda 走 `curl`；
 3. 每个文件下完立刻比对索引里的 `sha256`，不一致就丢弃并记账；
-4. 以 `<包名>@<版本>.<架构><扩展名>` 命名，推进 `Bottle` / `Deps` 的 Release；
+4. 以 `<包名>@<版本>.<os>-<arch><扩展名>` 命名，推进 `Bottle` / `Deps` 的 Release；
 5. 上传后再从远端回读抽样校验，确认字节没被中间环节改坏；
 6. 按同样的树铺到镜像站，服务器端再跑一遍全量 sha256。
 

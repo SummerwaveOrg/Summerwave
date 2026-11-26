@@ -280,7 +280,7 @@ def _handle_upgrade_locked(input_string, assume_yes=False):
     silent.say(f"🌊 Checking the latest version of {package_name}...")
     latest = fetch_max_version(package_name, budget)
 
-    # 包名与 bin_name 不一定相同（choma -> ChOma），而 bin/ 与 links/ 用的是 bin_name
+    # 包名与 bin_name 不一定相同（choma -> ChOma），而安装树里用的是 bin_name
     common_fields = fetch_common_fields(package_name, budget)
     bin_name = get_field(common_fields, "bin_name")
     if not bin_name:

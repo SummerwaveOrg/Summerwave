@@ -7,7 +7,7 @@
 # 现阶段**只写不读**：`.is_a_tree`、`.depped_*` 与 `_DEPS` 仍然照旧由 shell 维护，
 # 等 `Note` 铺开到能被 uninstaller / linker / doctor 读，再删它们。
 #
-# 三条约定（与 `var/VERSION.json` 同一个道理）：
+# 三条约定（与 `var/config.sh` 同一个道理）：
 #
 #   * **最后一步写**：解包 → 重定位/签名 → 链接 → `Note`。
 #     先写它就会留下「记录说装好了、文件却没有」的状态。
