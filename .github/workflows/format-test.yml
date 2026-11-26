@@ -114,6 +114,11 @@ jobs:
         run: |
           /bin/bash scripts/versions_index_test.sh
 
+      # 重打后回填索引：file/sha256 换成新产物、安装形态按归档形状决定、其它字段保留。
+      - name: Run apply-rebuilt-records test
+        run: |
+          /bin/bash scripts/apply_rebuilt_test.sh
+
       # 占位前缀改写：conda 的 info/has_prefix → 安装后的绝对路径（text/script/binary）。
       - name: Run prepare_bottle test
         run: |

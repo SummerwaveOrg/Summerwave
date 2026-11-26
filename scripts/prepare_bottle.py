@@ -433,7 +433,12 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
         print(f"   file:  \"{out_file.name}\"")
         print(f"   sha256: \"{digest}\"")
         print('   relocated: "loader_path"')
-        print('   install: "tree"        # 重打后按整树解包，命令在 <版本目录>/bin/ 下')
+        if (target / "bin").is_dir():
+            print('   install: "tree"        # 归档里有 bin/，按整树解包')
+        else:
+            # 单文件上游（例如 Golang/Rust 的裸二进制）：归档根就是那个文件，
+            # 写 install: "tree" 反而会让安装器去找 bin/<名> 然后失败。
+            print('   install: （不要写）     # 归档根是单个文件，按 binary 模式装')
         print(f"   archive: {out_file}")
         if keep:
             print(f"   staging: {stage}")

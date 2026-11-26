@@ -102,6 +102,7 @@ jobs:
             /bin/bash scripts/migrate_index_layout_test.sh
             /bin/bash scripts/versions_index_test.sh
             /bin/bash scripts/relocate_test.sh
+            /bin/bash scripts/apply_rebuilt_test.sh
             /bin/bash scripts/prepare_bottle_test.sh
 
       - run:

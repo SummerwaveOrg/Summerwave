@@ -115,38 +115,96 @@ def publish(kind, staging, write, only):
         if not files:
             continue
 
-        assets, created = ensure_release(repo, package, write)
-        if created:
-            print(f"  + release {repo}:{package}")
-        assets = assets or {}
+        sub_uploaded, sub_skipped, sub_problems = upload_files(
+            repo, package, files, ensure_release(repo, package, write), write)
+        uploaded += sub_uploaded
+        skipped += sub_skipped
+        problems.extend(sub_problems)
 
-        for path in files:
-            size = path.stat().st_size
-            if path.name in assets:
-                # 同名同大小视为已发布。内容正确性由 sync 阶段的 sha256 保证。
-                if assets[path.name] == size:
-                    skipped += 1
-                    continue
-                problems.append(f"{repo}:{package}/{path.name} exists with a different size; "
-                                f"assets are immutable, publish a new version suffix instead")
+    return uploaded, skipped, problems
+
+
+def upload_files(repo, package, files, release, write):
+    """把一个包的若干文件推进它的 Release。两种输入（sync 树 / 重打目录）共用。"""
+    assets, created = release
+    if created:
+        print(f"  + release {repo}:{package}")
+    assets = assets or {}
+
+    uploaded = skipped = 0
+    problems = []
+
+    for path in files:
+        size = path.stat().st_size
+        if path.name in assets:
+            # 同名同大小视为已发布。内容正确性由 sha256 保证（索引里那条）。
+            if assets[path.name] == size:
+                skipped += 1
                 continue
+            problems.append(f"{repo}:{package}/{path.name} exists with a different size; "
+                            f"assets are immutable, publish a new version suffix instead")
+            continue
 
-            if not write:
-                print(f"  ≈ would upload {repo}:{package}/{path.name} ({size} bytes)")
-                uploaded += 1
-                continue
-
-            run(["gh", "release", "upload", package, str(path), "--repo", repo, "--clobber"])
-            print(f"  ↑ {repo}:{package}/{path.name} ({size} bytes)")
+        if not write:
+            print(f"  ≈ would upload {repo}:{package}/{path.name} ({size} bytes)")
             uploaded += 1
+            continue
+
+        run(["gh", "release", "upload", package, str(path), "--repo", repo, "--clobber"])
+        print(f"  ↑ {repo}:{package}/{path.name} ({size} bytes)")
+        uploaded += 1
+
+    return uploaded, skipped, problems
+
+
+def publish_flat(flat, tsv, write, only):
+    """发布 prepare_bottle.py 的输出：平铺目录 + 它的 --tsv。
+
+    sync_payloads 那棵树是 `<kind>/<包名>/<文件>`；重打的输出是平铺的
+    `<名>@<版本>.<标签>.tar.bz2`。归档形状不一样，但索引里那条记录已经把
+    「哪个包、哪个文件」写清楚了，所以这里按 TSV 分组，不需要目录结构。
+    """
+    rows = {}
+    for line in Path(tsv).read_text(encoding="utf-8").splitlines():
+        fields = line.split("\t")
+        if len(fields) != 6 or fields[0] == "kind":
+            continue
+        kind, name, _version, _arch, filename, _sha = fields
+        path = flat / filename
+        if not path.is_file():
+            continue
+        # 同一个包可能被重打过多次（tsv 是追加写的），后写的赢
+        rows[(kind, name, filename)] = (kind, name, path)
+
+    groups = {}
+    for kind, name, path in rows.values():
+        if only and name not in only:
+            continue
+        groups.setdefault((kind, name), []).append(path)
+
+    uploaded = skipped = 0
+    problems = []
+
+    for (kind, name) in sorted(groups):
+        repo = KIND_REPO["bottle" if kind in ("pkg", "bottle") else "deps"]
+        files = sorted(groups[(kind, name)])
+        sub_uploaded, sub_skipped, sub_problems = upload_files(
+            repo, name, files, ensure_release(repo, name, write), write)
+        uploaded += sub_uploaded
+        skipped += sub_skipped
+        problems.extend(sub_problems)
 
     return uploaded, skipped, problems
 
 
 def main():
     parser = argparse.ArgumentParser(description="Publish payloads to GitHub Releases.")
-    parser.add_argument("--staging", required=True, type=Path,
+    parser.add_argument("--staging", type=Path,
                         help="directory produced by sync_payloads.py")
+    parser.add_argument("--flat", type=Path,
+                        help="directory produced by prepare_bottle.py (needs --tsv)")
+    parser.add_argument("--tsv", type=Path,
+                        help="the --tsv file prepare_bottle.py wrote")
     parser.add_argument("--write", action="store_true", help="actually create releases and upload")
     parser.add_argument("--kinds", default="bottle,deps")
     parser.add_argument("--only", default="", help="comma separated package names")
@@ -155,10 +213,19 @@ def main():
     kinds = [kind.strip() for kind in args.kinds.split(",") if kind.strip()]
     only = {name.strip() for name in args.only.split(",") if name.strip()}
 
+    if bool(args.staging) == bool(args.flat):
+        parser.error("give exactly one of --staging / --flat (+ --tsv)")
+    if args.flat and not args.tsv:
+        parser.error("--flat needs --tsv (it says which package each archive belongs to)")
+
     total_uploaded = total_skipped = 0
     all_problems = []
 
-    for kind in kinds:
+    if args.flat:
+        total_uploaded, total_skipped, all_problems = publish_flat(
+            args.flat, args.tsv, args.write, only)
+
+    for kind in ([] if args.flat else kinds):
         uploaded, skipped, problems = publish(kind, args.staging, args.write, only)
         total_uploaded += uploaded
         total_skipped += skipped
