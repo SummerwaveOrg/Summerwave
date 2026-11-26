@@ -71,6 +71,55 @@ check "binary 模式保持文件长度" "$(printf '%s\n' "$OUT" | grep '^binary_
 check "binary 模式写进了前缀" "$(printf '%s\n' "$OUT" | grep '^binary_prefix:' | awk '{print $2}')" "True"
 check "binary 模式里占位符没了" "$(printf '%s\n' "$OUT" | grep '^binary_placeholder_gone:' | awk '{print $2}')" "True"
 
+# ---- 载荷解包：.tgz / .zip / 单文件 .gz 必须真的解，不能原样拷进去 ----
+#
+# 漏了的后果不是「报错」，而是**整个压缩包被拷进产物**：重打出来的是个空壳，
+# relocate 看不见里面的 Mach-O，闸门也不报错（cloudflared / gh / duckdb / ffmpeg 都踩过）。
+
+mkdir -p "$WORK/pay/src/bin"
+printf '#!/bin/sh\necho hi\n' > "$WORK/pay/src/bin/cf"
+( cd "$WORK/pay/src" && tar czf "$WORK/pay/inner.tgz" bin )
+( cd "$WORK/pay/src" && "$PYTHON" -c "import zipfile;z=zipfile.ZipFile('$WORK/pay/inner.zip','w');z.write('bin/cf');z.close()" )
+printf 'raw\n' | gzip > "$WORK/pay/inner.gz"
+
+OUT2="$("$PYTHON" - "$SCRIPT_DIR" "$WORK/pay" <<'PYEOF'
+import sys, importlib.util, pathlib
+script_dir, base = sys.argv[1], pathlib.Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("pb", f"{script_dir}/prepare_bottle.py")
+pb = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pb)
+for name in ("inner.tgz", "inner.zip", "inner.gz"):
+    dest = base / ("out-" + name.replace(".", "-"))
+    dest.mkdir()
+    pb.extract(base / name, dest)
+    print(name, "->", sorted(str(p.relative_to(dest)) for p in dest.rglob("*")))
+PYEOF
+)"
+
+check "tgz 解包出 bin/cf" "$(printf '%s\n' "$OUT2" | grep '^inner.tgz' | grep -c 'bin/cf')" "1"
+check "zip 解包出 bin/cf" "$(printf '%s\n' "$OUT2" | grep '^inner.zip' | grep -c 'bin/cf')" "1"
+check "单文件 gz 解出原文件名" "$(printf '%s\n' "$OUT2" | grep '^inner.gz' | grep -c 'inner')" "1"
+
+# ---- 源码 tarball 闸门：URL 指向上游源码时必须停手，不能把源码树当产物 ----
+OUT3="$("$PYTHON" - "$SCRIPT_DIR" "$WORK" <<'PYEOF'
+import sys, importlib.util, pathlib
+script_dir, base = sys.argv[1], pathlib.Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("pb", f"{script_dir}/prepare_bottle.py")
+pb = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pb)
+src = base / "srctree"; (src / "src").mkdir(parents=True)
+(src / "src" / "configure.ac").write_text("x")
+(src / "src" / "a.c").write_text("x")
+perl = base / "perlonly"; (perl / "p").mkdir(parents=True)
+(perl / "p" / "cloc.pl").write_text("#!/usr/bin/perl\n")
+print("source_is_source:", pb.looks_like_source(src / "src"))
+print("script_is_source:", pb.looks_like_source(perl / "p"))
+PYEOF
+)"
+
+check "源码树被认出来" "$(printf '%s\n' "$OUT3" | grep '^source_is_source:' | awk '{print $2}')" "True"
+check "纯脚本包不误判" "$(printf '%s\n' "$OUT3" | grep '^script_is_source:' | awk '{print $2}')" "False"
+
 echo ""
 echo "=========================================="
 echo "🌊 Passed: $PASSED"

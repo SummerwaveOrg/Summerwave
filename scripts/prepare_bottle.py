@@ -26,6 +26,7 @@
 # 产物默认从镜像站取（与客户端同一组环境变量）。
 
 import argparse
+import gzip
 import hashlib
 import os
 import shutil
@@ -203,9 +204,25 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
 
 def extract(path, dest):
     name = path.name
-    if name.endswith((".tar.xz", ".tar.bz2", ".tar.gz", ".tar.zst")):
+    # `.tgz` 与 `.tbz2` 是同一种东西的短写法，但 `tarfile` 只按内容认格式、不看后缀，
+    # 所以这里必须把后缀也列全：漏掉 `.tgz` 的后果是**整个压缩包被原样拷进 stage**，
+    # 重打出来的产物里躺着一个压缩包（cloudflared 就是这样），而 relocate 看不见它、
+    # 闸门也不报错 —— 装到用户机上才发现是个空壳。
+    if name.endswith((".tar.xz", ".tar.bz2", ".tar.gz", ".tar.zst",
+                      ".tgz", ".tbz2", ".txz")):
         with tarfile.open(path) as archive:
             archive.extractall(dest)
+        return
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(path) as archive:
+            archive.extractall(dest)
+        return
+    # 单文��� gzip（`ffmpeg-darwin-arm64.gz`）没有成员名：解出来的名字只能从文件名推。
+    # 用 `.gz` 去掉后缀当目标名，与上游发布习惯一致。
+    if name.endswith(".gz") and not name.endswith((".tar.gz", ".tgz")):
+        dest.mkdir(parents=True, exist_ok=True)
+        with gzip.open(path, "rb") as src, open(dest / name[:-3], "wb") as out:
+            shutil.copyfileobj(src, out)
         return
     if name.endswith(".conda"):
         # .conda = zip 里装着 pkg-*.tar.zst（Python 3.14+ 的 compression.zstd 能解）
@@ -365,6 +382,46 @@ def repack(version_dir, out_file):
 
 # -------------------- 主流程 --------------------
 
+MACHO_MAGICS = {"feedface", "feedfacf", "cefaedfe", "cffaedfe", "cafebabe"}
+
+
+def _is_macho(path):
+    try:
+        with open(path, "rb") as handle:
+            return handle.read(4).hex() in MACHO_MAGICS
+    except OSError:
+        return False
+
+
+def _has_macho(root):
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if not os.path.islink(path) and _is_macho(path):
+                return True
+    return False
+
+
+# 源码 tarball 的特征文件。出现任何一个、并且树里一个 Mach-O 都没有，就说明这条记录
+# 的 `url` 指向上游**源码**发布，而不是可安装产物。
+SOURCE_MARKERS = ("configure.ac", "CMakeLists.txt", "Makefile.am", "meson.build",
+                  "configure", "Makefile.in")
+
+
+def looks_like_source(root):
+    markers = 0
+    for entry in os.scandir(root):
+        if entry.is_file() and entry.name in SOURCE_MARKERS:
+            markers += 1
+    if not markers:
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for name in filenames:
+                if name.endswith((".c", ".h", ".cc", ".cpp")):
+                    return True
+        return False
+    return True
+
+
 def stage_target(stage, kind, name, version):
     # 包与依赖同构（1.0 起）：<stage>/Shore/<名>/<版本>/。kind 只影响记录字段，
     # 不影响落盘位置 —— 这正是「卸载只要看一个根」的来源。
@@ -392,6 +449,17 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
             payload, _ = fetch(current_kind, current_name, current_version, arch,
                                fields, work, source=source, cache=cache)
             extract(payload, target)
+            # 记录里的 `url` 有时指向上游**源码**发布（那说明这条从来没发过 macOS 产物，
+            # oniguruma 就是这样）。这种包重打没有意义：源码树搬过去也跑不起来。
+            # 不拦的话产物里会躺着一棵源码树，而 relocate 只认 Mach-O，看不见它，
+            # 结果一路「检查通过」到最后。
+            if not _has_macho(target) and looks_like_source(target):
+                sys.exit(
+                    f"🌊 Error: {current_name}@{current_version} ({current_kind}, {arch}) "
+                    f"resolves to an upstream **source** tarball ({payload.name}), not an "
+                    "installable payload.\n"
+                    "   这条记录从来没有发过 macOS 产物 —— 要走源码编：在 MacWaveOrg/Ports "
+                    "下加一个整树端口（照 zlib/build.sh），再把产物当 prebuilt 回填。")
             for ref in dep_list(fields):
                 dep_name, _, dep_version = ref.partition("@")
                 todo.append(("deps", dep_name, dep_version))
