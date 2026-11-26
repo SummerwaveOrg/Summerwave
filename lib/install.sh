@@ -283,6 +283,10 @@ SELFUPDATE_URL="$(mw_domain MACWAVE_SELFUPDATE_DOMAIN "${MACWAVE_SELFUPDATE_DOMA
 # 解释器单独一个仓库（体积与发布节奏都和自更新数据不同）
 PYTHON_DOMAIN_URL="$(mw_domain MACWAVE_PYTHON_DOMAIN "${MACWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
 
+# 用户协议所在页面。4.7 起安装器只在开头把地址念一遍（不记录同意、结尾也不问），
+# 所以它纯粹是给人看的一个链接。站点暂用 summerwaveorg.github.io，域名定了改这一行。
+AGREEMENT_URL="${MACWAVE_AGREEMENT_URL:-https://summerwaveorg.github.io}"
+
 # ==========================================
 # 额外根证书（MACWAVE_CACERT）
 # ==========================================
@@ -598,7 +602,7 @@ validate_custom_dir() {
         if [[ -n "$(ls -A "$expanded" 2>/dev/null)" ]]; then
             mw_say_err "${RED_BOLD}🌊 Error: '$expanded' already exists and is not empty.${RESET}" \
                     "${RED_BOLD}🌊 错误：'$expanded' 已存在且非空。${RESET}"
-            mw_say_err "🌊 Installing here would take ownership of files MacWave did not create;" \
+            mw_say_err "🌊 Installing here would take ownership of files Summerwave did not create;" \
                     "🌊 装在这里会把 MacWave 没创建过的文件一并接管；"
             mw_say_err "🌊 pick a new or empty directory instead." \
                     "🌊 请改用一个新的或空的目录。"
@@ -611,10 +615,10 @@ validate_custom_dir() {
 }
 
 # ==========================================
-# 系统架构与目录菜单
+# 系统架构与安装位置
 # ==========================================
 #
-# 菜单项数随架构变化：Intel 机器多提供一个 /usr/local/macwave
+# 位置的数量随架构变化：Intel 机器多提供一个 /usr/local/macwave
 # （Apple 芯片上不建议写入 /usr/local，因此只对 Intel 提供），
 # 自定义目录的编号也随之变化，所以这里统一算好。
 
@@ -726,7 +730,7 @@ usage() {
     # 每一项是**一段**（段内用 \n 分行），而不是一行一次调用：中英两种语言的
     # 折行位置本来就不同，逐行成对会逼着一边凑行数，凑出来的空行在中文里就是
     # 多出来的空白。按段落给，各自折各自的。
-    mw_say "MacWave installer" "MacWave 安装程序"
+    mw_say "Summerwave installer" "Summerwave 安装程序"
     mw_say ""
     mw_say "Usage:" "用法："
     mw_say "  install.sh [options]" "  install.sh [选项]"
@@ -760,8 +764,10 @@ usage() {
            "      --skip-probe        判定是否需要提权时不在目标里建那个临时探针文件，只用\n\
                           权限位判断。适合「目标必须一点痕迹都不留」的场合 ——\n\
                           判断错了只是把失败推迟到第一次真正写入。"
-    mw_say "      --dir-option=N      Pick menu entry N without prompting (1-$CUSTOM_OPTION)." \
-           "      --dir-option=N      不提问，直接选菜单第 N 项（1-${CUSTOM_OPTION}）。"
+    mw_say "      --dir-option=N      Skip the confirmation and install to location N\n\
+                          (1-$CUSTOM_OPTION; 1 = /opt/macwave, the default)." \
+           "      --dir-option=N      不确认，直接装到第 N 个位置（1-${CUSTOM_OPTION}；\n\
+                          1 = /opt/macwave，也就是默认）。"
     mw_say "      --dir-option=DIR    Use DIR as the installation directory (shorthand for\n\
                           --dir-option=$CUSTOM_OPTION=DIR)." \
            "      --dir-option=DIR    用 DIR 作为安装目录（等价于\n\
@@ -1000,7 +1006,7 @@ resolve_custom_dir() {
 
 # -------------------- 平台守卫：MacWave 只装 macOS 软件 --------------------
 #
-# 再往下就会撞上 macOS 专属的东西：目录菜单里的 /usr/local、SIP 与系统卷密封的
+# 再往下就会撞上 macOS 专属的东西：安装位置里的 /usr/local、SIP 与系统卷密封的
 # 判定、csrutil、Xcode 命令行工具检查。与其装到一半报「csrutil: command not
 # found」，不如第一句就说清楚该去哪 —— Linux 由兄弟项目 LinuxWave 覆盖，两边的
 # 安装命令是同一个形状（releases/latest/download/install.sh）。
@@ -1067,7 +1073,7 @@ mw_require_macos() {
     platform="$(mw_platform)"
     if [[ "$platform" == "macos" ]]; then
         if ! mw_macos_version_ok; then
-            mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} is too old — MacWave needs macOS 10.15 (Catalina) or later." \
+            mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} is too old — Summerwave needs macOS 10.15 (Catalina) or later." \
                    "🌊 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— MacWave 需要 macOS 10.15（Catalina）或更高。"
             mw_say "🌊 Nothing was changed. Upgrade macOS, then run this installer again." \
                    "🌊 什么都没改。升级 macOS 之后再跑一次这个安装脚本。"
@@ -1078,15 +1084,15 @@ mw_require_macos() {
 
     case "$platform" in
         linux)
-            mw_say "🌊 MacWave installs macOS software; this machine is Linux." \
-                   "🌊 MacWave 装的是 macOS 软件 —— 这台机器是 Linux。"
+            mw_say "🌊 Summerwave installs macOS software; this machine is Linux." \
+                   "🌊 Summerwave 装的是 macOS 软件 —— 这台机器是 Linux。"
             mw_say "🌊 For Linux, use LinuxWave: https://linuxwave.org" \
                    "🌊 Linux 请改用 LinuxWave：https://linuxwave.org"
             mw_say "$linuxwave_cmd"
             ;;
         *)
-            mw_say "🌊 MacWave installs macOS software; this platform was not recognised." \
-                   "🌊 MacWave 装的是 macOS 软件 —— 认不出这个平台。"
+            mw_say "🌊 Summerwave installs macOS software; this platform was not recognised." \
+                   "🌊 Summerwave 装的是 macOS 软件 —— 认不出这个平台。"
             mw_say "🌊 uname -s says: $(uname -s 2>/dev/null || echo unknown)" \
                    "🌊 uname -s 报的是：$(uname -s 2>/dev/null || echo unknown)"
             mw_say "🌊 On Linux use LinuxWave: https://linuxwave.org" \
@@ -1130,6 +1136,163 @@ if [[ -n "${MACWAVE_TEST:-}" ]]; then
     # 用 mw_say：现在它已经定义好了（参数解析更早），并行输出也走同一个闸门。
     # 这行带 🌊，--raw 时会被过滤器剥掉。
     mw_say "🌊 Test root: $SYS_ROOT" "🌊 测试根：$SYS_ROOT"
+fi
+
+# ==========================================
+# 升级模式（selfupdate 调起来的那一次）
+# ==========================================
+#
+# `wave selfupdate` 不再自己维护一套「下载 + 迁移 + 写凭据 + 建 venv」的流程：
+# 它取目标版本的 lib/install.sh，带着下面这组变量执行本文件。于是「怎么装」只有
+# 一份实现 —— 全新安装与升级跑的是同一个脚本，区别只在几个开关。
+#
+# 为什么不是「下载一段代码去 bash」：本文件是**目标版本 tag 里的 install.sh**，
+# 与发布资产同名同源，审计时看它 + 同版本的 files.txt 就够；且它的哈希被写进
+# latest.toml（installer_sha256），selfupdate 会先校验再执行。
+#
+# 变量契约（全部可选；缺任何一个就退回旧行为，便于 4.6 的老客户端继续用旧轨）：
+#
+#   MACWAVE_SELFUPDATE=1        我在升级一棵已有的树
+#   MACWAVE_INSTALL_DIR=<路径>  装哪棵树（不猜、不问、不发散）
+#   MACWAVE_VERSION / MACWAVE_BRANCH   目标版本与分支（已存在的口子）
+#   MACWAVE_NEED_SUDO=1|0       提权结论沿用调用方的，不重新探测
+SELFUPDATE_MODE=false
+if [[ "${MACWAVE_SELFUPDATE:-}" == "1" ]]; then
+    SELFUPDATE_MODE=true
+    if [[ -z "${MACWAVE_INSTALL_DIR:-}" ]]; then
+        echo -e "${RED_BOLD}🌊 Error: MACWAVE_SELFUPDATE=1 needs MACWAVE_INSTALL_DIR.${RESET}" >&2
+        exit 1
+    fi
+    # 路径来自调用方（也就是用户的安装树），仍要过一遍安全校验：它会参与
+    # rm -rf 与 chown。这个函数在下面「判断是否需要 sudo」一节之后才定义，所以
+    # 这里只做最基本的规范化，真正的白名单校验在 resolve 之后进行。
+    BASE_DIR="${MACWAVE_INSTALL_DIR}"
+    while [[ "$BASE_DIR" == */ && "$BASE_DIR" != "/" ]]; do
+        BASE_DIR="${BASE_DIR%/}"
+    done
+fi
+
+# ==========================================
+# 选择安装目录（交互式 / --dir-option / --ci 默认 / 升级模式）
+# ==========================================
+
+if [[ "$SELFUPDATE_MODE" == "true" ]]; then
+    # 升级：目录由调用方给，不显示菜单、不接受 --dir-option。
+    choice=""
+    mw_say "🌊 Updating the installation at $BASE_DIR" "🌊 正在更新 ${BASE_DIR} 这棵安装树"
+elif [[ -n "$CLI_DIR_OPTION" ]]; then
+    choice="$CLI_DIR_OPTION"
+    mw_say "🌊 Directory option: $choice (from --dir-option)" "🌊 目录选项：${choice}（来自 --dir-option）"
+elif [[ "$CLI_CI" == "true" ]]; then
+    # --ci 是无人值守：这时候不该反过来要管理员密码，所以它默认装用户级目录，
+    # 而交互式默认是第一项（/opt/macwave）。两者不同是**故意的**：
+    # 「没人看着」与「有人能输密码」是两种处境。想让它装到 /opt，就显式给
+    # --dir-option=1（并要求免密 sudo，否则它会明确报错退出）。
+    choice="2"
+    mw_say "🌊 --ci: installing into ~/.local/macwave (unattended, so no administrator password is requested)." \
+        "🌊 --ci：装到 ~/.local/macwave（无人值守，不会去要管理员密码）。"
+    mw_say "🌊       pass --dir-option=1 for /opt/macwave if this machine has passwordless sudo." \
+        "🌊       要装到 /opt/macwave，加 --dir-option=1（需要免密 sudo）。"
+else
+    # 不再是一道选择题：装到哪儿是产品决定，不该让人在安装前先做一次架构与权限
+    # 判断。默认就是系统级 /opt/macwave；想换地方的人用 --dir-option 明确说出来。
+    choice="1"
+    ASK_INSTALL_TARGET="true"
+fi
+
+if [[ "$SELFUPDATE_MODE" == "true" ]]; then
+    :   # BASE_DIR 已经定好了
+else
+case "$choice" in
+    1)
+        BASE_DIR="$SYS_ROOT/opt/macwave"
+        ;;
+    2)
+        BASE_DIR="$HOME/.local/macwave"
+        ;;
+    3)
+        if [[ "$CUSTOM_OPTION" == "3" ]]; then
+            resolve_custom_dir
+        else
+            BASE_DIR="$SYS_ROOT/usr/local/macwave"
+        fi
+        ;;
+    4)
+        resolve_custom_dir
+        ;;
+    *)
+        mw_say "${RED_BOLD}🌊 Invalid choice. Using the default: /opt/macwave${RESET}" "${RED_BOLD}🌊 选择无效，改用默认目录：/opt/macwave${RESET}"
+        BASE_DIR="$SYS_ROOT/opt/macwave"
+        ;;
+esac
+fi
+
+DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
+
+# ==========================================
+# 动手之前确认：装到这个位置，继续吗？
+# ==========================================
+#
+# 为什么把确认放在这里、而不是结尾：此刻磁盘上一个字节都还没改，用户说不装就是
+# 干净退出，不需要回滚；而回滚要删安装树、删配置、清 rc 里的 PATH —— 升级场景还
+# 可能把用户原来那棵能用的树一起毁掉。问一句便宜得多。
+#
+# 只在「什么都没被显式指定、又有终端」时问：
+#   - --ci：无人值守，不问；
+#   - --dir-option：用户已经明确指定了位置，再问一遍是啰嗦；
+#   - 没有 /dev/tty（curl | bash 的 stdin 是脚本本身）：拿不到终端就不问，
+#     按默认位置继续 —— 安装不破坏已有数据，中断在这里反而更需要 `--ci` 的形状；
+#   - --dry-run：只打印、什么都不改，没什么可确认的；
+#   - MACWAVE_TEST：沙箱/测试根，任何提问都会把自动化挂住。
+# 谁该被打断：
+#   - 升级（SELFUPDATE_MODE）：调用方是 `wave selfupdate`，人已经做了选择；
+#   - --ci：无人值守，不确认也不提问，按默认位置装（这条老规矩不变）；
+#   - --dry-run：只打印、什么都不改，没什么可确认的；
+#   - MACWAVE_TEST 或拿不到 /dev/tty（curl | bash 的 stdin 是脚本本身）：不问，
+#     按默认位置继续 —— 安装不破坏已有数据，在这里卡死反而更需要 `--ci` 的形状。
+if [[ "$SELFUPDATE_MODE" == "true" ]]; then
+    :
+elif [[ "$CLI_CI" == "true" ]]; then
+    mw_say "🌊 --ci: the user agreement is accepted automatically (${AGREEMENT_URL})." \
+           "🌊 --ci：自动接受用户协议（${AGREEMENT_URL}）。"
+elif mw_dry_run; then
+    mw_plan "🌊 Dry run: the install target and the agreement are not asked about." \
+        "🌊 试运行：不会询问安装位置，也不会询问用户协议。"
+elif [[ -z "${MACWAVE_TEST:-}" ]] && [[ -r /dev/tty ]]; then
+    # 安装位置与用户协议**合成一次**确认：两件事都必须在动手之前说清，
+    # 分成两次提问只会让人以为「后面还有一轮」。
+    echo ""
+    if [[ "${ASK_INSTALL_TARGET:-}" == "true" ]]; then
+        mw_say "🌊 Summerwave will be installed to ${DISPLAY_DIR}" \
+               "🌊 Summerwave 将会安装到 ${DISPLAY_DIR}"
+        mw_say "🌊   This asks for an administrator password once." \
+               "🌊   过程中需要一次管理员密码。"
+        mw_say "🌊   Want it somewhere else? --dir-option=2 installs for this user only." \
+               "🌊   想换个地方？--dir-option=2 只装给当前用户。"
+        echo ""
+    fi
+    mw_say "🌊 Using Summerwave means you accept the user agreement:" \
+           "🌊 使用 Summerwave 即表示你接受用户协议："
+    mw_say "🌊   ${AGREEMENT_URL}" "🌊   ${AGREEMENT_URL}"
+    echo ""
+    mw_say "🌊 Continue? [Y/n]" "🌊 继续吗？[Y/n]"
+    _answer=""
+    # 没人应答（EOF）按同意处理：能走到这里说明有终端，回车就是默认值。
+    read -r _answer < /dev/tty || _answer=""
+    _answer="$(printf '%s' "$_answer" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+    case "$_answer" in
+        ""|y|yes) ;;
+        n|no)
+            mw_say "🌊 You did not accept the agreement — nothing was changed." \
+                   "🌊 你未接受用户协议 —— 什么都没有改动。"
+            exit 0
+            ;;
+        *)
+            mw_say "🌊 Unrecognised answer, so nothing was changed." \
+                   "🌊 无法识别的回答，什么都没有改动。"
+            exit 0
+            ;;
+    esac
 fi
 
 # ==========================================
@@ -1240,7 +1403,7 @@ if ! mw_raw; then
     echo -e "${SKY_BLUE} ╚══╝╚══╝ ╚═╝  ╚═╝  ╚═══╝  ╚══════╝${RESET}"
     echo ""
 fi
-mw_say "🌊 Welcome to MacWave $MACWAVE_VERSION!" "🌊 欢迎使用 MacWave ${MACWAVE_VERSION}！"
+mw_say "🌊 Welcome to Summerwave $MACWAVE_VERSION!" "🌊 欢迎使用 Summerwave ${MACWAVE_VERSION}！"
 
 if mw_dry_run; then
     echo ""
@@ -1255,138 +1418,6 @@ fi
 echo ""
 
 mw_say "🌊 Detected architecture: $ARCH" "🌊 检测到架构：$ARCH"
-
-# ==========================================
-# 升级模式（selfupdate 调起来的那一次）
-# ==========================================
-#
-# `wave selfupdate` 不再自己维护一套「下载 + 迁移 + 写凭据 + 建 venv」的流程：
-# 它取目标版本的 lib/install.sh，带着下面这组变量执行本文件。于是「怎么装」只有
-# 一份实现 —— 全新安装与升级跑的是同一个脚本，区别只在几个开关。
-#
-# 为什么不是「下载一段代码去 bash」：本文件是**目标版本 tag 里的 install.sh**，
-# 与发布资产同名同源，审计时看它 + 同版本的 files.txt 就够；且它的哈希被写进
-# latest.toml（installer_sha256），selfupdate 会先校验再执行。
-#
-# 变量契约（全部可选；缺任何一个就退回旧行为，便于 4.6 的老客户端继续用旧轨）：
-#
-#   MACWAVE_SELFUPDATE=1        我在升级一棵已有的树
-#   MACWAVE_INSTALL_DIR=<路径>  装哪棵树（不猜、不问、不发散）
-#   MACWAVE_VERSION / MACWAVE_BRANCH   目标版本与分支（已存在的口子）
-#   MACWAVE_NEED_SUDO=1|0       提权结论沿用调用方的，不重新探测
-#   MACWAVE_AGREED=<协议标识>    已经同意过这一版：不再提问，直接记下
-SELFUPDATE_MODE=false
-if [[ "${MACWAVE_SELFUPDATE:-}" == "1" ]]; then
-    SELFUPDATE_MODE=true
-    if [[ -z "${MACWAVE_INSTALL_DIR:-}" ]]; then
-        echo -e "${RED_BOLD}🌊 Error: MACWAVE_SELFUPDATE=1 needs MACWAVE_INSTALL_DIR.${RESET}" >&2
-        exit 1
-    fi
-    # 路径来自调用方（也就是用户的安装树），仍要过一遍安全校验：它会参与
-    # rm -rf 与 chown。这个函数在下面「判断是否需要 sudo」一节之后才定义，所以
-    # 这里只做最基本的规范化，真正的白名单校验在 resolve 之后进行。
-    BASE_DIR="${MACWAVE_INSTALL_DIR}"
-    while [[ "$BASE_DIR" == */ && "$BASE_DIR" != "/" ]]; do
-        BASE_DIR="${BASE_DIR%/}"
-    done
-fi
-
-# ==========================================
-# 选择安装目录（交互式 / --dir-option / --ci 默认 / 升级模式）
-# ==========================================
-
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    # 升级：目录由调用方给，不显示菜单、不接受 --dir-option。
-    choice=""
-    mw_say "🌊 Updating the installation at $BASE_DIR" "🌊 正在更新 ${BASE_DIR} 这棵安装树"
-elif [[ -n "$CLI_DIR_OPTION" ]]; then
-    choice="$CLI_DIR_OPTION"
-    mw_say "🌊 Directory option: $choice (from --dir-option)" "🌊 目录选项：${choice}（来自 --dir-option）"
-elif [[ "$CLI_CI" == "true" ]]; then
-    # --ci 是无人值守：这时候不该反过来要管理员密码，所以它默认装用户级目录，
-    # 而交互式默认是第一项（/opt/macwave）。两者不同是**故意的**：
-    # 「没人看着」与「有人能输密码」是两种处境。想让它装到 /opt，就显式给
-    # --dir-option=1（并要求免密 sudo，否则它会明确报错退出）。
-    choice="2"
-    mw_say "🌊 --ci: installing into ~/.local/macwave (unattended, so no administrator password is requested)." \
-        "🌊 --ci：装到 ~/.local/macwave（无人值守，不会去要管理员密码）。"
-    mw_say "🌊       pass --dir-option=1 for /opt/macwave if this machine has passwordless sudo." \
-        "🌊       要装到 /opt/macwave，加 --dir-option=1（需要免密 sudo）。"
-else
-    # 不再是一道选择题：装到哪儿是产品决定，不该让人在安装前先做一次架构与权限
-    # 判断。默认就是系统级 /opt/macwave；想换地方的人用 --dir-option 明确说出来。
-    choice="1"
-    ASK_INSTALL_TARGET="true"
-fi
-
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    :   # BASE_DIR 已经定好了
-else
-case "$choice" in
-    1)
-        BASE_DIR="$SYS_ROOT/opt/macwave"
-        ;;
-    2)
-        BASE_DIR="$HOME/.local/macwave"
-        ;;
-    3)
-        if [[ "$CUSTOM_OPTION" == "3" ]]; then
-            resolve_custom_dir
-        else
-            BASE_DIR="$SYS_ROOT/usr/local/macwave"
-        fi
-        ;;
-    4)
-        resolve_custom_dir
-        ;;
-    *)
-        mw_say "${RED_BOLD}🌊 Invalid choice. Using the default: /opt/macwave${RESET}" "${RED_BOLD}🌊 选择无效，改用默认目录：/opt/macwave${RESET}"
-        BASE_DIR="$SYS_ROOT/opt/macwave"
-        ;;
-esac
-fi
-
-DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
-
-# ==========================================
-# 动手之前确认：装到这个位置，继续吗？
-# ==========================================
-#
-# 为什么把确认放在这里、而不是结尾：此刻磁盘上一个字节都还没改，用户说不装就是
-# 干净退出，不需要回滚；而回滚要删安装树、删配置、清 rc 里的 PATH —— 升级场景还
-# 可能把用户原来那棵能用的树一起毁掉。问一句便宜得多。
-#
-# 只在「什么都没被显式指定、又有终端」时问：
-#   - --ci：无人值守，不问；
-#   - --dir-option：用户已经明确指定了位置，再问一遍是啰嗦；
-#   - 没有 /dev/tty（curl | bash 的 stdin 是脚本本身）：拿不到终端就不问，
-#     按默认位置继续 —— 安装不破坏已有数据，中断在这里反而更需要 `--ci` 的形状；
-#   - --dry-run：只打印、什么都不改，没什么可确认的；
-#   - MACWAVE_TEST：沙箱/测试根，任何提问都会把自动化挂住。
-if [[ "${ASK_INSTALL_TARGET:-}" == "true" ]] \
-   && [[ "$CLI_DRY_RUN" != "true" ]] \
-   && [[ -z "${MACWAVE_TEST:-}" ]]; then
-    if [[ -r /dev/tty ]]; then
-        echo ""
-        mw_say "🌊 Summerwave will be installed to ${DISPLAY_DIR}" \
-               "🌊 Summerwave 将会安装到 ${DISPLAY_DIR}"
-        mw_say "🌊   This asks for an administrator password once." \
-               "🌊   过程中需要一次管理员密码。"
-        mw_say "🌊   Want it somewhere else? --dir-option=2 installs for this user only." \
-               "🌊   想换个地方？--dir-option=2 只装给当前用户。"
-        echo ""
-        mw_say "🌊 Continue? [Y/n]" "🌊 继续吗？[Y/n]"
-        _answer=""
-        read -r _answer < /dev/tty || true
-        case "$_answer" in
-            ""|y|Y|yes|YES|Yes) ;;
-            *)
-                mw_say "🌊 Nothing was changed." "🌊 什么都没有改动。"
-                exit 0
-                ;;
-        esac
-    fi
-fi
 
 # ==========================================
 # 判断是否需要 sudo
@@ -2134,18 +2165,6 @@ install_failed() {
 }
 trap install_failed ERR
 
-# 回滚（拒绝协议时）要不要删这棵树，取决于它是不是**本次**安装建出来的：
-# 覆盖升级时 BASE_DIR 本来就在，删掉它等于毁掉用户已有的安装。
-# 必须在第一条 mkdir 之前判断。
-TREE_PREEXISTED=0
-if [[ -d "$BASE_DIR" || -d "$CONFIG_DIR" ]]; then
-    TREE_PREEXISTED=1
-fi
-# 升级永远是在一棵已有的树上动手：失败时**绝不能**删它（那等于把用户的安装毁掉）。
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    TREE_PREEXISTED=1
-fi
-
 run_cmd mkdir -p "$INSTALL_DIR"
 run_cmd mkdir -p "$LINKS_DIR"
 run_cmd mkdir -p "$REPO_DIR"
@@ -2455,7 +2474,7 @@ EOF
                 mw_say "🌊 Removed the legacy config directory ${CONFIG_DIR#"$SYS_ROOT"} (state now lives in ${STATE_DIR#"$SYS_ROOT"})." \
                        "🌊 已删除旧版配置目录 ${CONFIG_DIR#"$SYS_ROOT"}（状态现在在 ${STATE_DIR#"$SYS_ROOT"}）。"
             else
-                mw_say "🌊 Cleared the MacWave files in $CONFIG_DIR; kept the directory itself (it holds other files)." \
+                mw_say "🌊 Cleared the Summerwave files in $CONFIG_DIR; kept the directory itself (it holds other files)." \
                        "🌊 已清掉 ${CONFIG_DIR} 里的 MacWave 文件；目录里还有其它文件，所以目录本身保留。"
             fi
             ;;
@@ -2855,7 +2874,7 @@ if command -v python3 >/dev/null 2>&1; then
 fi
 
 mw_say_err "🌊 Error: no usable Python 3 interpreter was found." "🌊 错误：找不到可用的 Python 3 解释器。"
-mw_say_err "🌊 Reinstall MacWave with lib/install.sh." "🌊 请用 lib/install.sh 重新安装 MacWave。"
+mw_say_err "🌊 Reinstall Summerwave with lib/install.sh." "🌊 请用 lib/install.sh 重新安装 Summerwave。"
 exit 1
 LAUNCHER
 
@@ -2972,7 +2991,7 @@ remove_lw_path_entries() {
     grep -v -F -e "$PATH_LINE" "$rc" | grep -v -x -F -e "# MacWave" > "$rc.macwave.tmp" || true
     cat "$rc.macwave.tmp" > "$rc"
     rm -f "$rc.macwave.tmp"
-    mw_say "🌊 Removed old MacWave PATH entries from $rc" "🌊 已从 $rc 移除旧版 MacWave 的 PATH 条目"
+    mw_say "🌊 Removed old PATH entries from $rc" "🌊 已从 $rc 移除旧版留下的 PATH 条目"
 }
 
 # 当前进程的 PATH 里是否已经有 MacWave。看运行环境而不是解析 rc 文件：
@@ -3001,96 +3020,6 @@ for _rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zprofile
 done
 
 # ==========================================
-# 许可协议确认
-# ==========================================
-
-# 4.7 起**不记录**同意：用户按下 y、安装继续，这本身就是同意。
-# 之前要写 AGREEMENT.json，是为了让下一次 selfupdate 知道「问过没有」——
-# 代价是每次改协议都要推理「记录还对不对」，而那份推断本来就不可靠
-# （装的是哪一版、什么时候装的、记录有没有被 install.sh 覆盖过）。
-# 现在升级不再问（见 lib/selfupdate.py 的 print_agreement_notice），
-# 所以没有任何东西需要记。
-
-# 必须放在「安装完成」之前：否则先告诉用户已经装好，随后又因为不同意而全部删除。
-
-echo ""
-mw_say "${YELLOW}Please read the agreement before use (see bottom of https://macwave.org).${RESET}" "${YELLOW}使用前请先阅读用户协议（见 https://macwave.org 页面底部）。${RESET}"
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    # 升级不问：用户执行 `wave selfupdate` 就是选择继续使用新版本；而首次安装时
-    # 已经问过一次。这里只把协议地址再说一遍。
-    agreement="yes"
-    mw_say "🌊 Continuing with the current user agreement: https://macwave.org" \
-           "🌊 继续使用当前用户协议：https://macwave.org"
-elif mw_dry_run; then
-    # 试运行不碰终端：否则 `install.sh --dry-run` 会停在协议提问上，
-    # 只想看输出的人反而被卡住。真实安装仍然要求回答。
-    agreement="yes"
-    mw_plan "🌊 Dry run: the agreement is not asked and nothing is recorded." \
-        "🌊 试运行：不询问用户协议，也不记录任何同意。"
-elif [[ "$CLI_CI" == "true" ]]; then
-    mw_say "🌊 --ci: the agreement is accepted automatically." "🌊 --ci：自动接受用户协议。"
-    agreement="yes"
-else
-    # 回答归一化：去空白、转小写后再判断。空 / y / yes → 同意，n / no → 拒绝，
-    # 其它输入重新提问，连续 3 次无法识别就按拒绝处理。
-    # 不用 ${var,,}：macOS 自带 bash 3.2 没有这个展开。
-    agreement=""
-    _agreement_tries=0
-    while [[ -z "$agreement" ]]; do
-        _agreement_tries=$((_agreement_tries + 1))
-        mw_say "${YELLOW}Have you read and agreed to the agreement? [Y/n]${RESET}" "${YELLOW}你是否已阅读并同意该协议？[Y/n]${RESET}"
-        _answer=""
-        read -r _answer < /dev/tty || _answer=""
-        _answer=$(printf '%s' "$_answer" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-        case "$_answer" in
-            ""|y|yes)
-                agreement="yes"
-                ;;
-            n|no)
-                agreement="no"
-                ;;
-            *)
-                if [[ "$_agreement_tries" -ge 3 ]]; then
-                    mw_say "${YELLOW}Unrecognized answer, treating it as \"no\".${RESET}" \
-                        "${YELLOW}无法识别的回答，按「不同意」处理。${RESET}"
-                    agreement="no"
-                else
-                    mw_say "${YELLOW}Please answer y (agree) or n (do not agree).${RESET}" \
-                        "${YELLOW}请回答 y（同意）或 n（不同意）。${RESET}"
-                fi
-                ;;
-        esac
-    done
-fi
-if [[ "$agreement" == "yes" ]]; then
-    if ! mw_dry_run; then
-        # 不写文件：按 y 就是同意，没什么要记的（见上面那段注释）。
-        mw_say "${GREEN}You have agreed to the agreement.${RESET}" "${GREEN}已确认同意该协议。${RESET}"
-    fi
-else
-    mw_say "${RED_BOLD}You do not agree to the agreement. Installation stopped.${RESET}" "${RED_BOLD}你未同意该协议，安装已停止。${RESET}"
-    # 回滚只清本次安装建出来的东西。升级覆盖时 BASE_DIR 早就存在，
-    # 删掉它就是毁掉用户已有的安装。
-    _cleanup_rc="$RC_FILE"
-    if [[ -n "${EXISTING_RC:-}" ]]; then
-        _cleanup_rc="$EXISTING_RC"
-    fi
-    if [[ "$TREE_PREEXISTED" == "0" ]]; then
-        mw_say "${RED_BOLD}🌊 Cleaning up downloaded files...${RESET}" "${RED_BOLD}🌊 正在清理已下载的文件……${RESET}"
-        run_cmd rm -rf "$BASE_DIR"
-        run_cmd rm -rf "$CONFIG_DIR"
-        # 回滚要连 rc 里的 PATH 一起清掉，否则会留下指向已删除目录的一行。
-        # 这里不写死 sudo：用户级安装全程无需提权，回滚也不该突然要密码。
-        remove_lw_path_entries "$_cleanup_rc"
-        mw_say "${RED_BOLD}🌊 All files have been deleted.${RESET}" "${RED_BOLD}🌊 所有文件已删除。${RESET}"
-    else
-        mw_say "${YELLOW}🌊 Existing installation left untouched; run the installer again to continue.${RESET}" \
-            "${YELLOW}🌊 已有安装保持原样，重新运行安装器可继续。${RESET}"
-    fi
-    exit 1
-fi
-
-# ==========================================
 # 完成信息
 # ==========================================
 
@@ -3098,7 +3027,7 @@ echo ""
 if mw_dry_run; then
     mw_say "${GREEN}🌊 Dry run finished. Nothing was installed or changed.${RESET}" \
         "${GREEN}🌊 试运行结束。没有安装或修改任何内容。${RESET}"
-    mw_say "🌊 MacWave would be installed to: $DISPLAY_DIR" "🌊 MacWave 将被安装到：$DISPLAY_DIR"
+    mw_say "🌊 Summerwave would be installed to: $DISPLAY_DIR" "🌊 Summerwave 将被安装到：$DISPLAY_DIR"
     # 装饰与艺术字同一条规矩：--raw 是给日志和 grep 看的，逐字去掉。
     if ! mw_raw; then
         echo ""
@@ -3111,12 +3040,12 @@ if mw_dry_run; then
 elif [[ "$SELFUPDATE_MODE" == "true" ]]; then
     # 升级：不重复「安装完成」那套说明（PATH、其他用户、管理员权限都没变），
     # 只报一句结果。这些提示是第一次装的人要看的，升级时纯属噪音。
-    mw_say "🌊 MacWave updated to $MACWAVE_VERSION." "🌊 MacWave 已更新到 ${MACWAVE_VERSION}。"
+    mw_say "🌊 Summerwave updated to $MACWAVE_VERSION." "🌊 Summerwave 已更新到 ${MACWAVE_VERSION}。"
     mw_say "🌊 Installation directory: $DISPLAY_DIR" "🌊 安装目录：${DISPLAY_DIR}"
     exit 0
 else
     mw_say "🌊 Installation complete!" "🌊 安装完成！"
-    mw_say "🌊 MacWave installed to: $DISPLAY_DIR" "🌊 MacWave 已安装到：$DISPLAY_DIR"
+    mw_say "🌊 Summerwave installed to: $DISPLAY_DIR" "🌊 Summerwave 已安装到：$DISPLAY_DIR"
     # 打印诗句（--raw 时同样跳过）
     if ! mw_raw; then
         echo -e "${SKY_BLUE}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${RESET}"

@@ -55,7 +55,9 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
 ```
 
-`--zh` 让安装程序用中文输出。`--ci --dir-option=1` 全程无交互安装。
+安装器默认装到 `/opt/macwave`，而且会先告诉你、只问一次 —— 答 `n` 就干净退出，磁盘上什么都没改。（`--dir-option=2` 只装给当前用户，位置在 `~/.local/macwave`，全程不需要密码。）
+
+`--zh` 与 `--en` 强制指定输出语言；不给的话安装器按 `LC_ALL` / `LANG` 与 macOS 的系统首选语言自己判断，中文机器上默认就是中文。`--ci` 什么都不问。
 `--dry-run` 完整走一遍安装流程、打印每一步会做什么，但不下载、不索取密码、
 不写入任何内容。
 其余选项见 `install.sh --help`。
@@ -88,8 +90,8 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
   -- --ci --dir-option=2
 ```
 
-`--ci`（也可写 `--CI`）会自动应答目录菜单与许可协议；当选中的目录需要提权时，它要求免密 sudo
-或以 root 运行。`--dir-option=N` 免菜单直接选定第 `N` 项（Intel 机器为 1-4，Apple 芯片为
+`--ci`（也可写 `--CI`）不确认也不提问：不带 `--dir-option` 时装到 `~/.local/macwave`（无人值守不该停下要管理员密码），要装 `/opt/macwave` 就加 `--dir-option=1`，那时需要免密 sudo
+或以 root 运行。`--dir-option=N` 不确认直接选定第 `N` 个位置（Intel 机器为 1-4，Apple 芯片为
 1-3）；自定义项要附上路径，写成 `--dir-option=4=/opt/my-macwave`，或直接写 `--dir-option=~/my-macwave`。
 完整参数列表可运行 `install.sh --help` 查看。
 

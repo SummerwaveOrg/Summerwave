@@ -56,10 +56,15 @@ Installer options go after `--`, which ends bash's own options:
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
 ```
 
-`--zh` prints the installer in Chinese. `--ci --dir-option=1` installs with no
-prompt. `--dry-run` walks through the whole install and prints every step without
-downloading, asking for a password, or writing anything. `install.sh --help`
-lists the rest.
+The installer goes to `/opt/macwave` and says so before it touches anything: it
+asks once, and answering `n` leaves the disk exactly as it was. (`--dir-option=2`
+installs for the current user only, under `~/.local/macwave`, with no password.)
+
+`--zh` and `--en` force the installer's language; without them it follows
+`LC_ALL` / `LANG` and the macOS preferred language, so a Chinese machine is
+spoken to in Chinese. `--ci` asks nothing at all. `--dry-run` walks through the
+whole install and prints every step without downloading, asking for a password,
+or writing anything. `install.sh --help` lists the rest.
 
 (If you are using bash instead of zsh, run ```source ~/.bashrc```)
 
