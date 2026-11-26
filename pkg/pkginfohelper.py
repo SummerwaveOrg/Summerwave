@@ -18,7 +18,7 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import load_base_dir, require_safe_token
+from configpaths import load_base_dir, require_safe_token, bin_dir
 import common
 import domains
 import flags
@@ -37,7 +37,7 @@ def github_api_headers(url):
     return {"Authorization": f"Bearer {token}"}
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
+BIN_DIR = bin_dir()
 
 # -------------------- 依赖库检查 --------------------
 

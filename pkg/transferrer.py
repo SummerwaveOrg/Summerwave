@@ -29,7 +29,7 @@ import sys
 import tempfile
 
 import silent
-from configpaths import load_base_dir
+from configpaths import load_base_dir, bin_dir
 
 TRANSFER_SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -37,7 +37,7 @@ TRANSFER_SCRIPT = os.path.join(
 )
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
+BIN_DIR = bin_dir()
 
 
 def _run_transfer(args):

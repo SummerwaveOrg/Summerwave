@@ -17,7 +17,7 @@ RESET = '\033[0m'
 
 # -------------------- 依赖与配置 --------------------
 
-from configpaths import load_base_dir, require_safe_token
+from configpaths import load_base_dir, require_safe_token, bin_dir, links_dir
 import domains
 import flags
 import tls
@@ -31,8 +31,8 @@ except ImportError:
     sys.exit(1)
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
-LINKS_DIR = BASE_DIR / "links"
+BIN_DIR = bin_dir()
+LINKS_DIR = links_dir()
 
 # 并发取版本清单。装了几十个包时逐个串行会让「看一眼有没有更新」变成等半分钟。
 MAX_WORKERS = 8

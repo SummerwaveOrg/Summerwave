@@ -2,7 +2,7 @@
 
 # querier.py
 # 查询依赖是否已安装，以及解析 `依赖名@版本号` 形式的依赖引用。
-# 依赖目录结构：BASE_DIR/deps/{依赖引用名}/{依赖引用名}@{版本号}/
+# 依赖目录结构由 configpaths 决定（现在是 <根>/deps/<名>/<名>@<版本>/，1.0 会改）。
 
 import sys
 
@@ -13,11 +13,11 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import assert_inside, load_base_dir, require_safe_token
+from configpaths import assert_inside, dep_dir as _layout_dep_dir, dep_root, load_base_dir, require_safe_token
 
 
 BASE_DIR = load_base_dir()
-DEPS_DIR = BASE_DIR / "deps"
+DEPS_DIR = dep_root()
 
 
 # -------------------- 查询 --------------------
@@ -34,9 +34,7 @@ def dep_dir(dep_name, dep_version):
 
     # 依赖具体版本的安装目录。
 
-    dep_name = require_safe_token(dep_name, "dependency name")
-    dep_version = require_safe_token(dep_version, "dependency version")
-    path = DEPS_DIR / dep_name / f"{dep_name}@{dep_version}"
+    path = _layout_dep_dir(dep_name, dep_version)
     assert_inside(path, DEPS_DIR, "dependency path")
     return path
 

@@ -27,7 +27,9 @@ RESET = '\033[0m'
 from configpaths import (
     VERSION_FILE,
     assert_inside,
+    bin_dir,
     load_base_dir,
+    pkg_dir,
     require_safe_filename,
     require_safe_token,
 )
@@ -1325,8 +1327,8 @@ def _install_single_locked(input_string):
     # 9. 拼接长字符串并传给 pkginstaller.sh（同时带上依赖列表）
     steplog.begin("verify and install")
     steplog.detail("extract / verify sha256 / place / relocate Mach-O is done by pkginstaller.sh")
-    target_dir = BASE_DIR / "bin" / f"{bin_name}@{ParsePkgVersion}"
-    assert_inside(target_dir, BASE_DIR / "bin", "install target")
+    target_dir = pkg_dir(bin_name, ParsePkgVersion)
+    assert_inside(target_dir, bin_dir(), "install target")
     steplog.detail(f"target dir {target_dir}")
     steplog.detail(f"install form {install_mode}")
     pkg_info_string = "\n".join([

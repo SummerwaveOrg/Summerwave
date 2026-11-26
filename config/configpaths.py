@@ -123,6 +123,57 @@ STATE_FILE_NAME = "config.sh"
 LEGACY_STATE_NOTE = "config.json"
 
 
+# -------------------- 运行时布局 --------------------
+#
+# 安装树里「东西放哪」的**唯一来源**。以前 bin/ 与 links/ 的字面量散在七八个
+# 模块里各拼一次，改布局要一处一处追；现在调用方一律走下面的函数。
+#
+# 目前两类东西仍分居两处：
+#
+#   <根>/bin/<包名>@<版本>/                 用户显式装的软件包
+#   <根>/deps/<依赖名>/<依赖名>@<版本>/      被包带进来的依赖
+#
+# 1.0 会把它们统一成 <根>/<PAYLOAD_ROOT>/<名>/<版本>/（依赖与包同构，靠收据区分）。
+# 到那时只需要改这几个名字与两个 *_dir 的拼接方式，调用点不用动。
+BIN_DIR_NAME = "bin"
+LINKS_DIR_NAME = "links"
+PKG_ROOT_NAME = "bin"
+DEP_ROOT_NAME = "deps"
+RECEIPT_NAME = "Note"
+
+
+def bin_dir(base_dir=None):
+    # 可执行入口所在的目录（现在还是"每个版本一棵树"，1.0 起只放链接）。
+    return (base_dir or load_base_dir()) / BIN_DIR_NAME
+
+
+def links_dir(base_dir=None):
+    # 无版本号的软链接（1.0 起会并进 bin/）。
+    return (base_dir or load_base_dir()) / LINKS_DIR_NAME
+
+
+def pkg_root(base_dir=None):
+    return (base_dir or load_base_dir()) / PKG_ROOT_NAME
+
+
+def dep_root(base_dir=None):
+    return (base_dir or load_base_dir()) / DEP_ROOT_NAME
+
+
+def pkg_dir(name, version, base_dir=None):
+    # 软件包的目标目录：<根>/bin/<包名>@<版本>/
+    name = require_safe_token(name, "package name")
+    version = require_safe_token(version, "package version")
+    return pkg_root(base_dir) / f"{name}@{version}"
+
+
+def dep_dir(name, version, base_dir=None):
+    # 依赖的目标目录：<根>/deps/<依赖名>/<依赖名>@<版本>/
+    name = require_safe_token(name, "dependency name")
+    version = require_safe_token(version, "dependency version")
+    return dep_root(base_dir) / name / f"{name}@{version}"
+
+
 def self_install_root():
     # 本模块装在 <base>/config/configpaths.py，所以安装根是它的上两级。
     # 用 resolve() 是为了兼容经软链接调用的情况（<base>/lib/wave 就是个启动器）。

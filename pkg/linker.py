@@ -28,12 +28,12 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import assert_inside_entry, load_base_dir, require_safe_token
+from configpaths import assert_inside_entry, load_base_dir, require_safe_token, bin_dir, links_dir
 
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
-LINKS_DIR = BASE_DIR / "links"
+BIN_DIR = bin_dir()
+LINKS_DIR = links_dir()
 TREE_MARKER = ".is_a_tree"
 
 

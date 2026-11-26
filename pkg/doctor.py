@@ -21,7 +21,7 @@
 import os
 import sys
 
-from configpaths import load_base_dir
+from configpaths import bin_dir, dep_root, links_dir, load_base_dir
 import silent
 
 RED_BOLD = '\033[1;31m'
@@ -30,9 +30,9 @@ YELLOW = '\033[33m'
 RESET = '\033[0m'
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
-LINKS_DIR = BASE_DIR / "links"
-DEPS_DIR = BASE_DIR / "deps"
+BIN_DIR = bin_dir()
+LINKS_DIR = links_dir()
+DEPS_DIR = dep_root()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 COMPONENTS = ("cli", "config", "lib", "net", "pkg", "surfboard")
 TREE_MARKER = ".is_a_tree"

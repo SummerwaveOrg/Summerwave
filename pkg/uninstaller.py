@@ -19,8 +19,15 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import (assert_inside, assert_inside_entry, load_base_dir, require_safe_token,
-                         to_tilde)
+from configpaths import (
+    assert_inside,
+    assert_inside_entry,
+    load_base_dir,
+    require_safe_token,
+    to_tilde,
+    bin_dir,
+    links_dir,
+)
 import silent
 
 # 只取「任何命令都接受」的那一组；模块名不用 flags ——
@@ -30,8 +37,8 @@ import common
 
 
 BASE_DIR = load_base_dir()
-BIN_DIR = BASE_DIR / "bin"
-LINKS_DIR = BASE_DIR / "links"
+BIN_DIR = bin_dir()
+LINKS_DIR = links_dir()
 TAGGER_SCRIPT = Path(__file__).resolve().parent.parent / "surfboard" / "tagger.sh"
 
 
