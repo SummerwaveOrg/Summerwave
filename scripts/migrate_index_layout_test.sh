@@ -94,6 +94,25 @@ AFTER="$(cd "$TREE" && find . -type f | sort | while read -r f; do printf '%s %s
 check "被拒绝时也没动文件" "$AFTER" "$BEFORE"
 
 echo
+echo "========== 2.5 --merge-common：并集合成，冲突按 --prefer-arch 定 =========="
+
+"$PYTHON" "$MIGRATE" --infosource "$TREE" --merge-common > "$WORK/merge.log" 2>&1; RC=$?
+check "--merge-common 下 dry run 退出码 0" "$RC" "0"
+[[ "$(cat "$WORK/merge.log")" == *"des: kept"* || "$(cat "$WORK/merge.log")" == *"! des:"* ]] \
+    && pass "报出了被合成的字段" || fail "没说清合成了哪一项：$(cat "$WORK/merge.log")"
+[[ "$(cat "$WORK/merge.log")" == *"arm64 says hi"* ]] \
+    && pass "默认 --prefer-arch arm64 胜出" || fail "偏好没生效：$(cat "$WORK/merge.log")"
+
+build_fake "$WORK/merged"
+MERGE="$WORK/merged"
+"$PYTHON" "$MIGRATE" --infosource "$MERGE" --merge-common --apply > /dev/null 2>&1
+COMMON="$MERGE/pkg/pkginfo/yq/_yq@common"
+check "合成后只剩一份 @common" "$(find "$MERGE" -name '_yq@common' | wc -l | tr -d ' ')" "1"
+check "字段取并集（bin_name + des 都在）" \
+    "$(grep -c '^bin_name:\|^des:' "$COMMON")" "2"
+check "冲突字段按 arm64 定" "$(grep -c 'arm64 says hi' "$COMMON")" "1"
+
+echo
 echo "========== 3. 没有冲突时才真的搬 =========="
 
 rm -rf "$TREE/pkg/pkginfo_arm64/yq" "$TREE/pkg/pkginfo_amd64/yq"

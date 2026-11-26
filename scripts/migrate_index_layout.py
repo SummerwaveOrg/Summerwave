@@ -129,10 +129,63 @@ def plan_records(infosource, os_name):
     return moves, conflicts, generated
 
 
-def dedupe_common(moves):
-    """同一个 @common 被两个架构各搬一次 —— 内容相同就只留一份。"""
+COMMON_FIELD_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(.*)"\s*$')
+
+
+def parse_common(text):
+    """`field: "value"` 平铺文本 → [(字段, 值)]，保持原顺序。"""
+    fields = []
+    for line in text.splitlines():
+        match = COMMON_FIELD_RE.match(line.strip())
+        if match:
+            fields.append((match.group(1), match.group(2)))
+    return fields
+
+
+def arch_of(path):
+    for part in path.parts:
+        match = ARCH_SUFFIX_RE.match(part)
+        if match:
+            return "arm64" if match.group(2) in ("arm64", "aarch64") else "amd64"
+    return ""
+
+
+def merge_common(texts, prefer):
+    """把几份 @common 合成一份：字段取并集，同名字段取值不同时按 prefer 定。
+
+    为什么允许合成：@common 是**跨架构**的元数据，两个架构各存一份本身就是历史遗留。
+    两份只在字段顺序或某个描述性字段（如 aut）上有别时，合并不丢信息 ——
+    丢掉字段才是真损失，所以并集优先、冲突只记录不中止。
+    """
+    merged = {}
+    order = []
+    conflicts = []
+    for arch, text in texts:
+        for key, value in parse_common(text):
+            if key not in merged:
+                merged[key] = (value, arch)
+                order.append(key)
+                continue
+            current_value, current_arch = merged[key]
+            if current_value == value:
+                continue
+            # 同一字段两个值：prefer 那一侧胜出（默认 arm64）
+            if arch == prefer:
+                merged[key] = (value, arch)
+                conflicts.append((key, value, arch, current_value, current_arch))
+            else:
+                conflicts.append((key, current_value, current_arch, value, arch))
+    body = "".join(f'{key}: "{merged[key][0]}"\n' for key in order)
+    return body, conflicts
+
+
+def dedupe_common(moves, prefer=None):
+    """同一个 @common 被两个架构各搬一次 —— 内容相同就只留一份。
+
+    prefer 给了就合成（字段并集），没给就报冲突让人看。
+    """
     by_target = {}
-    kept, conflicts = [], []
+    kept, conflicts, merges = [], [], []
     for source, target in moves:
         if not target.name.endswith("@common"):
             kept.append((source, target))
@@ -145,9 +198,19 @@ def dedupe_common(moves):
         if first.read_bytes() == source.read_bytes():
             kept.append((source, None))     # 第二份：只删不搬
             continue
-        conflicts.append(Conflict(
-            source, f"differs from {first} but both map to {target}"))
-    return kept, conflicts
+        if prefer is None:
+            conflicts.append(Conflict(
+                source, f"differs from {first} but both map to {target}"))
+            continue
+        body, field_conflicts = merge_common(
+            [(arch_of(first), first.read_text()), (arch_of(source), source.read_text())], prefer)
+        # 合成结果写进第一份的位置，第二份只删不搬
+        merges.append((target, body))
+        kept.append((source, None))
+        for key, winner, winner_arch, loser, loser_arch in field_conflicts:
+            merges.append((target, f"    ! {key}: kept {winner!r} ({winner_arch}), "
+                                   f"dropped {loser!r} ({loser_arch})"))
+    return kept, conflicts, merges
 
 
 def plan_payloads(infosource, os_name):
@@ -186,12 +249,17 @@ def plan_payloads(infosource, os_name):
     return plan, conflicts
 
 
-def apply_moves(moves, root):
+def apply_moves(moves, root, rewrites=None):
+    rewrites = rewrites or {}
     for source, target in moves:
         if target is None:                  # 重复的 @common
             source.unlink()
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
+        if target in rewrites:
+            target.write_text(rewrites[target], encoding="utf-8")
+            source.unlink()
+            continue
         if target.exists():
             # 目标已经在了：内容相同就当搬运完成，不同就报出来别覆盖
             if target.read_bytes() != source.read_bytes():
@@ -255,6 +323,12 @@ def main():
                         help="platform the payloads belong to (default: macos)")
     parser.add_argument("--apply", action="store_true",
                         help="move the index records (payload renaming is never applied here)")
+    parser.add_argument("--merge-common", action="store_true",
+                        help="merge the two per-arch copies of @common (union of fields) "
+                             "instead of refusing; conflicting values follow --prefer-arch")
+    parser.add_argument("--prefer-arch", default="arm64", choices=["arm64", "amd64"],
+                        help="which arch wins when @common carries the same field with different "
+                             "values (only with --merge-common; default: arm64)")
     parser.add_argument("--emit-gh-script", type=Path, default=None,
                         help="write the payload rename plan as a gh script")
     parser.add_argument("--delete-old-assets", action="store_true",
@@ -267,7 +341,8 @@ def main():
         return 1
 
     moves, conflicts, generated = plan_records(infosource, args.os)
-    moves, common_conflicts = dedupe_common(moves)
+    moves, common_conflicts, merges = dedupe_common(
+        moves, args.prefer_arch if args.merge_common else None)
     conflicts += common_conflicts
     payloads, payload_conflicts = plan_payloads(infosource, args.os)
     conflicts += payload_conflicts
@@ -285,6 +360,16 @@ def main():
         print(f"   {source.relative_to(infosource)}  ->  {target.relative_to(infosource)}")
     if len(records) > 20:
         print(f"   … and {len(records) - 20} more")
+
+    if merges:
+        print("🌊 @common merged (union of fields, see the ! lines for resolved conflicts):")
+        for target, line in merges:
+            if line.lstrip().startswith("!"):
+                print(line)
+            else:
+                print(f"   {target.relative_to(infosource)}:")
+                for row in line.rstrip("\n").splitlines():
+                    print(f"       {row}")
 
     if generated:
         print("🌊 versions files found (regenerate after migrating):")
@@ -307,7 +392,8 @@ def main():
         print("🌊 Dry run — nothing changed. Re-run with --apply to move the records.")
         return 0
 
-    apply_moves(records, infosource)
+    rewrites = {target: body for target, body in merges if not body.lstrip().startswith("!")}
+    apply_moves(records, infosource, rewrites)
     print("🌊 Index records migrated. Next:")
     print("   1. scripts/build_versions_index.py   (regenerate the mirror's versions lists)")
     print("   2. run the emitted gh script         (rename the payload assets)")
