@@ -33,11 +33,11 @@ from packaging.version import InvalidVersion, Version
 _ZERO = Version("0")
 
 # 社区特有的版本后缀。命中后由 safe_parse_special_version() 归一化。
-_SPECIAL_RE = re.compile(r"(procursus|macwaveteam|team|Xteam)", re.IGNORECASE)
+_SPECIAL_RE = re.compile(r"(procursus|macwaveteam|linuxwaveteam|team|Xteam)", re.IGNORECASE)
 
 
 def is_special_version(value):
-    """版本号是否带社区特有后缀（procursus / macwaveteam / Xteam …）。"""
+    """版本号是否带社区特有后缀（procursus / macwaveteam / linuxwaveteam / Xteam …）。"""
     return bool(_SPECIAL_RE.search(str(value)))
 
 
@@ -61,11 +61,14 @@ def extract_special_info(value):
 
     # `1.0-macwaveteam2` 或 `1.0-Xteam2`
     team_match = re.search(
-        r"(\d+\.\d+(?:\.\d+)?)[-_]?(?:macwaveteam|Xteam)(\d+)", text, re.IGNORECASE
+        r"(\d+\.\d+(?:\.\d+)?)[-_]?(?:macwaveteam|linuxwaveteam|Xteam)(\d+)", text, re.IGNORECASE
     )
     if team_match:
         info["base"] = _pad_release(team_match.group(1))
-        info["suffix_type"] = "macwaveteam"
+        # 后缀原样保留：同一棵树里可能混着两个社区打包的版本，判定只需要"它有后缀"，
+        # 具体是哪个社区不影响比较规则。
+        found = re.search(r"(macwaveteam|linuxwaveteam)", text, re.IGNORECASE)
+        info["suffix_type"] = found.group(1).lower() if found else "team"
         info["suffix_num"] = int(team_match.group(2))
         return info
 

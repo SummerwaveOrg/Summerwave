@@ -34,10 +34,15 @@ RESET = '\033[0m'
 # 这些目录本身不能当安装根（子目录可以，例如 /opt/macwave）。
 # 与 lib/install.sh 的 `_forbidden` 是同一份判断，改一处要改两处 ——
 # 名字照抄那边，方便对照。
+# 两个平台的「别人的家」并集：在 macOS 与 Linux 上都不该被当成安装根。
+# 取并集而不是按平台切换 —— 多拒绝几个系统目录不会伤到谁，但少拒绝一个就会
+# 把包管理器装进 /proc 或 /System。
 RESERVED_ROOTS = (
-    "/bin", "/sbin", "/usr", "/usr/bin", "/usr/sbin", "/usr/lib", "/usr/libexec",
-    "/usr/local", "/usr/share", "/opt", "/etc", "/var", "/tmp", "/private",
-    "/System", "/Library", "/Applications", "/Users", "/Volumes", "/Network",
+    "/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64", "/media", "/mnt",
+    "/opt", "/private", "/proc", "/root", "/run", "/sbin", "/srv", "/sys", "/tmp",
+    "/usr", "/usr/bin", "/usr/lib", "/usr/lib64", "/usr/libexec", "/usr/local",
+    "/usr/sbin", "/usr/share", "/var",
+    "/Applications", "/Library", "/Network", "/System", "/Users", "/Volumes",
 )
 
 
@@ -170,12 +175,13 @@ def _copy_tree(source, target):
     返回 "cloned" / "copied"；失败返回 None。`cp` 失败时可能已经建了半个目录，
     先删掉再回退，否则 copytree 会因为目标已存在而失败。
     """
-    if sys.platform == "darwin":
-        result = subprocess.run(["cp", "-Rc", source, target],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        if result.returncode == 0:
-            return "cloned"
-        shutil.rmtree(target, ignore_errors=True)
+    # 直接试 `cp -Rc`（darwin 的 clonefile）：这是**能力探测**而不是平台判断 ——
+    # 非 APFS 卷、外接 HFS+、网络盘、以及 GNU cp 都会自己拒绝，回退到 copytree。
+    result = subprocess.run(["cp", "-Rc", source, target],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if result.returncode == 0:
+        return "cloned"
+    shutil.rmtree(target, ignore_errors=True)
 
     try:
         shutil.copytree(source, target, symlinks=True)

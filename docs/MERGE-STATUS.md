@@ -67,6 +67,62 @@ git show import/linuxwave-4.6:<path>
 
 ---
 
+## 三之二、平台判断：**只许一处**
+
+合并最容易发生的退化是"这里加个 `if darwin`"。所以定死：
+
+| 允许出现 `sys.platform` 的地方 | 内容 |
+| --- | --- |
+| **`config/platforminfo.py`**（唯一） | `IS_MAC`、`DEFAULT_BASE_DIR`、`system_version()`、`describe()` |
+| 别的差异 | 走**能力探测**（`shutil.which("patchelf")`）或**文件类型判定**（Mach-O / ELF magic），不判断"当前是什么系统" |
+
+已经按这条改过的两处：
+
+| 原处 | 原来 | 现在 |
+| --- | --- | --- |
+| `lib/basedir.py` 搬家 | `if sys.platform == "darwin": cp -Rc` | 直接试 `cp -Rc`，失败回退 `copytree`（本身就是能力探测） |
+| `pkg/pkginstaller.py` | `if sys.platform != "darwin": return None` | `platforminfo.system_version()` |
+
+CI 守则（TODO，接 `shell_lint.sh` 一起上）：
+
+```sh
+grep -rn 'sys.platform\|platform.system()\|os.uname' --include=*.py \
+     config lib net cli pkg surfboard \
+  | grep -v '^config/platforminfo.py:' && exit 1
+```
+
+---
+
+## 三之三、模块账本
+
+方向：**以 MacWave 为基线**，逐模块把 LinuxWave 的差异搬进来（LinuxWave 普遍落后一次重构）。
+
+### `config/`（1040 行）—— 已裁定：采用我方
+
+| 文件 | 差异 | 性质 | 裁定 |
+| --- | --- | --- | --- |
+| `envvar.py` | 40 行 | 100% 前缀与组织名（`MACWAVE_*` vs `LINUXWAVE_*`） | 采用我方 |
+| `configerror.py` | 30 行 | 100% 文案 | 采用我方 |
+| `configpaths.py` | 382 行 | LinuxWave 多 `proxy_value_from` / `apply_proxy_from_command_line` | **采用我方**：`--proxy` 解析已搬去 `cli/common.py`，LinuxWave 是落后一次重构 |
+
+### `lib/`（14 个文件）
+
+| 文件 | 差异行 | 裁定 |
+| --- | ---: | --- |
+| `downloads.py` | 0 | 逐字节相同 |
+| `lock.py` | 6 | 采用我方（差异只在注释里的历史叙述） |
+| `steplog.py` | 11 | 采用我方（我方已抽 `envvar.kinds()`） |
+| `mirrorinfo.py` | 20 | 采用我方（`PIP_ENV` 走 `envvar`，不再硬编码） |
+| `shellenv.py` | 26 | **功能零差异**（26 行全是注释）→ 采用我方 |
+| `versioncompare.py` | 31 | **已合并**：社区后缀两个都认（`macwaveteam` / `linuxwaveteam`），`suffix_type` 保留原值 |
+| `basedir.py` | 91 | **已合并**：`RESERVED_ROOTS` 取两平台并集（并集比按平台切换更安全） |
+| `latest.py` | 49 | 待办：采用我方（layout 助手），**移植 Linux 的 `UNREADABLE` / "could not be checked" 报告** |
+| `wave.py` | 99 | 采用我方（文案与安装 URL 等品牌切换时统一） |
+| `selfupdate.py` | 596 | 待合并（大工程） |
+| `uninstall.sh` / `selfupdate.sh` / `install.sh` | 657 / 1598 / 4931 | 待合并（最后做，和 `Shore` 布局一起） |
+
+---
+
 ## 四、不能忘的两条
 
 1. **旧仓库不动**：`MacWaveOrg/*` 与 `LinuxWaveOrg/*` 保持现状，新线路出问题随时能回退

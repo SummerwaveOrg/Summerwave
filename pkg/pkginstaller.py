@@ -34,6 +34,7 @@ from configpaths import (
     require_safe_token,
 )
 import common
+import platforminfo
 import domains
 import tls
 import flags as flags_module
@@ -182,9 +183,9 @@ def _parse_dotted_version(text):
 
 def current_macos_version():
     """本机 macOS 版本元组；非 macOS 或读不到时返回 None。"""
-    if sys.platform != "darwin":
+    if not platforminfo.system_version():
         return None
-    return _parse_dotted_version(platform.mac_ver()[0] or "")
+    return _parse_dotted_version(platforminfo.system_version())
 
 
 def confirm_min_client_version(record_text, pkg_name, pkg_version, force=False):
