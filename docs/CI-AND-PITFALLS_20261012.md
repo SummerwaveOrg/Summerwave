@@ -1,5 +1,9 @@
 # CI 与踩坑记录 · 补充（2026-10-12）
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 接着 [CI-AND-PITFALLS.md](./CI-AND-PITFALLS.md) 写。那份写于 CI 全绿**之前**，
 当时 `btop` 那条依赖链还是红的、`--skip-ssl` 的慢也没定性。
 

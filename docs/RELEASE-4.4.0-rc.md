@@ -1,5 +1,9 @@
 # MacWave 4.4.0-rc
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 Prerelease (release candidate) · build `323R1307` · branch `4.4` ·
 previous beta [4.4.0-beta3](RELEASE-4.4.0-beta3.md) · stable line `4.3.4`
 

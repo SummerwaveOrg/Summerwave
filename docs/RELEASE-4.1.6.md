@@ -1,5 +1,9 @@
 # MacWave 4.1.6 发布说明
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 > 本文说明 4.1.6 的变更范围与升级方式。
 > 这是一个**结构性版本**：传输层从 `lib/` 拆到顶层的 `net/`，安装树因此多一个目录。
 > 同时补掉了 `--skip-ssl` 在三处请求点上的漏用。

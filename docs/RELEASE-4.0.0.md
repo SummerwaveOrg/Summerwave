@@ -1,5 +1,9 @@
 # MacWave 4.0.0 发布说明
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 > 本文面向从 3.x 升级的用户，说明 4.0 的变更范围、迁移方式与已知限制。
 > 设计细节参见 [TECHNICAL-GUIDE.md](./TECHNICAL-GUIDE.md)，
 > 数据层的文件布局参见 [DATA-LAYER.md](./DATA-LAYER.md)，

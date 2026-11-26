@@ -1,5 +1,9 @@
 # MacWave 4.2.0 Release Notes
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 **CVSS 3.1: 8.0 (High)** — `CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:N`
 
 **CVSS 4.0: 8.8 (High)** — `CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N`

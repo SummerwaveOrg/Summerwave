@@ -46,24 +46,30 @@ def describe():
     return f"{name} {version} ({machine})".replace("  ", " ")
 
 
-def bottle_tag(machine=None):
+# 瓶子标签的 os 一侧（arch 一侧见 _ARCH_ALIASES）。词表封闭，多一个就要审一遍
+# 「客户端会不会因此去请求一个永远不存在的地址」。
+BOTTLE_OSES = ("macos", "linux")
+_ARCH_ALIASES = {"x86_64": "amd64", "amd64": "amd64", "x64": "amd64",
+                 "arm64": "arm64", "aarch64": "arm64"}
+
+
+def bottle_tag(machine=None, os_name=None):
     """1.0 的产物标签：`<os>-<arch>`，如 `macos-arm64` / `linux-amd64`。
 
     词表封闭（macos|linux、arm64|amd64）。客户端与索引生成脚本共用这一份，
     免得两边各写一遍正则；`x86_64` / `amd64` 归一成 `amd64`。
     os 取本模块的判断，机器类型默认取 `platform.machine()`（调用方有更权威的
-    来源时可以传进来）。
+    来源时可以传进来）。`os_name` 只给「为另一个平台造索引」的工具用
+    （scripts/migrate_index_layout.py），取值必须在 BOTTLE_OSES 里。
     """
     import platform as _platform
 
+    if os_name is not None and os_name not in BOTTLE_OSES:
+        raise ValueError(f"unknown os {os_name!r}, expected one of {BOTTLE_OSES}")
+
     raw = (machine or _platform.machine() or "").lower()
-    if raw in ("x86_64", "amd64", "x64"):
-        arch = "amd64"
-    elif raw in ("arm64", "aarch64"):
-        arch = "arm64"
-    else:
-        arch = raw or "unknown"
-    return f"{'macos' if IS_MAC else 'linux'}-{arch}"
+    arch = _ARCH_ALIASES.get(raw, raw or "unknown")
+    return f"{os_name or ('macos' if IS_MAC else 'linux')}-{arch}"
 
 
 _BOTTLE_TAG_RE = re.compile(r"\.(?:macos|linux)-(?:arm64|amd64)$")

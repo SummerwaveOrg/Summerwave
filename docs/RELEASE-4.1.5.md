@@ -1,5 +1,9 @@
 # MacWave 4.1.5 发布说明
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 > 本文说明 4.1.5 的变更范围与升级方式。
 > 这是一个**功能修正版本**：补齐三档超时中的两档（连接与读数据），并修掉三处
 > 「旗标被解析、却没有作用于请求」的缺陷。`--skip-ssl` 的作用范围同时扩展到全部请求。

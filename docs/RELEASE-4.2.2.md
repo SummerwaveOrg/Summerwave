@@ -1,5 +1,9 @@
 # MacWave 4.2.2 发布说明
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 - 发布：2026-11-04，构建号 `308A1440`
 - 分支：`4.2`
 - 上一版：[4.2.1](RELEASE-4.2.1.md)（同日）

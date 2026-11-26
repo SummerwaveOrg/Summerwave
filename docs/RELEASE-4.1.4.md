@@ -1,5 +1,9 @@
 # MacWave 4.1.4 发布说明
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 > 本文说明 4.1.4 的变更范围与升级方式。
 > 这是一个**功能版本**：新增 `-s/-S`、`upgrade --all`，并改进错误提示。
 > 数据格式无变化，升级无迁移步骤。

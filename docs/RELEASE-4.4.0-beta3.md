@@ -1,5 +1,9 @@
 # MacWave 4.4.0-beta3
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 Prerelease · build `323L0533` · branch `4.4` · previous beta [4.4.0-beta2](RELEASE-4.4.0-beta2.md) · stable line `4.3.4`
 
 This one is mostly the installer: who gets asked for a password, what happens before it

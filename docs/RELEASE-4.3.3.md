@@ -1,5 +1,9 @@
 # MacWave 4.3.3 Release Notes
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 - Released: 2026-11-14, build `318F1457`
 - Branch: `4.3` (the 4.3 line; `4.4` is a separate line)
 - Previous release: [4.3.2](RELEASE-4.3.2.md)

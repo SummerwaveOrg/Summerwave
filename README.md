@@ -116,8 +116,13 @@ path in logs, errors and docs unambiguous.
 
 Everything the installation knows about itself lives inside that tree:
 ```bash
-/opt/macwave/var/config.sh      installed version and build (the only state)
+/opt/macwave/var/config.sh              installed version and channel (the only state)
+/opt/macwave/Shore/<name>/<version>/    the unpacked thing itself, plus a Note receipt
+/opt/macwave/bin/                       symlinks only: <name>@<version> and the bare name
 ```
+Packages and dependencies share one shape, so `Shore/` is uniform: nothing in it is a
+second copy of something else, and `bin/` holds no real files — which is why deleting an
+entry there can never damage an installed package.
 ## 🌊 Using a Mirror (4.0 and later)
 Every address MacWave contacts is configurable, so switching mirrors is a set of environment variables rather than a command. To check which address is in effect, run `wave mirror` — it prints every source, whether it came from the environment or the built-in default, with passwords masked.
 

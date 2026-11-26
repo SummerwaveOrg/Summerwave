@@ -1,5 +1,9 @@
 # MacWave 4.4.0-beta1 — pre-release
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 - Released: 2026-11-13, from the `4.4` line
 - **This is a beta.** It is published as a pre-release on purpose: the install command
   that points at *the latest stable release* will keep giving you 4.3.2, and

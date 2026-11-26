@@ -1,5 +1,9 @@
 # MacWave 4.4.0-beta2
 
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
+> [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
+
 Prerelease. `releases/latest` still points at 4.3.4 — installing this build is a
 deliberate choice. On a beta, `wave selfupdate` refuses to run: betas live on their own
 branch, and selfupdate would mix two lines of code in one tree. Moving between lines —
