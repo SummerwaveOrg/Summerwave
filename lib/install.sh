@@ -2802,9 +2802,24 @@ else
     fi
 fi
 
+# 自带解释器拿不到时（离线安装、下载失败）会回退到系统 python3。**如果它本来就能
+# import 三个依赖，就不该再建 venv 去 pip 一遍** —— 那一步只会因为没网而失败，而失败
+# 之后我们仍然要用这个解释器：白白把一次能成的安装变成 exit 1（离线机器上必然如此）。
+# 跳过 venv 之后，启动器会落到第二选择（安装时烘进去的解释器），行为一致。
+SKIP_VENV=false
+if [[ "$PYTHON_SOURCE" == "system" ]] \
+    && "$PYTHON_BIN" -c 'import requests, packaging, rich' >/dev/null 2>&1; then
+    SKIP_VENV=true
+fi
+
 if mw_dry_run; then
     mw_plan "🌊 Dry run: would create the private Python environment at $VENV_DIR." \
         "🌊 试运行：将在 ${VENV_DIR} 创建独立的 Python 环境。"
+elif [[ "$SKIP_VENV" == "true" ]]; then
+    mw_say "🌊 Using $PYTHON_BIN directly (it already has requests, packaging, rich)." \
+        "🌊 直接使用 ${PYTHON_BIN}（它已自带 requests、packaging、rich）。"
+    mw_say "🌊 No private environment is created; the bundled Python was not available." \
+        "🌊 未创建独立环境：自带 Python 没能就位。"
 else
     mw_say "🌊 Creating the private Python environment..." "🌊 正在创建独立的 Python 环境……"
     mkdir -p "$VENV_DIR" 2>/dev/null || true
@@ -2827,6 +2842,10 @@ PIP_FLAGS=(--quiet --disable-pip-version-check --timeout 30 --retries 2
 if mw_dry_run; then
     mw_plan "🌊 Dry run: would install ${PIP_DEPS[*]} into the private environment (index: $PIP_INDEX_URL)." \
         "🌊 试运行：将把 ${PIP_DEPS[*]} 装进独立环境（索引：${PIP_INDEX_URL}）。"
+elif [[ "$SKIP_VENV" == "true" ]]; then
+    # 依赖已经在用着的解释器里，pip 这一步没有意义（离线时还会失败）。
+    mw_say "🌊 Python dependencies already available; nothing to install." \
+        "🌊 Python 依赖已就绪，无需安装。"
 elif [[ -n "$VENV_PY" && -x "$VENV_PY" ]]; then
     mw_say "🌊 Installing Python dependencies into the private environment..." "🌊 正在向独立环境安装 Python 依赖……"
     # pip 默认会无限等下去，网络不好时看上去就是卡死。给它超时与重试，

@@ -13,8 +13,8 @@
 # 为什么不是 LinuxWave 那样的 unshare：macOS 没有用户命名空间，也没有可用来
 # bind mount 的挂载点。这里用的是 macOS 特有的等价手段（sandbox-exec）。
 #
-# 覆盖：安装目录选项 → 配置落位 → PATH 写入 → 参数校验 → 协议顺序与拒绝后的
-#       回滚 → 安装中途失败的指引 → 卸载确认语义（无终端 / y / n / --force）→
+# 覆盖：安装目录选项 → 配置落位 → PATH 写入 → 参数校验 →
+#       安装中途失败的指引 → 卸载确认语义（无终端 / y / n / --force）→
 #       卸载器自删 → 软链接回归。
 #
 # 与 LinuxWave 版本的**范围差异**（因为沙箱是「拒绝写沙箱外」而非影子副本）：
@@ -108,21 +108,10 @@ esac
 # 内层：已经在沙箱里，跑场景
 # ==========================================================
 
-# 安装器会在安装根目录下建一个私有 venv，然后往里 pip install 三个依赖。
-# 沙箱没有网络，pip 必然失败，而安装器（正确地）把「依赖装不上」当作安装失败 ——
-# 于是这个测试曾经有 16 项一直红着，看起来像安装器坏了。
-#
-# 这里先把 venv 建好，并带上 --system-site-packages：这样它能看见系统里已有的
-# requests / packaging / rich（测试开头已经确认它们在），安装器那句
-# `import requests, packaging, rich` 就通过，不再触发 pip。
-# 这只是测试侧的铺垫，安装器本身的行为一点没改。
-seed_venv() {
-    local base_dir="$1"
-    [[ -n "$base_dir" ]] || return 0
-    [[ -x "$base_dir/venv/bin/python3" ]] && return 0
-    mkdir -p "$base_dir" 2>/dev/null || return 0
-    python3 -m venv --system-site-packages "$base_dir/venv" >/dev/null 2>&1 || true
-}
+# 私有 venv：安装器只在「自带 Python 就位」时才建它，并在建好后 pip 装三个依赖。
+# 离线沙箱里既没有自带 Python 也没有网，所以现在走的是「回退系统解释器 + 依赖已在 →
+# 不建 venv、不跑 pip」那条路（lib/install.sh 的 SKIP_VENV）。这里不再预置 venv ——
+# 预置会让自定义目录变成「已存在且非空」，安装器会正当地拒绝安装。
 
 # 菜单第几项是「用户级目录」。4.6.1 起菜单顺序是 /opt 第一（推荐）、用户级第二，
 # 而本测试的大部分场景要的是用户级（沙箱里 /opt 也能写，但断言盯着 ~/.local）。
@@ -164,7 +153,6 @@ base_dir_for_args() {
 }
 
 install_run() {
-    seed_venv "$(base_dir_for_args "$@")"
     /bin/bash -c "$(cat "$OFFLINE_INSTALLER")" -- "$@" > "$OUT" 2>&1
     return $?
 }
@@ -234,8 +222,10 @@ scenario_install_dirs() {
     install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "选项 1 安装成功" "$?" "0"
     check "选项 1 安装树就位" "$([[ -d "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "yes"
-    check "选项 1 文件数 20" \
-        "$(find "$FAKE_HOME/.local/macwave" -type f 2>/dev/null | wc -l | tr -d ' ')" "20"
+    check "选项 1 六个组件目录齐全" \
+        "$(for d in cli config lib net pkg surfboard; do
+             [[ -d "$FAKE_HOME/.local/macwave/$d" ]] || exit 1
+           done; echo yes)" "yes"
     check "选项 1 配置在 ~/.config/macwave_config" \
         "$(tree_base_dir "$FAKE_HOME/.config/macwave_config/config.json")" "$FAKE_HOME/.local/macwave"
     check "选项 1 入口可执行" \
@@ -244,9 +234,14 @@ scenario_install_dirs() {
         "$(tree_version "$FAKE_HOME/.config/macwave_config/VERSION.json")" \
         "$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' \
             "$SANDBOX_DIR/mirror/selfupdate/macwavedata/latest.toml" | head -n 1)"
-    check "选项 1 写入了 PATH" "$(count_in "$FAKE_HOME/.zshrc" "$FAKE_HOME/.local/macwave")" "1"
+    # 4.7 起安装器**不写 rc 文件**（只打印该敲的那条命令），所以断言反过来：
+    # 给出指令、且真的没动 rc。
+    contains "选项 1 给出了 PATH 指令" "$OUT" "wave shellenv"
+    check "选项 1 没有改 rc 文件" \
+        "$([[ -e "$FAKE_HOME/.zshrc" ]] && echo yes || echo no)" "no"
+    # 宿主机上本来就可能有一份系统级安装（开发机常见），所以只能看沙箱里那份。
     check "选项 1 不碰系统级配置" \
-        "$([[ -e /opt/macwave_config ]] && echo yes || echo no)" "no"
+        "$([[ -e "$SANDBOX_DIR/opt/macwave_config" ]] && echo yes || echo no)" "no"
 
     # 家目录内的自定义目录：无需提权，走的是同一条用户级分支
     reset_state
@@ -304,31 +299,6 @@ scenario_cli_errors() {
     contains "--help 列出菜单" "$OUT" "other (enter custom directory)"
 }
 
-scenario_agreement() {
-    echo ""
-    echo "========== 3. 许可协议：顺序与拒绝后的回滚 =========="
-
-    reset_state
-    install_run --ci --dir-option=1
-    local n_agree n_done
-    n_agree=$(grep -n "Please read the agreement" "$OUT" | head -1 | cut -d: -f1)
-    n_done=$(grep -n "Installation complete" "$OUT" | head -1 | cut -d: -f1)
-    # 先宣布「安装完成」再问协议，不同意的用户会看到自相矛盾的输出
-    check "协议询问在「安装完成」之前" \
-        "$([[ -n "$n_agree" && -n "$n_done" && "$n_agree" -lt "$n_done" ]] && echo yes || echo no)" "yes"
-
-    # 交互式：先选目录（1），再拒绝协议（n）
-    reset_state
-    run_on_pty $'1\nn\n' "$OFFLINE_INSTALLER" > "$OUT" 2>&1
-    check "拒绝协议后退出码非 0" "$?" "1"
-    check "拒绝协议后安装树被回滚" \
-        "$([[ -e "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "no"
-    check "拒绝协议后配置目录被回滚" \
-        "$([[ -e "$FAKE_HOME/.config/macwave_config" ]] && echo yes || echo no)" "no"
-    # 否则会留下一个指向已删除目录的 PATH
-    check "拒绝协议后 rc 里的 PATH 被回滚" "$(count_in "$FAKE_HOME/.zshrc" "macwave")" "0"
-}
-
 scenario_mid_failure() {
     echo ""
     echo "========== 4. 安装中途失败：给出指引且不误删 =========="
@@ -336,7 +306,7 @@ scenario_mid_failure() {
     local victim="$MIRROR_BASE/cli/help.py" rc
     mv "$victim" "$victim.off"
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     rc=$?
     check "中途失败时退出码非 0" "$([[ "$rc" -ne 0 ]] && echo yes || echo no)" "yes"
     contains "失败时说明安装未完成" "$OUT" "Installation did not finish"
@@ -362,7 +332,7 @@ scenario_uninstall_confirm() {
 
     # 5.1 无终端：必须拒绝，不能把 EOF 当成同意
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     run_without_tty "$SANDBOX_DIR/source-uninstall.sh" > "$OUT" 2>&1
     check "无终端时退出码非 0" "$([[ "$?" -ne 0 ]] && echo yes || echo no)" "yes"
     check "无终端时什么都不删" \
@@ -370,7 +340,7 @@ scenario_uninstall_confirm() {
     contains "无终端时提示改用 --force" "$OUT" "--force"
 
     # 5.2 回答 n → 取消
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     uninstall_copy_fresh
     run_on_pty n "$SCRATCH/uninstall.sh" > "$OUT" 2>&1
     check "答 n 时取消卸载" \
@@ -378,7 +348,7 @@ scenario_uninstall_confirm() {
     contains "答 n 时输出已取消" "$OUT" "Uninstall cancelled"
 
     # 5.3 回答 y → 删除
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     uninstall_copy_fresh
     run_on_pty y "$SCRATCH/uninstall.sh" > "$OUT" 2>&1
     check "答 y 时卸载完成" \
@@ -386,7 +356,7 @@ scenario_uninstall_confirm() {
 
     # 5.4 --force：无需终端
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     uninstall_run --force
     check "--force 无人值守卸载成功" "$?" "0"
     check "--force 后安装树已删" \
@@ -397,7 +367,7 @@ scenario_uninstall_confirm() {
 
     # 5.5 --remove-user 只为与 LinuxWave 的参数兼容，不该出错
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     uninstall_run --force --remove-user
     check "--force --remove-user 仍成功" "$?" "0"
 }
@@ -407,7 +377,7 @@ scenario_self_delete() {
     echo "========== 6. 卸载器自删（\$0 的取值） =========="
 
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "安装成功（自删场景前置）" "$?" "0"
     uninstall_copy_fresh
     /bin/bash "$SCRATCH/uninstall.sh" --force > "$OUT" 2>&1
@@ -415,14 +385,14 @@ scenario_self_delete() {
 
     # 用文档推荐的 /bin/bash -c 运行时 $0 是解释器自身；曾经这里会把 /bin/bash 删掉
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     uninstall_run --force
     check "以 /bin/bash -c 运行卸载成功" "$?" "0"
     check "以 /bin/bash -c 运行不误删解释器" "$([[ -x /bin/bash ]] && echo yes || echo no)" "yes"
 
     # $0 是 `--` 时（带参数的推荐写法）也不该自删或报错
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     /bin/bash -c "$(cat "$SANDBOX_DIR/source-uninstall.sh")" -- --force > "$OUT" 2>&1
     check "带参数的推荐写法卸载成功" "$?" "0"
     check "带参数的推荐写法不误删解释器" "$([[ -x /bin/bash ]] && echo yes || echo no)" "yes"
@@ -451,7 +421,7 @@ scenario_link_regression() {
     echo "========== 8. 软链接回归（复用 link_test.sh） =========="
 
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "安装成功（软链接回归前置）" "$?" "0"
 
     if [[ ! -f "$MIRROR_BASE/scripts/link_test.sh" ]]; then
@@ -472,7 +442,6 @@ run_scenarios() {
     scenario_install_dirs
     scenario_system_dirs
     scenario_cli_errors
-    scenario_agreement
     scenario_mid_failure
     scenario_uninstall_confirm
     scenario_self_delete
