@@ -124,6 +124,10 @@ seed_venv() {
     python3 -m venv --system-site-packages "$base_dir/venv" >/dev/null 2>&1 || true
 }
 
+# 菜单第几项是「用户级目录」。4.6.1 起菜单顺序是 /opt 第一（推荐）、用户级第二，
+# 而本测试的大部分场景要的是用户级（沙箱里 /opt 也能写，但断言盯着 ~/.local）。
+USER_LEVEL_OPTION=2
+
 # 从 --dir-option 的参数推出安装根目录，好把 venv 预先放到正确的位置。
 base_dir_for_args() {
     local arg value
@@ -227,7 +231,7 @@ scenario_install_dirs() {
     echo "========== 1a. 用户级安装目录（端到端） =========="
 
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "选项 1 安装成功" "$?" "0"
     check "选项 1 安装树就位" "$([[ -d "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "yes"
     check "选项 1 文件数 20" \
@@ -345,7 +349,7 @@ scenario_mid_failure() {
     mv "$victim.off" "$victim"
 
     reset_state
-    install_run --ci --dir-option=1
+    install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "修好后重跑可自愈" "$?" "0"
     check "自愈后文件数 20" \
         "$(find "$FAKE_HOME/.local/macwave" -type f | wc -l | tr -d ' ')" "20"

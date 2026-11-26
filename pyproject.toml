@@ -64,7 +64,9 @@ line-length = 100
 target-version = "py314"
 
 # 早期伪代码，与现行代码不同构（.cursorignore 也排除了它）
-extend-exclude = [".Pseudocode"]
+# platform/linux/ 是 LinuxWave 的**参考快照**（合并期间保留，见 docs/MERGE-STATUS.md）：
+# 它的代码风格与本仓库不同，也不参与构建，所以不纳入 lint。
+extend-exclude = [".Pseudocode", "platform/linux"]
 
 [tool.ruff.lint]
 # 起步只开 E/F/W：这三类是「几乎确定是 bug」的集合。

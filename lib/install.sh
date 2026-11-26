@@ -2072,7 +2072,9 @@ sync_tree() {
         # 清单里的空格是 \  转义的（格式先定死，现无这种路径）
         path="${path//\\ / }"
         destination="$BASE_DIR/$path"
-        url="$CORE_URL/$BRANCH/$path"
+        # BASE_URL 就是「这一分支的代码在哪」（= CORE_URL/$BRANCH）。用它而不是
+        # 自己拼：sandbox_test 只改 BASE_URL 这一行来指向离线镜像。
+        url="$BASE_URL/$path"
 
         if [[ -f "$destination" && "$expect_sha" != "-" ]]; then
             digest="$(mw_sha256 "$destination")"
@@ -2198,11 +2200,6 @@ STATE_FILE="$STATE_DIR/config.sh"
 # 4.7 两者都会写，读的时候树内优先（见 config/configpaths.py）。
 CONFIG_FILE="$CONFIG_DIR/config.json"
 VERSION_FILE="$CONFIG_DIR/VERSION.json"
-# 同意记录。selfupdate.py 读的就是这个文件（AGREEMENT_FILE_NAME）。
-# 4.7 起它与状态一起放在树内 `<base>/var/`（configpaths 的 find_config_dir 优先
-# 返回那里）：外部配置目录只是 4.6 及更早的兼容位置，新写入不再去那儿。
-AGREEMENT_FILE="$STATE_DIR/AGREEMENT.json"
-
 MW_OPTIONAL_RESULT=""
 
 mw_try() {
@@ -2474,6 +2471,9 @@ else
         export MACWAVE_WANT_HASHES=1
     fi
     export MACWAVE_NEED_SUDO MACWAVE_SILENT MACWAVE_RAW
+    # 旧配置目录的清理由本文件负责（见「清理旧版外部配置目录」），而且要等版本
+    # 凭据写完 —— 所以让 update_commands.sh 跳过它自己做的那一份。
+    export MACWAVE_INSTALLER_OWNS_CLEANUP=1
 
     if mw_dry_run; then
         mw_plan "🌊 Dry run: the update commands would run now and download the program files." \
@@ -3091,43 +3091,23 @@ done
 # 许可协议确认
 # ==========================================
 
-# 协议标识的唯一来源是装好的 lib/selfupdate.py（AGREEMENT_ID），这里不再抄一份日期：
-# 两边走散的后果是「问的是新协议、记下的是旧标识」，于是下次再问一遍。
-agreement_id() {
-    local source="$LIB_DIR/selfupdate.py"
-    [[ -f "$source" ]] || return 1
-    sed -n 's/^AGREEMENT_ID = "\([^"]*\)"$/\1/p' "$source" | head -n 1
-}
-
-# 把同意记进配置目录。记不下来不算安装失败 —— 代价只是下次自更新再问一遍，
-# 比「装到一半退出」轻得多。
-record_agreement() {
-    local id
-    id="$(agreement_id || true)"
-    if [[ -z "$id" ]]; then
-        mw_say "${YELLOW}🌊 Note: cannot read AGREEMENT_ID from $LIB_DIR/selfupdate.py; the acceptance was not recorded.${RESET}" \
-            "${YELLOW}🌊 注意：读不到 ${LIB_DIR}/selfupdate.py 里的 AGREEMENT_ID，本次同意未被记录。${RESET}"
-        return 0
-    fi
-    if ! printf '{\n  "agreement": "%s"\n}\n' "$id" | run_cmd tee "$AGREEMENT_FILE" > /dev/null 2>&1; then
-        mw_say "${YELLOW}🌊 Note: could not record the agreement in $AGREEMENT_FILE.${RESET}" \
-            "${YELLOW}🌊 注意：未能把同意写进 ${AGREEMENT_FILE}。${RESET}"
-    fi
-    run_cmd chmod "$(config_file_mode)" "$AGREEMENT_FILE" > /dev/null 2>&1 || true
-    return 0
-}
+# 4.7 起**不记录**同意：用户按下 y、安装继续，这本身就是同意。
+# 之前要写 AGREEMENT.json，是为了让下一次 selfupdate 知道「问过没有」——
+# 代价是每次改协议都要推理「记录还对不对」，而那份推断本来就不可靠
+# （装的是哪一版、什么时候装的、记录有没有被 install.sh 覆盖过）。
+# 现在升级不再问（见 lib/selfupdate.py 的 print_agreement_notice），
+# 所以没有任何东西需要记。
 
 # 必须放在「安装完成」之前：否则先告诉用户已经装好，随后又因为不同意而全部删除。
 
 echo ""
 mw_say "${YELLOW}Please read the agreement before use (see bottom of https://macwave.org).${RESET}" "${YELLOW}使用前请先阅读用户协议（见 https://macwave.org 页面底部）。${RESET}"
-if [[ "$SELFUPDATE_MODE" == "true" && -n "${MACWAVE_AGREED:-}" ]]; then
-    # 升级：调用方已经问过、也已经记下同一份协议（MACWAVE_AGREED 就是记下的标识）。
-    # 这里不再问 —— 用户刚刚在 `wave selfupdate` 里回答过；重复问一次会让人以为
-    # 「上次的同意没生效」。换协议时（标识不同）调用方不会传这个变量。
+if [[ "$SELFUPDATE_MODE" == "true" ]]; then
+    # 升级不问：用户执行 `wave selfupdate` 就是选择继续使用新版本；而首次安装时
+    # 已经问过一次。这里只把协议地址再说一遍。
     agreement="yes"
-    mw_say "🌊 Agreement already accepted for this version (identifier $MACWAVE_AGREED)." \
-           "🌊 这一版的协议已经接受过（标识 ${MACWAVE_AGREED}）。"
+    mw_say "🌊 Continuing with the current user agreement: https://macwave.org" \
+           "🌊 继续使用当前用户协议：https://macwave.org"
 elif mw_dry_run; then
     # 试运行不碰终端：否则 `install.sh --dry-run` 会停在协议提问上，
     # 只想看输出的人反而被卡住。真实安装仍然要求回答。
@@ -3171,9 +3151,8 @@ else
 fi
 if [[ "$agreement" == "yes" ]]; then
     if ! mw_dry_run; then
-        # --ci 的自动同意也记下来：否则 CI 装完再跑 selfupdate 会卡在协议询问上
-        record_agreement
-        mw_say "${GREEN}You have agreed to the agreement.${RESET}" "${GREEN}已记录你的同意。${RESET}"
+        # 不写文件：按 y 就是同意，没什么要记的（见上面那段注释）。
+        mw_say "${GREEN}You have agreed to the agreement.${RESET}" "${GREEN}已确认同意该协议。${RESET}"
     fi
 else
     mw_say "${RED_BOLD}You do not agree to the agreement. Installation stopped.${RESET}" "${RED_BOLD}你未同意该协议，安装已停止。${RESET}"

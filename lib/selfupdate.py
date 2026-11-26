@@ -211,119 +211,26 @@ def refuse_on_prerelease(current):
 
 
 # -------------------- 用户协议 --------------------
-
-# 协议标识 = 官网「用户协议」那一节的落款日期。改协议时改这里，**并且必须与官网
-# 的落款日期一致** —— 不一致的后果是「问的是新协议、用户同意了，客户端记下的却是
-# 另一个标识」，于是下次再问一遍。官网正文见 https://macwave.org/agreement/
 #
-# 4.6.0 的改动：项目许可证从 MIT 换成 Apache-2.0（新增第 35 条），协议因此在
-# 2026-11-24 重新落款。许可证的变更改变了使用者手里的权利，所以必须重新征求同意，
-# 不能沿用 4.4.0 那条记录。
-AGREEMENT_ID = "2026-11-24"
+# 4.7 起**不再询问、也不再记录**同意：
+#
+#   * 全新安装时 install.sh 会问一次「Have you read and agreed …?」——
+#     用户按下 y、程序继续，这本身就是同意。再把它写进磁盘读回来，只是给自己
+#     制造一个「记录过期了要不要再问」的问题。
+#   * 升级时用户执行 `wave selfupdate`，这本身就是选择继续使用新版本。
+#
+# 所以这里只留协议地址，用来在升级前说一句「协议在这儿」——
+# 没有闸门、没有 AGREEMENT.json、没有「已同意过」这种状态。
 AGREEMENT_URL = "https://macwave.org/#agreement"
-
-# 从这一版起，安装包随版本带上新协议文本。装的是**这一版或更早**的人，同意过的是
-# 旧文本，自更新时要问一次；装的是更新的版本，说明 install.sh 已经问过了
-# （install.sh 里那道「Have you read and agreed」），不必再问。
-#
-# 这个判断方式比「读 VERSION.json 里记的协议号」更省事：4.4.0 之前的安装里根本没有
-# 那个字段，而它们的共同点正是「版本号 ≤ 4.4.0」。比 4.4.0 新的安装一定来自一个
-# 问过新协议的安装器 —— 这条推理对每一版都一样，所以每次改协议只改这个常量。
-#
-# 4.6.0：许可证换成 Apache-2.0 的那一版。装着 4.5.x 及更早的人自更新时会被问一次；
-# 装 4.6.0 的人是 install.sh 问过并记下的，不会重问。
-AGREEMENT_INTRODUCED_IN = "4.6.0"
-
-# 同意记录单独一个文件，不塞进 VERSION.json：那份文件由 update_commands.sh 与
-# install.sh 写（按版本冻结、两条线的写法还不一样），把协议状态放进去会被它们覆盖掉。
-AGREEMENT_FILE_NAME = "AGREEMENT.json"
 
 # 本次升级算出来的安装根（见 version_file() 的说明）。模块级变量而不是参数：
 # installed_version() 有三个调用点，其中两个在子进程跑完之后。
 _known_base_dir = None
 
 
-def agreement_file():
-    config_dir = find_config_dir()
-    if config_dir is not None:
-        return config_dir / AGREEMENT_FILE_NAME
-    return config_dir_candidates()[0] / AGREEMENT_FILE_NAME
-
-
-def recorded_agreement():
-    path = agreement_file()
-    if not path.exists():
-        return ""
-    try:
-        return json.loads(path.read_text()).get("agreement", "") or ""
-    except (ValueError, OSError, AttributeError):
-        return ""
-
-
-def agreement_needs_consent(current):
-    """升级到这个版本之前，要不要问一次协议。
-
-    只管「已经装着的版本」：全新安装由 install.sh 自己问。
-    """
-    if recorded_agreement() == AGREEMENT_ID:
-        return False
-    if not current:
-        return False
-    return versioncompare.version(current) <= versioncompare.version(AGREEMENT_INTRODUCED_IN)
-
-
-def record_agreement():
-    path = agreement_file()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"agreement": AGREEMENT_ID}, indent=2) + "\n")
-    except OSError as error:
-        # 记不下来不该让更新失败 —— 代价只是下次再问一次，比「更新到一半退出」轻。
-        print(f"{YELLOW}🌊 Warning: cannot record the agreement acceptance ({error}).{RESET}")
-
-
-def _wants_silence():
-    # -s / --silent 会把 fd 1、2 指到 /dev/null，于是任何提示都看不见。
-    # 延迟 import：selfupdate.py 也有 `python3 lib/selfupdate.py` 这条直接路径，
-    # 那时 cli/ 可能不在 sys.path 上。
-    try:
-        import silent
-    except ImportError:
-        return False
-    try:
-        return bool(silent.is_silent())
-    except AttributeError:
-        return False
-
-
-def _say_on_terminal(lines):
-    # 静默模式下 stderr 也进了 /dev/null，只能直接写终端设备。
-    # 没有终端（CI、管道）时什么都不写 —— 退出码是唯一的信号，与 -s 的约定一致。
-    try:
-        with open("/dev/tty", "w", encoding="utf-8") as tty:
-            for line in lines:
-                tty.write(line + "\n")
-    except OSError:
-        pass
-
-
-def _refuse_agreement(current, silent):
-    if silent:
-        # 静默模式不能替用户同意，也不该挂在 input() 上等 —— 提示写终端，
-        # 然后按「没有同意」退出。
-        _say_on_terminal([
-            f"🌊 Error: the user agreement was updated ({AGREEMENT_ID}) and cannot be "
-            f"accepted in silent mode.",
-            "🌊 Next      run `wave selfupdate` without -s to read and accept it",
-            f"🌊           {AGREEMENT_URL}",
-            f"🌊 Your current installation ({current}) has not been changed.",
-        ])
-    else:
-        print(f"{RED_BOLD}🌊 Error: the updated user agreement was not accepted.{RESET}")
-        print(f"{RED_BOLD}🌊 Next      your installation is unchanged; you are still on {current}.{RESET}")
-        print(f"{RED_BOLD}🌊           read it when you like, then run selfupdate again:{RESET}")
-        print(f"{RED_BOLD}🌊           {AGREEMENT_URL}{RESET}")
-    sys.exit(1)
+def print_agreement_notice():
+    """升级前说一句协议地址。只说一次，不提问、不写文件。"""
+    print(f"🌊 User agreement: {AGREEMENT_URL}")
 
 
 def _is_cross_major(current, latest):
@@ -380,14 +287,8 @@ def report_dry_run(current, latest, data, options, overall_timeout,
         # selfupdate.sh 不跨大版本；这里只是提前说清楚，免得用户以为 dry run 会装上去
         line("version", "this is a cross-major update: lib/selfupdate.sh refuses those, "
                         "reinstall from the release page instead")
-    if not agreement_needs_consent(current):
-        line("agreement", "not needed (already recorded, or this install already carries it)")
-    elif _is_cross_major(current, latest):
-        # 跨大版本本来就要重装，selfupdate 不会问协议 —— 说出来，别让人以为漏了一问
-        line("agreement", "not asked: a cross-major update needs a reinstall, not selfupdate")
-    else:
-        line("agreement", f"would be asked ({AGREEMENT_ID}); accepting would record it in "
-                          f"{AGREEMENT_FILE_NAME}")
+    # 4.7 起不问也不记：安装时按过一次 y 就算同意，升级是用户主动执行的动作。
+    line("agreement", f"not asked (notice only): {AGREEMENT_URL}")
     line("skip-ssl", "on" if tls.enabled() else "off")
     raws = ", ".join(f"{flag} {value}" for flag, value in options.timeout_raws.items())
     line("timeouts", f"connect {budget.connect:g}s, content {budget.content:g}s, "
@@ -397,37 +298,6 @@ def report_dry_run(current, latest, data, options, overall_timeout,
     line("script", f"a temporary copy of lib/selfupdate.sh, overall timeout {overall_timeout}s")
 
     print(f"{GREEN}🌊 Nothing was downloaded and nothing was changed.{RESET}")
-
-
-def confirm_agreement(current):
-    """协议更新后的同意询问。
-
-    不同意就中止，而不是「同意了才能继续」那种软提示：按协议第 2 条，用户可以选择
-    放弃更新、继续用他已经同意的那一版 —— 中止就是那个选项。
-
-    白名单语义与 `--skip-ssl` 一致：只有明确答复 y/Y 才继续，空回车、EOF、
-    「yes」一律按拒绝处理。同意必须是明确表达，不能靠默认值。
-    """
-    if _wants_silence():
-        _refuse_agreement(current, silent=True)
-
-    print(f"{RED_BOLD}🌊 MacWave's user agreement has been updated ({AGREEMENT_ID}).{RESET}")
-    print(f"{YELLOW}🌊 Read it here: {AGREEMENT_URL}{RESET}")
-    print(f"{RED_BOLD}🌊 If you do not accept it, MacWave will not be updated and you keep "
-          f"{current}.{RESET}")
-    print(f"{RED_BOLD}🌊 Do you accept the updated agreement? [y/N]{RESET}")
-
-    try:
-        answer = input().strip()
-    except (EOFError, KeyboardInterrupt):
-        # 非交互（stdin 是 /dev/null）读不到答复：按拒绝处理，缺省往安全方向倒。
-        answer = ""
-
-    if answer not in ("y", "Y"):
-        _refuse_agreement(current, silent=False)
-
-    record_agreement()
-    print(f"{GREEN}🌊 Agreement accepted ({AGREEMENT_ID}).{RESET}")
 
 
 def version_file():
@@ -577,8 +447,8 @@ def _handle_selfupdate_locked(input_string=""):
     # 「确实要更新」之后才问协议：没东西可装的时候不打扰人。
     # 也正因为这个位置，问的是「要不要跨过这道门槛去做这次更新」——
     # 与协议第 2 条给的选项（放弃更新 / 继续用已同意的那一版）对得上。
-    if agreement_needs_consent(current) and not _is_cross_major(current, latest):
-        confirm_agreement(current)
+    # 只提示，不提问：同意已由「安装时按 y」或「主动执行本次升级」表达。
+    print_agreement_notice()
 
     if current:
         print(f"🌊 Updating MacWave from {current} to {latest}...")

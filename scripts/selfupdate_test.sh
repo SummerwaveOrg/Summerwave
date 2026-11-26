@@ -25,11 +25,11 @@ fi
 
 # ==========================================
 # 隔离：这个测试会**真的**跑一次 selfupdate（下载文件、落盘、写 VERSION.json 与
-# AGREEMENT.json），所以它必须在自己的沙箱里跑。
+# 状态目录），所以它必须在自己的沙箱里跑。
 #
 # 2026-11-24 之前它用的是真实配置目录与真实安装树，于是「跑一次测试」=
 # 「把现有安装刷成测试版本」：`/opt/macwave_config/VERSION.json` 被写成
-# 4.0.1/TEST、AGREEMENT.json 被写成"已同意"，真实安装树也被换成了 4.0.1。
+# 4.0.1/TEST，真实安装树也被换成了 4.0.1。
 # AGENTS.md 里那条「会改动系统的测试必须先设 MACWAVE_TEST」说的就是这件事。
 #
 # MACWAVE_TEST 会让 configpaths 把测试根当 /：配置目录变成
@@ -53,15 +53,6 @@ done
 
 printf '{"base_dir": "%s"}\n' "$SANDBOX_BASE" > "$CONFIG_DIR/config.json"
 printf '{\n  "version": "4.0.0"\n}\n' > "$CONFIG_DIR/VERSION.json"
-
-# 协议记录也要先放一份"已接受本版协议"的：这个测试的版本数据是假的（4.0.1），
-# 而生成的 update_commands.sh 里带着仓库当前的 AGREEMENT_ID —— 不放的话，端到端
-# 那一步会先被协议闸门拦下来（读不到 stdin，按拒绝退出），测的就不是自更新了。
-# 协议本身的行为由专门的几段覆盖，这里只是让沙箱像一台"已经同意过"的机器。
-AGREEMENT_ID_NOW="$(sed -n 's/^AGREEMENT_ID = "\([^"]*\)"$/\1/p' "$SELFUPDATE_PY" | head -n 1)"
-if [[ -n "$AGREEMENT_ID_NOW" ]]; then
-    printf '{\n  "agreement": "%s"\n}\n' "$AGREEMENT_ID_NOW" > "$CONFIG_DIR/AGREEMENT.json"
-fi
 
 CONFIG_FILE="$CONFIG_DIR/config.json"
 VERSION_FILE="$CONFIG_DIR/VERSION.json"
@@ -243,9 +234,6 @@ with open(sys.argv[1], 'w') as handle:
               handle, indent=2)
 PYEOF
 
-AGREEMENT_BEFORE=no
-[[ -f "$CONFIG_DIR/AGREEMENT.json" ]] && AGREEMENT_BEFORE=yes
-
 LOG_FILE="$(mktemp)"
 RC=0
 python3 "$WAVE_BIN" selfupdate --dry-run < /dev/null > "$LOG_FILE" 2>&1 || RC=$?
@@ -270,14 +258,6 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-AGREEMENT_AFTER=no
-[[ -f "$CONFIG_DIR/AGREEMENT.json" ]] && AGREEMENT_AFTER=yes
-if [[ "$AGREEMENT_BEFORE" == "$AGREEMENT_AFTER" ]]; then
-    echo -e "${GREEN}🌊 OK: --dry-run wrote no AGREEMENT.json${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: --dry-run recorded the agreement${RESET}"
-    FAILED=$((FAILED + 1))
-fi
 rm -f "$LOG_FILE"
 
 # ==========================================
@@ -410,198 +390,6 @@ cp "$SU_WORK/VERSION.json.bak" "$VERSION_FILE"
 #
 # 判定不需要网络，但**这条提示排在「确实要更新」之后**，所以这里把已装版本设成 4.0.0
 # （本地自更新数据里是 4.0.1）—— 比它低才走得下去，否则会先撞上「已是最新」的短路。
-
-echo "========== the updated agreement must be accepted =========="
-
-AGREEMENT_RECORD="$CONFIG_DIR/AGREEMENT.json"
-cp "$VERSION_FILE" "$SU_WORK/VERSION.json.agr"
-if [[ -f "$AGREEMENT_RECORD" ]]; then
-    cp "$AGREEMENT_RECORD" "$SU_WORK/AGREEMENT.json.bak"
-    HAD_AGREEMENT=1
-else
-    HAD_AGREEMENT=0
-fi
-
-# 判定函数本身：一张表钉死「什么时候该问」。比跑端到端快，也更容易看懂。
-if python3 - "$SELFUPDATE_PY" << 'PYEOF'
-import importlib.util
-import os
-import sys
-from pathlib import Path
-
-selfupdate_py = Path(sys.argv[1])
-sys.path[:0] = os.environ["MACWAVE_COMPONENT_PATHS"].split(os.pathsep) + [str(selfupdate_py.parent)]
-spec = importlib.util.spec_from_file_location('selfupdate_module', selfupdate_py)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-# 不碰真实配置目录：把「已记录的协议号」直接喂给判断逻辑
-recorded = {}
-module.recorded_agreement = lambda: recorded.get('id', '')
-
-# 表的形状跟着 AGREEMENT_INTRODUCED_IN 走，不写死「4.4.1 之后就不问」——
-# 那个写法在 2026-11-24（4.6.0 换成 Apache-2.0，判据抬到 4.6.0）当天就过期了，
-# 4.5.x 的用户明明该被问一次，表里却写着 False。
-cases = [
-    # (已装版本, 已记录的协议号, 该不该问)
-    ('4.3.4',       '',                          True),   # 比引入版早：必问
-    ('4.4.0',       '',                          True),
-    ('4.5.2',       '',                          True),   # 4.6.0 改了许可证：4.5.x 升级必问
-    (module.AGREEMENT_INTRODUCED_IN, '',          True),   # 引入版本身也问一次
-    ('9.9.9',       '',                          False),  # 比引入版新：install.sh 已经问过
-    ('4.3.4',       module.AGREEMENT_ID,         False),  # 已经同意过这一版
-    ('4.5.2',       module.AGREEMENT_ID,         False),
-    ('9.9.9',       module.AGREEMENT_ID,         False),
-    ('4.3.4',       '2026-01-01',                True),   # 记的是旧协议：还要问
-    (None,          '',                          False),  # 没有安装记录：交给安装器
-]
-for current, recorded_id, expected in cases:
-    recorded['id'] = recorded_id
-    got = module.agreement_needs_consent(current)
-    assert got is expected, f'current={current} recorded={recorded_id!r}: 期望 {expected}，实际 {got}'
-
-# 跨大版本不问协议：那种更新本来就装不了（要重装），问同意是噪音。
-# 这一条同时钉住了「协议问询不能盖过大版本守卫」—— 2026-11-17 CI 上就是这么红的：
-# 装 0.1 想升 4.x，协议问询先跳出来，把「请去官网重装」那条挡住了。
-for current, latest in (('0.1', '4.0.1'), ('4.3.4', '5.0.0')):
-    recorded['id'] = ''
-    assert module.agreement_needs_consent(current) is True, current
-    assert module._is_cross_major(current, latest) is True, current
-for current, latest in (('4.3.4', '4.4.0'), ('4.0.0', '4.0.1')):
-    assert module._is_cross_major(current, latest) is False, current
-
-# 协议标识必须与官网落款一致，且是个日期形状（改协议时忘改这里会静默失真）
-import re
-assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', module.AGREEMENT_ID), module.AGREEMENT_ID
-assert module.AGREEMENT_URL.startswith('https://macwave.org/'), module.AGREEMENT_URL
-print('🌊 Agreement decision table OK')
-PYEOF
-then
-    echo -e "${GREEN}🌊 OK: agreement decision table${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: agreement decision table${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-# 端到端 · 拒绝：装 4.3.4、没有同意记录、stdin 读到 EOF → 中止，且什么都没动
-python3 - "$VERSION_FILE" "4.0.0" << 'PYEOF'
-import json
-import sys
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": sys.argv[2], "components": {"installer": sys.argv[2], "parser": sys.argv[2]}},
-              handle, indent=2)
-PYEOF
-rm -f "$AGREEMENT_RECORD"
-
-LOG_FILE="$(mktemp)"
-RC=0
-python3 "$WAVE_BIN" selfupdate < /dev/null > "$LOG_FILE" 2>&1 || RC=$?
-cat "$LOG_FILE"
-
-if [[ "$RC" -ne 0 ]] && grep -q 'agreement has been updated' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: an update asks about the updated agreement${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: expected the agreement question (exit $RC)${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if grep -q 'https://macwave.org/#agreement' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: the question points at the website${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: the question does not say where to read it${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if grep -q 'was not accepted' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: reading EOF counts as a refusal${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: EOF was not treated as a refusal${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if [[ ! -f "$AGREEMENT_RECORD" ]]; then
-    echo -e "${GREEN}🌊 OK: a refusal records nothing${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: a refusal wrote $AGREEMENT_RECORD${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if [[ "$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['version'])")" == "4.0.0" ]]; then
-    echo -e "${GREEN}🌊 OK: a refusal leaves the version alone${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: a refusal changed VERSION.json${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-rm -f "$LOG_FILE"
-
-# 端到端 · 同意：答 y 就记下来，并且继续往下走。
-#
-# 这一步**故意让更新失败**：把自更新数据指到一份没有 update_commands.sh 的副本，
-# 于是同意之后必然卡在「取更新脚本」那一步。两个理由 ——
-#   1. 同意记录与更新是否成功无关，失败时也不该再问第二遍，这正好把这一点钉住；
-#   2. 真让它更新完的话，CI 里 selfupdate.sh 会用 sudo 改写
-#      /opt/macwave_config/VERSION.json，文件变成 root 所有，本段后面的写入就
-#      EACCES 了（2026-11-17 CI 上就是这么红的）。
-BROKEN_DATA="$SU_WORK/agree-broken"
-rm -rf "$BROKEN_DATA"
-mkdir -p "$BROKEN_DATA/macwavedata"
-cp "$SU_WORK/selfupdate/macwavedata/latest.toml" "$BROKEN_DATA/macwavedata/latest.toml"
-
-LOG_FILE="$(mktemp)"
-RC=0
-printf 'y\n' > "$SU_WORK/answer-y"
-MACWAVE_SELFUPDATE_DOMAIN="file://$BROKEN_DATA" \
-    python3 "$WAVE_BIN" selfupdate < "$SU_WORK/answer-y" > "$LOG_FILE" 2>&1 || RC=$?
-cat "$LOG_FILE"
-
-if grep -q 'Agreement accepted' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: answering y records the acceptance${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: answering y did not record the acceptance (exit $RC)${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if [[ -f "$AGREEMENT_RECORD" ]] && grep -q '"agreement"' "$AGREEMENT_RECORD"; then
-    echo -e "${GREEN}🌊 OK: $AGREEMENT_RECORD written${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: $AGREEMENT_RECORD missing or empty${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-rm -f "$LOG_FILE"
-
-# 端到端 · 静默模式不能替用户同意：-s 下不读 stdin，直接按拒绝退出。
-# 上一步真的把版本推到 4.0.1 了，这里先降回 4.0.0 —— 否则又撞上「已是最新」。
-python3 - "$VERSION_FILE" "4.0.0" << 'PYEOF'
-import json
-import sys
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": sys.argv[2], "components": {"installer": sys.argv[2], "parser": sys.argv[2]}},
-              handle, indent=2)
-PYEOF
-rm -f "$AGREEMENT_RECORD"
-LOG_FILE="$(mktemp)"
-RC=0
-python3 "$WAVE_BIN" selfupdate -s < /dev/null > "$LOG_FILE" 2>&1 || RC=$?
-if [[ "$RC" -ne 0 ]]; then
-    echo -e "${GREEN}🌊 OK: -s refuses instead of hanging or assuming consent${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: -s did not refuse the updated agreement${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if [[ ! -f "$AGREEMENT_RECORD" ]]; then
-    echo -e "${GREEN}🌊 OK: -s records nothing${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: -s wrote $AGREEMENT_RECORD${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-rm -f "$LOG_FILE"
-
-# 恢复现场：本段改过 VERSION.json 与 AGREEMENT.json，后面的端到端要用干净状态
-cp "$SU_WORK/VERSION.json.agr" "$VERSION_FILE"
-if [[ "$HAD_AGREEMENT" -eq 1 ]]; then
-    cp "$SU_WORK/AGREEMENT.json.bak" "$AGREEMENT_RECORD"
-else
-    rm -f "$AGREEMENT_RECORD"
-fi
-
-# ==========================================
-# 4. --max-time：时长时间解析与下载重试（离线，不碰网络）
-# ==========================================
 
 echo "========== max-time duration parsing =========="
 
@@ -857,25 +645,6 @@ import sys
 with open(sys.argv[1], 'w') as handle:
     json.dump({"version": sys.argv[2], "components": {"installer": sys.argv[2], "parser": sys.argv[2]}},
               handle, indent=2)
-PYEOF
-
-    # 4.0.0 比「带新协议那一版」（4.4.0）早，按 3.6 的规则要问一次协议，
-    # 而这里是无人值守的。预先写下同意记录，让这一段只验更新机制本身 ——
-    # 协议那道由 3.6 单独覆盖。
-    python3 - "$SELFUPDATE_PY" "$AGREEMENT_RECORD" << 'PYEOF'
-import importlib.util
-import json
-import os
-import sys
-from pathlib import Path
-
-selfupdate_py = Path(sys.argv[1])
-sys.path[:0] = os.environ["MACWAVE_COMPONENT_PATHS"].split(os.pathsep) + [str(selfupdate_py.parent)]
-spec = importlib.util.spec_from_file_location('selfupdate_module', selfupdate_py)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-with open(sys.argv[2], 'w') as handle:
-    json.dump({"agreement": module.AGREEMENT_ID}, handle, indent=2)
 PYEOF
 
     LOG_FILE="$(mktemp)"

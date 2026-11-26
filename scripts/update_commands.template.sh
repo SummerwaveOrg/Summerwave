@@ -63,7 +63,10 @@ except Exception:
 # <<< SHARED
 
 mq_migrate_legacy_config() {
-    # 只在 4.7 及以上调用（调用点会先判断目标版本）。
+    # install.sh 调起本脚本时会自己做这件事（而且要等版本凭据写完才做），
+    # 这里跳过，免得它先删目录、install.sh 再往里写 VERSION.json 就失败了。
+    [[ "${MACWAVE_INSTALLER_OWNS_CLEANUP:-}" == "1" ]] && return 0
+
     local base_dir="${MACWAVE_INSTALL_DIR:-}" state_file legacy_dir action
     [[ -n "$base_dir" ]] || return 0
     state_file="$base_dir/var/config.sh"
@@ -134,112 +137,13 @@ mw_say_err() {
 # 两边都问会连问两次。判据是 MACWAVE_CURRENT_VERSION 是否为空 —— install.sh
 # 一律传空，selfupdate.sh 传的是本机已装版本。
 
-agreement_config_dir() {
-    # 与 config/configpaths.py 同一套规则（系统级优先、其次用户级），外加两条：
-    #
-    #   1. MACWAVE_TEST 指向测试根时，只认测试根里的那两份 —— 否则测试会去读**真实**
-    #      安装的协议记录（2026-11-24：沙箱里明明已经"同意过"，闸门却读到了
-    #      /opt/macwave_config 里那份旧记录，于是把无人值守的端到端测试拦了下来）。
-    #   2. 优先 `base_dir` 与这次安装目录一致的那份配置。同一台机器上既有系统级又有
-    #      用户级安装时，"系统级优先"会读到另一台安装的记录。
-    local system user candidate base
-    if [ -n "${MACWAVE_TEST:-}" ]; then
-        system="$MACWAVE_TEST/opt/macwave_config"
-        user="$MACWAVE_TEST${HOME}/.config/macwave_config"
-    else
-        system="/opt/macwave_config"
-        user="$HOME/.config/macwave_config"
-    fi
-
-    for candidate in "$system" "$user"; do
-        [ -f "$candidate/config.json" ] || continue
-        base="$(python3 -c 'import json,sys
-try:
-    print(json.load(open(sys.argv[1])).get("base_dir", ""))
-except Exception:
-    pass' "$candidate/config.json" 2>/dev/null || true)"
-        if [ -n "$base" ] && [ -n "${MACWAVE_INSTALL_DIR:-}" ] && [ "$base" = "$MACWAVE_INSTALL_DIR" ]; then
-            printf '%s' "$candidate"
-            return 0
-        fi
-    done
-
-    if [ -f "$system/config.json" ]; then printf '%s' "$system"; return 0; fi
-    if [ -f "$user/config.json" ]; then printf '%s' "$user"; return 0; fi
-    if [ "${MACWAVE_NEED_SUDO:-}" = "1" ]; then printf '%s' "$system"; else printf '%s' "$user"; fi
-}
-
-agreement_recorded_id() {
-    # 与 lib/selfupdate.py 的 recorded_agreement() 读同一个文件、同一种格式。
-    [ -f "$1" ] || return 0
-    sed -n 's/.*"agreement"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -n 1
-}
-
-agreement_say_tty() {
-    # 静默模式下 fd 1、2 都指向 /dev/null，提示只能直接写终端设备。
-    # 没有终端（CI、管道）时什么都不写 —— 退出码是唯一的信号。
-    if [[ "$MW_LANG" == "zh" ]]; then
-        { printf '%b\n' "$(mw_strip_item "$2")" > /dev/tty; } 2>/dev/null
-    else
-        { printf '%b\n' "$(mw_strip_item "$1")" > /dev/tty; } 2>/dev/null
-    fi
-}
-
-agreement_gate() {
-    [ -n "$AGREEMENT_ID" ] || return 0
-    [ -n "${MACWAVE_CURRENT_VERSION:-}" ] || return 0
-
-    local dir file recorded answer
-    dir="$(agreement_config_dir)"
-    file="$dir/AGREEMENT.json"
-    recorded="$(agreement_recorded_id "$file")"
-    [ "$recorded" = "$AGREEMENT_ID" ] && return 0
-
-    mw_say "🌊 MacWave's user agreement has been updated ($AGREEMENT_ID)." \
-        "🌊 MacWave 的用户协议已更新（${AGREEMENT_ID}）。"
-    mw_say "🌊 Read it here: https://macwave.org/#agreement" \
-        "🌊 协议正文：https://macwave.org/#agreement"
-
-    if [ "${MACWAVE_SILENT:-}" = "1" ]; then
-        # 静默模式不能替用户同意，也不该挂在读取上等人 —— 按「没有同意」退出。
-        agreement_say_tty "🌊 Error: the user agreement ($AGREEMENT_ID) must be accepted, and silent mode cannot accept it." \
-            "🌊 错误：需要接受用户协议（${AGREEMENT_ID}），静默模式不能代答。"
-        agreement_say_tty "🌊 Next      run wave selfupdate without -s, read it, then accept." \
-            "🌊 下一步    不带 -s 再跑一次 wave selfupdate，阅读后接受。"
-        return 1
-    fi
-
-    mw_say "🌊 Do you accept it? [y/N]" "🌊 你是否接受？[y/N]"
-    answer=""
-    read -r answer || answer=""
-    answer=$(printf '%s' "$answer" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
-    case "$answer" in
-        y|yes) ;;
-        *)
-            mw_say_err "🌊 Error: the updated user agreement was not accepted; nothing was changed." \
-                "🌊 错误：未接受更新后的用户协议，未做任何改动。"
-            return 1
-            ;;
-    esac
-
-    # 记法与 install.sh / lib/selfupdate.py 完全一致，三处读的是同一个文件。
-    run mkdir -p "$dir" > /dev/null 2>&1 || true
-    if ! printf '{\n  "agreement": "%s"\n}\n' "$AGREEMENT_ID" | run tee "$file" > /dev/null 2>&1; then
-        # 记不下来不该让更新失败 —— 代价只是下次再问一遍，比「更新到一半退出」轻。
-        mw_say "🌊 Warning: could not record the agreement in $file" \
-            "🌊 警告：未能把同意写进 ${file}"
-    fi
-    run chmod 644 "$file" > /dev/null 2>&1 || true
-    mw_say "🌊 Agreement accepted ($AGREEMENT_ID)." "🌊 已接受用户协议（${AGREEMENT_ID}）。"
-    return 0
-}
-
+# 4.7 起不再有协议闸门：用户按下 y 就是同意（install.sh 问过那一次），
+# 升级时执行 `wave selfupdate` 本身就是选择继续。以前这里是「按版本冻结的一份
+# 脚本 + 一个记录文件」，两者都要跟 lib/selfupdate.py 里的常量保持一致 ——
+# 而那个「记录到没到这一版」的推断从来就不可靠。协议地址仍然印出来，仅此而已。
 
 VERSION="@@VERSION@@"
 BRANCH="@@BRANCH@@"
-# 这一版的用户协议标识。由生成器从 lib/selfupdate.py 抄来（那里是唯一来源）。
-# 空 = 这一版没带协议信息，闸门自动放行 —— 老 ref 生成的脚本就是这种状态。
-AGREEMENT_ID="@@AGREEMENT_ID@@"
 FILE_TIMEOUT="${MACWAVE_FILE_TIMEOUT:-60}"
 ATTEMPTS=3
 
@@ -429,11 +333,6 @@ tree_complete() {
 }
 
 main() {
-    # 协议闸门在最前面：同意是「做这次更新」的前提，先于任何下载与写入。
-    if ! agreement_gate; then
-        return 1
-    fi
-
     # 「已经是这个版本」也要先确认树是完整的。VERSION.json 只证明「上次跑完过」，
     # 不证明文件还在 —— 只信版本号的话，一棵坏树会永远停在 "Already at"，
     # 无论跑多少次都不会修好（这正是 2026-11-15 那次的形态）。
