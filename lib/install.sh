@@ -369,6 +369,17 @@ yrQUrEHrNKHvFDhzyAHAFrSBjLATEQrNLZhwnkSjV447AgMBAAE=
 
 MW_RSA_PUB_TMP=""
 
+# >>> SHARED: signature-verify
+mw_sig_say() {
+    # mw_sig_say "<English>" "<中文>"：install.sh 有中英双语，selfupdate.sh 只有英文。
+    # 按 MW_LANG 自己判，不依赖宿主的输出函数。
+    if [[ "${MW_LANG:-en}" == "zh" ]]; then
+        printf '%b\n' "$2" >&2
+    else
+        printf '%b\n' "$1" >&2
+    fi
+}
+
 mw_trusted_pub() {
     # 输出一个**可读的 PEM 路径**，调用方拿它喂 openssl。两个来源：
     #   1. MACWAVE_RSA_PUB（运维/测试自己指定）
@@ -393,39 +404,62 @@ mw_trusted_pub() {
 mw_verify_latest_signature() {
     # mw_verify_latest_signature <latest.toml 的内容> <它的 URL>
     #
-    # 没有公钥就整段跳过；有公钥但下载不到 .sig（404）也算「这一版没签名」——
-    # 实验期这是常态，不能当错误。
+    # **强制**：验不过就不继续，缺失与不匹配一视同仁。latest.toml 决定「装哪个版本、
+    # 从哪个分支取代码」，是整条安装链唯一可信的起点 —— 它若能换掉，后面每个文件按
+    # 清单校 sha256 全都白搭（连清单一起换就行）。所以这里的取舍是「宁可装不上」。
+    #
+    # MACWAVE_ALLOW_UNSIGNED=1 是唯一的例外，只给两种场合：镜像刚上线、签名还没跟上；
+    # 以及测试里的赝品镜像。正常安装不要设，文档里也不推荐。
     local data="$1" url="$2"
+    local timeout="${METADATA_TIMEOUT:-30}" allow="${MACWAVE_ALLOW_UNSIGNED:-}"
     local pub
     pub="$(mw_trusted_pub)"
-    [[ -n "$pub" ]] || return 0
+    if [[ -z "$pub" ]]; then
+        # 连锚点都拿不到（临时目录建不出来）：无从验起，也解释不清，放行。
+        # 这不是「验过了」，是这个脚本本来就没有验签能力（4.4 之前的版本）。
+        return 0
+    fi
 
     local tmp sig status=0
     tmp="$(mktemp)"
     sig="$(mktemp)"
     printf '%s\n' "$data" > "$tmp"
-    curl -fsSL --max-time 30 ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+    curl -fsSL --max-time "$timeout" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
         -o "$sig" "$url.sig" 2>/dev/null || status=$?
     if [[ "$status" -ne 0 ]]; then
-        mw_signature_note "🌊 No signature for the self-update data (this release predates signing)." \
-            "🌊 这份自更新数据没有签名（早于签名制度，属正常情况）。"
         rm -f "$tmp" "$sig"
-        return 0
+        if [[ "$allow" == "1" ]]; then
+            mw_sig_say "🌊 Warning: the self-update data has no signature (MACWAVE_ALLOW_UNSIGNED=1, continuing)." \
+                "🌊 警告：自更新数据没有签名（MACWAVE_ALLOW_UNSIGNED=1，继续）。"
+            return 0
+        fi
+        echo -e "${RED_BOLD}🌊 Error: the self-update data has no signature ($url.sig).${RESET}" >&2
+        mw_sig_say "🌊 Refusing to continue: without a signature, the version and the branch we install are whatever the mirror says." \
+            "🌊 拒绝继续：没有签名时，「装哪个版本、取哪个分支」就等于由镜像说了算。"
+        mw_sig_say "🌊 Nothing was changed. If you run a mirror, publish latest.toml.sig with it (see docs/MIRROR-SETUP.md)." \
+            "🌊 什么都没改。自己跑镜像的话，请把 latest.toml.sig 一起发出去（见 docs/MIRROR-SETUP.md）。"
+        exit 1
     fi
 
     if openssl dgst -sha256 -verify "$pub" -signature "$sig" "$tmp" > /dev/null 2>&1; then
-        mw_signature_note "🌊 Self-update data: signature OK." "🌊 自更新数据：签名校验通过。"
-    elif [[ "${MACWAVE_STRICT_HASHES:-}" == "1" ]]; then
-        echo -e "${RED_BOLD}🌊 Error: the self-update data is not signed by the trusted key.${RESET}" >&2
+        mw_sig_say "🌊 Self-update data: signature OK." "🌊 自更新数据：签名校验通过。"
         rm -f "$tmp" "$sig"
-        exit 1
-    else
-        mw_signature_note "🌊 Warning: the self-update data is not signed by the trusted key (continuing)" \
-            "🌊 警告：自更新数据的签名不对（继续）"
+        return 0
     fi
     rm -f "$tmp" "$sig"
-    return 0
+    if [[ "$allow" == "1" ]]; then
+        mw_sig_say "🌊 Warning: the self-update data is not signed by the trusted key (MACWAVE_ALLOW_UNSIGNED=1, continuing)." \
+            "🌊 警告：自更新数据的签名不对（MACWAVE_ALLOW_UNSIGNED=1，继续）。"
+        return 0
+    fi
+    echo -e "${RED_BOLD}🌊 Error: the self-update data is not signed by the trusted key.${RESET}" >&2
+    mw_sig_say "🌊 Refusing to continue: the data may have been altered after it was signed." \
+        "🌊 拒绝继续：这份数据可能在签名之后被改过。"
+    mw_sig_say "🌊 Nothing was changed. Install again once the mirror is fixed." \
+        "🌊 什么都没改。镜像修好之后再装。"
+    exit 1
 }
+# <<< SHARED
 
 # <<< signature helpers <<<
 
@@ -592,8 +626,9 @@ else
     CUSTOM_OPTION=3
 fi
 
-print_dir_menu() {
-    # 顺序即推荐程度：/opt/macwave 排第一，是 macOS 上的默认。
+print_install_targets() {
+    # 不提问，只把「能装到哪、默认是哪个」摊开说清楚。
+    # 顺序即推荐程度：/opt/macwave 排第一，就是这个项目的默认。
     #
     # 为什么默认是它（而不是 ~/.local/macwave）：
     #   - 依赖只有一份：deps/ 动辄几百 MB，多个用户各装一份 ~/.local 就是 N 份；
@@ -603,8 +638,8 @@ print_dir_menu() {
     #   - 权限模型干净：root:<管理员组> 775（目录 setgid），管理员组成员装包不用
     #     sudo，其他用户只读，任何本地用户都不能替换 links/ 里的二进制。
     # 代价：安装要一次管理员密码；树是共享状态（同机多个管理员时才会互相影响）。
-    # 拿不到管理员密码、或者只想给自己装的，选 ~/.local/macwave。
-    echo "1. /opt/macwave"
+    # 拿不到管理员密码、或者只想给自己装的，用 --dir-option=2 装到 ~/.local/macwave。
+    echo "1. /opt/macwave   (default)"
     echo "2. ~/.local/macwave"
     if [[ "$CUSTOM_OPTION" == "4" ]]; then
         echo "3. /usr/local/macwave"
@@ -697,13 +732,13 @@ usage() {
     mw_say "  install.sh [options]" "  install.sh [选项]"
     mw_say ""
     mw_say "Options:" "选项："
-    mw_say "      --ci, --CI          No interaction at all: the directory menu and the\n\
-                          agreement are answered automatically. Without\n\
-                          --dir-option the default (option 1) is used.\n\
-                          Requires passwordless sudo when privilege is needed." \
-           "      --ci, --CI          完全不交互：目录菜单与用户协议都自动应答。不带\n\
-                          --dir-option 时使用默认项（第 1 项）。\n\
-                          需要提权时要求 sudo 免密。"
+    mw_say "      --ci, --CI          No interaction at all: no confirmation, no questions.\n\
+                          Installs into ~/.local/macwave unless --dir-option says\n\
+                          otherwise (unattended, so no administrator password is\n\
+                          requested). --dir-option=1 needs passwordless sudo." \
+           "      --ci, --CI          完全不交互：不确认、不提问。不带 --dir-option 时装到\n\
+                          ~/.local/macwave（无人值守，不会去要管理员密码）。\n\
+                          --dir-option=1 需要 sudo 免密。"
     mw_say "      --dry-run           Print what the installer would do and change\n\
                           nothing: no download, no sudo, no directory\n\
                           created, no file written. When the latest version\n\
@@ -756,9 +791,10 @@ usage() {
     mw_say "      --print-usage       Show this help, then continue (install or dry run)." \
            "      --print-usage       显示本帮助后继续（真的安装，或继续试运行）。"
     mw_say ""
-    mw_say "Directory menu:" "目录菜单："
-    # 菜单自己按语言输出、也不带 🌊 与颜色；这里只补缩进。
-    print_dir_menu | sed 's/^/  /'
+    mw_say "Install target (the default is used unless --dir-option says otherwise):" \
+           "安装位置（不给 --dir-option 就用默认的）："
+    # 这份清单自己按语言输出、也不带 🌊 与颜色；这里只补缩进。
+    print_install_targets | sed 's/^/  /'
     mw_say ""
     mw_say "Examples:" "示例："
     mw_say "  install.sh --ci --dir-option=1" "  install.sh --ci --dir-option=1"
@@ -1277,12 +1313,10 @@ elif [[ "$CLI_CI" == "true" ]]; then
     mw_say "🌊       pass --dir-option=1 for /opt/macwave if this machine has passwordless sudo." \
         "🌊       要装到 /opt/macwave，加 --dir-option=1（需要免密 sudo）。"
 else
-    mw_say "${YELLOW}Where do you want to install MacWave? (Enter the number)${RESET}" "${YELLOW}要把 MacWave 安装到哪里？（输入编号）${RESET}"
-    print_dir_menu
-    echo ""
-    mw_say "${YELLOW}Enter your choice:${RESET}" "${YELLOW}请输入选择：${RESET}"
-
-    read -r choice < /dev/tty
+    # 不再是一道选择题：装到哪儿是产品决定，不该让人在安装前先做一次架构与权限
+    # 判断。默认就是系统级 /opt/macwave；想换地方的人用 --dir-option 明确说出来。
+    choice="1"
+    ASK_INSTALL_TARGET="true"
 fi
 
 if [[ "$SELFUPDATE_MODE" == "true" ]]; then
@@ -1313,6 +1347,46 @@ esac
 fi
 
 DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
+
+# ==========================================
+# 动手之前确认：装到这个位置，继续吗？
+# ==========================================
+#
+# 为什么把确认放在这里、而不是结尾：此刻磁盘上一个字节都还没改，用户说不装就是
+# 干净退出，不需要回滚；而回滚要删安装树、删配置、清 rc 里的 PATH —— 升级场景还
+# 可能把用户原来那棵能用的树一起毁掉。问一句便宜得多。
+#
+# 只在「什么都没被显式指定、又有终端」时问：
+#   - --ci：无人值守，不问；
+#   - --dir-option：用户已经明确指定了位置，再问一遍是啰嗦；
+#   - 没有 /dev/tty（curl | bash 的 stdin 是脚本本身）：拿不到终端就不问，
+#     按默认位置继续 —— 安装不破坏已有数据，中断在这里反而更需要 `--ci` 的形状；
+#   - --dry-run：只打印、什么都不改，没什么可确认的；
+#   - MACWAVE_TEST：沙箱/测试根，任何提问都会把自动化挂住。
+if [[ "${ASK_INSTALL_TARGET:-}" == "true" ]] \
+   && [[ "$CLI_DRY_RUN" != "true" ]] \
+   && [[ -z "${MACWAVE_TEST:-}" ]]; then
+    if [[ -r /dev/tty ]]; then
+        echo ""
+        mw_say "🌊 Summerwave will be installed to ${DISPLAY_DIR}" \
+               "🌊 Summerwave 将会安装到 ${DISPLAY_DIR}"
+        mw_say "🌊   This asks for an administrator password once." \
+               "🌊   过程中需要一次管理员密码。"
+        mw_say "🌊   Want it somewhere else? --dir-option=2 installs for this user only." \
+               "🌊   想换个地方？--dir-option=2 只装给当前用户。"
+        echo ""
+        mw_say "🌊 Continue? [Y/n]" "🌊 继续吗？[Y/n]"
+        _answer=""
+        read -r _answer < /dev/tty || true
+        case "$_answer" in
+            ""|y|Y|yes|YES|Yes) ;;
+            *)
+                mw_say "🌊 Nothing was changed." "🌊 什么都没有改动。"
+                exit 0
+                ;;
+        esac
+    fi
+fi
 
 # ==========================================
 # 判断是否需要 sudo
@@ -1896,7 +1970,7 @@ sync_tree() {
         # 清单里的空格是 \  转义的（格式先定死，现无这种路径）
         path="${path//\\ / }"
         destination="$BASE_DIR/$path"
-        # BASE_URL 就是「这一分支的代码在哪」（= CORE_URL/$BRANCH）。用它而不是
+        # BASE_URL 就是「这一分支的代码在哪」（= CORE_URL/${BRANCH}）。用它而不是
         # 自己拼：sandbox_test 只改 BASE_URL 这一行来指向离线镜像。
         url="$BASE_URL/$path"
 

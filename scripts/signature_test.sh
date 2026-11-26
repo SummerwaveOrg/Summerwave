@@ -3,7 +3,7 @@
 # signature_test.sh
 # GPG 验签的约定：公钥放在哪、怎么验、验不过怎么办。
 #
-# 为什么值得一条测试：验签这条路径平时**根本不跑**（当前只是预留，没接进下载流程）。
+# 为什么值得一条测试：验签决定「装不装得下去」，是一票否决的闸门。
 # 等它真被接上那天，坏掉的表现会是「所有人安装都失败」或者更糟 —— 「签名不匹配」
 # 被当成「没签名」放过去。所以这里的断言写的是语义，不是实现细节：
 #
@@ -297,8 +297,8 @@ printf 'version = "9.9.9"\n' > "$WORK_RSA/tampered.toml"
 openssl dgst -sha256 -sign "$WORK_RSA/key.pem" -out "$WORK_RSA/latest.toml.sig" "$WORK_RSA/latest.toml" 2> /dev/null
 
 run_verify() {
-    # run_verify <脚本> <数据文件> <签名文件|空> <STRICT> → 打印 "<退出码>|<输出>"
-    local script="$1" data="$2" sig="$3" strict="${4:-0}" work="$WORK_RSA/h"
+    # run_verify <脚本> <数据> <签名|空> <STRICT> <ALLOW_UNSIGNED> → "<退出码>|<输出>"
+    local script="$1" data="$2" sig="$3" strict="${4:-0}" allow="${5:-}" work="$WORK_RSA/h"
     mkdir -p "$work"
     awk '/^# >>> RSA public key/ {on=1} on {print} /^# <<< signature helpers <<</ {on=0}' \
         "$REPO_DIR/$script" > "$work/helpers.sh"
@@ -325,16 +325,17 @@ HARNESS
     local got rc
     got=$(FAKE_SIG="$sig" HELPERS="$work/helpers.sh" DATA="$data" \
         URL="https://example.invalid/latest.toml" MACWAVE_STRICT_HASHES="$strict" \
+        MACWAVE_ALLOW_UNSIGNED="$allow" \
         MACWAVE_RSA_PUB="$WORK_RSA/key.pub.pem" bash "$work/harness.sh" 2>&1)
     rc=$?
     printf '%s|%s' "$rc" "$(printf '%s' "$got" | tr '\n' ' ')"
 }
 
 check_verify() {
-    # check_verify <说明> <脚本> <数据> <签名|空> <STRICT> <期望退出码> <输出里该有的词>
-    local label="$1" script="$2" data="$3" sig="$4" strict="$5" want_rc="$6" want_text="$7"
+    # check_verify <说明> <脚本> <数据> <签名|空> <STRICT> <ALLOW> <期望退出码> <该有的词>
+    local label="$1" script="$2" data="$3" sig="$4" strict="$5" allow="$6" want_rc="$7" want_text="$8"
     local got rc out
-    got="$(run_verify "$script" "$data" "$sig" "$strict")"
+    got="$(run_verify "$script" "$data" "$sig" "$strict" "$allow")"
     rc="${got%%|*}"
     out="${got#*|}"
     if [[ "$rc" == "$want_rc" && "$out" == *"$want_text"* ]]; then
@@ -344,15 +345,22 @@ check_verify() {
     fi
 }
 
+# 4.7 起验签是**强制**的：对不上就不装。缺失与不匹配一视同仁 —— 对用户是同一件事，
+# 「这份数据不是我们发的」。MACWAVE_ALLOW_UNSIGNED=1 是唯一例外，只给镜像刚上线与
+# 赝品镜像（测试）用。
 for script in lib/install.sh lib/selfupdate.sh; do
     check_verify "${script}：签名对得上 → 通过" "$script" \
-        "$WORK_RSA/latest.toml" "$WORK_RSA/latest.toml.sig" 0 0 "signature OK"
-    check_verify "${script}：数据被改 → 只警告不失败" "$script" \
-        "$WORK_RSA/tampered.toml" "$WORK_RSA/latest.toml.sig" 0 0 "Warning"
-    check_verify "${script}：数据被改 + STRICT → 失败" "$script" \
-        "$WORK_RSA/tampered.toml" "$WORK_RSA/latest.toml.sig" 1 1 "Error"
-    check_verify "${script}：这一版没有 .sig → 静默放行" "$script" \
-        "$WORK_RSA/latest.toml" "" 0 0 "No signature"
+        "$WORK_RSA/latest.toml" "$WORK_RSA/latest.toml.sig" 0 "" 0 "signature OK"
+    check_verify "${script}：数据被改 → 拒绝，不继续安装" "$script" \
+        "$WORK_RSA/tampered.toml" "$WORK_RSA/latest.toml.sig" 0 "" 1 "Refusing to continue"
+    check_verify "${script}：数据被改 → 报的是签名错，不是别的原因" "$script" \
+        "$WORK_RSA/tampered.toml" "$WORK_RSA/latest.toml.sig" 0 "" 1 "not signed by the trusted key"
+    check_verify "${script}：没有 .sig → 同样拒绝" "$script" \
+        "$WORK_RSA/latest.toml" "" 0 "" 1 "has no signature"
+    check_verify "${script}：MACWAVE_ALLOW_UNSIGNED=1 → 警告后继续" "$script" \
+        "$WORK_RSA/latest.toml" "" 0 "1" 0 "MACWAVE_ALLOW_UNSIGNED=1"
+    check_verify "${script}：MACWAVE_ALLOW_UNSIGNED=1 也压不过坏签名？压得过（仅在显式设置时）" "$script" \
+        "$WORK_RSA/tampered.toml" "$WORK_RSA/latest.toml.sig" 0 "1" 0 "MACWAVE_ALLOW_UNSIGNED=1"
 done
 rm -rf "$WORK_RSA"
 
@@ -365,4 +373,4 @@ if [ "$FAILED" -gt 0 ]; then
     echo -e "${RED_BOLD}🌊 Signature conventions are broken${RESET}"
     exit 1
 fi
-echo -e "${GREEN}🌊 Signature checks are in place (warn-only until MACWAVE_STRICT_HASHES=1)${RESET}"
+echo -e "${GREEN}🌊 Signature checks are in place (mandatory: no valid signature, no install)${RESET}"

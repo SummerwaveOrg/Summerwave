@@ -23,6 +23,10 @@
 unset MACWAVE_LANG LC_ALL LC_MESSAGES
 export LANG=en_US.UTF-8
 
+# 这些用例用的是赝品镜像，里面没有 latest.toml.sig，而验签 4.7 起是强制的
+# （不通过就不装）。真实验签由 signature_test.sh 单独覆盖，这里放开。
+export MACWAVE_ALLOW_UNSIGNED=1
+
 set -u
 set +e
 

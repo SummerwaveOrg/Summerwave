@@ -207,7 +207,11 @@ BARE_BASH=$(cd "$REPO_DIR" && grep -rnE '(^[[:space:]]*|&&[[:space:]]*|\|\|[[:sp
     | grep -v 'shell_lint\.sh:' \
     | grep -vE ':[0-9]+:[[:space:]]*#' \
     | grep -vE ':[0-9]+:[[:space:]]*[a-z0-9._+-]+[[:space:]]{2,}by[[:space:]]' \
+    | grep -v '^\./platform/linux/' \
     || true)
+# 为什么排除 platform/linux：那一整棵树是**原封不动**搬进来的 LinuxWave 副本
+# （带自己的 CI 与 lint），这里改它等于让两边分叉、下次同步就冲突。等模块一个
+# 一个真合并进主树时，改一个就把上面那条例外收窄一处；全部合完，这行该消失。
 
 if [[ -z "$BARE_BASH" ]]; then
     pass "没有裸 bash 调用（一律 /bin/bash）"

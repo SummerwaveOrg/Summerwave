@@ -255,6 +255,17 @@ yrQUrEHrNKHvFDhzyAHAFrSBjLATEQrNLZhwnkSjV447AgMBAAE=
 
 MW_RSA_PUB_TMP=""
 
+# >>> SHARED: signature-verify
+mw_sig_say() {
+    # mw_sig_say "<English>" "<中文>"：install.sh 有中英双语，selfupdate.sh 只有英文。
+    # 按 MW_LANG 自己判，不依赖宿主的输出函数。
+    if [[ "${MW_LANG:-en}" == "zh" ]]; then
+        printf '%b\n' "$2" >&2
+    else
+        printf '%b\n' "$1" >&2
+    fi
+}
+
 mw_trusted_pub() {
     # 输出一个**可读的 PEM 路径**，调用方拿它喂 openssl。两个来源：
     #   1. MACWAVE_RSA_PUB（运维/测试自己指定）
@@ -278,35 +289,63 @@ mw_trusted_pub() {
 
 mw_verify_latest_signature() {
     # mw_verify_latest_signature <latest.toml 的内容> <它的 URL>
-    # 没有公钥就跳过；有公钥但 .sig 404 也算「这一版没签名」（实验期常态）。
+    #
+    # **强制**：验不过就不继续，缺失与不匹配一视同仁。latest.toml 决定「装哪个版本、
+    # 从哪个分支取代码」，是整条安装链唯一可信的起点 —— 它若能换掉，后面每个文件按
+    # 清单校 sha256 全都白搭（连清单一起换就行）。所以这里的取舍是「宁可装不上」。
+    #
+    # MACWAVE_ALLOW_UNSIGNED=1 是唯一的例外，只给两种场合：镜像刚上线、签名还没跟上；
+    # 以及测试里的赝品镜像。正常安装不要设，文档里也不推荐。
     local data="$1" url="$2"
+    local timeout="${METADATA_TIMEOUT:-30}" allow="${MACWAVE_ALLOW_UNSIGNED:-}"
     local pub
     pub="$(mw_trusted_pub)"
-    [[ -n "$pub" ]] || return 0
+    if [[ -z "$pub" ]]; then
+        # 连锚点都拿不到（临时目录建不出来）：无从验起，也解释不清，放行。
+        # 这不是「验过了」，是这个脚本本来就没有验签能力（4.4 之前的版本）。
+        return 0
+    fi
 
     local tmp sig status=0
     tmp="$(mktemp)"
     sig="$(mktemp)"
     printf '%s\n' "$data" > "$tmp"
-    curl -fsSL --max-time "$METADATA_TIMEOUT" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+    curl -fsSL --max-time "$timeout" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
         -o "$sig" "$url.sig" 2>/dev/null || status=$?
     if [[ "$status" -ne 0 ]]; then
-        echo -e "${YELLOW}🌊 No signature for the self-update data (release predates signing).${RESET}" >&2
+        rm -f "$tmp" "$sig"
+        if [[ "$allow" == "1" ]]; then
+            mw_sig_say "🌊 Warning: the self-update data has no signature (MACWAVE_ALLOW_UNSIGNED=1, continuing)." \
+                "🌊 警告：自更新数据没有签名（MACWAVE_ALLOW_UNSIGNED=1，继续）。"
+            return 0
+        fi
+        echo -e "${RED_BOLD}🌊 Error: the self-update data has no signature ($url.sig).${RESET}" >&2
+        mw_sig_say "🌊 Refusing to continue: without a signature, the version and the branch we install are whatever the mirror says." \
+            "🌊 拒绝继续：没有签名时，「装哪个版本、取哪个分支」就等于由镜像说了算。"
+        mw_sig_say "🌊 Nothing was changed. If you run a mirror, publish latest.toml.sig with it (see docs/MIRROR-SETUP.md)." \
+            "🌊 什么都没改。自己跑镜像的话，请把 latest.toml.sig 一起发出去（见 docs/MIRROR-SETUP.md）。"
+        exit 1
+    fi
+
+    if openssl dgst -sha256 -verify "$pub" -signature "$sig" "$tmp" > /dev/null 2>&1; then
+        mw_sig_say "🌊 Self-update data: signature OK." "🌊 自更新数据：签名校验通过。"
         rm -f "$tmp" "$sig"
         return 0
     fi
-    if openssl dgst -sha256 -verify "$pub" -signature "$sig" "$tmp" > /dev/null 2>&1; then
-        echo "🌊 Self-update data: signature OK"
-    elif [[ "${MACWAVE_STRICT_HASHES:-}" == "1" ]]; then
-        echo -e "${RED_BOLD}🌊 Error: the self-update data is not signed by the trusted key.${RESET}" >&2
-        rm -f "$tmp" "$sig"
-        exit 1
-    else
-        echo -e "${YELLOW}🌊 Warning: the self-update data is not signed by the trusted key (continuing)${RESET}" >&2
-    fi
     rm -f "$tmp" "$sig"
-    return 0
+    if [[ "$allow" == "1" ]]; then
+        mw_sig_say "🌊 Warning: the self-update data is not signed by the trusted key (MACWAVE_ALLOW_UNSIGNED=1, continuing)." \
+            "🌊 警告：自更新数据的签名不对（MACWAVE_ALLOW_UNSIGNED=1，继续）。"
+        return 0
+    fi
+    echo -e "${RED_BOLD}🌊 Error: the self-update data is not signed by the trusted key.${RESET}" >&2
+    mw_sig_say "🌊 Refusing to continue: the data may have been altered after it was signed." \
+        "🌊 拒绝继续：这份数据可能在签名之后被改过。"
+    mw_sig_say "🌊 Nothing was changed. Install again once the mirror is fixed." \
+        "🌊 什么都没改。镜像修好之后再装。"
+    exit 1
 }
+# <<< SHARED
 
 # <<< signature helpers <<<
 
