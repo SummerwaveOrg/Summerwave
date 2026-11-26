@@ -300,3 +300,33 @@ MACWAVE_SELFUPDATE_DOMAIN=... MACWAVE_PYTHON_DOMAIN=... MACWAVE_CORE_DOMAIN=... 
 ```
 
 第 3 条是唯一能证明「字节原样」的检查，务必做一次。
+
+---
+
+## 1.0：Bottle 与索引的平台标签（2026-11-26 定）
+
+**一个远端，标签写在名字里** —— 不按平台/架构拆仓库。
+
+```
+Bottle/jq/jq@1.8.2.macos-arm64.tar.gz
+Bottle/jq/jq@1.8.2.linux-amd64.tar.gz
+infosource/pkg/jq/versions                 ← 版本清单一份，不分平台
+infosource/pkg/jq/_jq@common               ← 跨平台字段（bin_name、简介、主页）
+infosource/pkg/jq/_jq@1.8.2.macos-arm64    ← 该平台的那份 sha256 / file / 依赖 / install 形态
+```
+
+- **词表封闭**：os ∈ {`macos`, `linux`}，arch ∈ {`arm64`, `amd64`}（`x86_64` 在入口归一化成
+  `amd64`）。与 `config/platforminfo.py` 的 `IS_MAC`/`IS_LINUX`、`get_arch()` 一一对应。
+- **解析从右往左**：先扩展名，再按 `-` 剥 arch，再按 `.` 剥 os，剩下的整体按 `@` 切成名/版本。
+  剥出来的必须落在词表里，否则当作「不是 bottle」并报错 —— 老的无 tag 产物
+  （`jq@1.8.2.tar.gz`）不会被误读成 os=`1.8.2`。
+- **逻辑身份不含 tag**：`wave install jq@1.8.2`、收据、`Shore/jq/1.8.2/` 全都只用 `<名>@<版本>`。
+  tag 只出现在产物文件名与那条索引记录里。
+- **取不到就是取不到**：按当前 `(os, arch)` 拼记录名，没有这条记录就明说
+  「这个包没有你这个平台的产物」，不要拉回来再 `exec format error`。
+- **兼容**：数据层加 `layout = 2`。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz` 产物按
+  「os 缺省 = macos」继续可读，升级不用重打。
+
+为什么不按平台拆仓库：`versions` 会变成两份、迟早漂；镜像方要按平台各配一套 URL；
+平台判断会从 `config/platforminfo.py` 一处散进各个地址。代价只是仓库里两种平台的产物混放
+（体积，不涉及正确性），以及「只镜像一个平台」要多做一步过滤。
