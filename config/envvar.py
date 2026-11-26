@@ -57,7 +57,7 @@ DOMAINS = {
         "dependency binaries"),
     "core": Domain(
         "MACWAVE_CORE_DOMAIN",
-        "https://raw.githubusercontent.com/MacWaveOrg/MacWave",
+        "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave",
         "MacWave's own files"),
     # 解释器单独一个仓库：体积（每架构约 26 MB）与发布节奏都和自更新数据不同
     "python": Domain(

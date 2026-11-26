@@ -326,14 +326,21 @@ fi
 # 自己保证（见 docs/DEVELOPING.md「平台判断」）。这里只钉三件事：Darwin 放行、
 # Linux 指向 LinuxWave、其它报出 uname -s 的原值。
 write_uname() {
-    printf '#!/bin/sh\ncase "$1" in\n  -s) echo %s ;;\n  *) exec /usr/bin/uname "$@" ;;\nesac\n' "$1" \
-        > "$STUB_BIN/uname"
+    # write_uname <sys> [machine]：-m 也要能伪造，否则「按架构分的地板」测不出来
+    printf '#!/bin/sh
+case "$1" in
+  -s) echo %s ;;
+  -m) echo %s ;;
+  *) exec /usr/bin/uname "$@" ;;
+esac
+' \
+        "$1" "${2:-$(/usr/bin/uname -m)}" > "$STUB_BIN/uname"
     chmod +x "$STUB_BIN/uname"
 }
 write_sw_vers() {
     # write_sw_vers <productName> [productVersion]；版本默认给一个够新的值
     printf '#!/bin/sh\ncase "$1" in\n  -productName) echo "%s" ;;\n  -productVersion) echo "%s" ;;\n  *) exit 1 ;;\nesac\n' \
-        "$1" "${2:-14.4}" > "$STUB_BIN/sw_vers"
+        "$1" "${2:-15.5}" > "$STUB_BIN/sw_vers"
     chmod +x "$STUB_BIN/sw_vers"
 }
 run_bare() {
@@ -353,28 +360,71 @@ else
     fail "正常 macOS 被平台守卫误伤（rc=${RC}）"
 fi
 
-# -------------------- 7c. macOS 版本下限：10.15 Catalina --------------------
+# -------------------- 7c. macOS 版本地板：按架构分 --------------------
 #
-# 低于 10.15 连捆绑的便携 Python 都起不来（那棵树里 Mach-O 的 minos 就是 10.15）。
-# 12（Monterey）才是端到端实测过的下限，但这里只拦硬地板。
+# 对外承诺：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
+# 为什么不同：任何 Apple Silicon Mac 都跑得动 15（这个地板只排除「能升不升」的人）；
+# Intel 侧由构建机的 SDK 决定，天然是 12，白捡老 Intel Mac 的兼容面。
+#
+# 一张表两个地方用：install.sh（树还不存在，导入不了 python 常量）与
+# config/platforminfo.py 的 MIN_SUPPORTED_OS（客户端与构建侧）。这里核对两边一致。
 
-for old_version in 10.13.6 10.14.6; do
+ARM64_FLOOR="$(sed -n 's/^MW_MIN_MACOS_ARM64="\(.*\)"$/\1/p' "$INSTALL_SH" | head -1)"
+X86_FLOOR="$(sed -n 's/^MW_MIN_MACOS_X86_64="\(.*\)"$/\1/p' "$INSTALL_SH" | head -1)"
+PLATFORM_FLOORS="$("${PYTHON:-python3}" - "$REPO_DIR" <<'PYEOF'
+import sys
+sys.path.insert(0, f"{sys.argv[1]}/config")
+import platforminfo
+arm = platforminfo.MIN_SUPPORTED_OS["arm64"]
+x86 = platforminfo.MIN_SUPPORTED_OS["amd64"]
+print(f"{arm[0]}.{arm[1]} {x86[0]}.{x86[1]}")
+PYEOF
+)"
+if [[ "$ARM64_FLOOR $X86_FLOOR" == "$PLATFORM_FLOORS" ]]; then
+    pass "install.sh 的地板表与 platforminfo.MIN_SUPPORTED_OS 一致（${PLATFORM_FLOORS}）"
+else
+    fail "地板表漂了：install.sh 是「${ARM64_FLOOR} ${X86_FLOOR}」，platforminfo 是「${PLATFORM_FLOORS}」"
+fi
+
+write_uname Darwin arm64
+for old_version in 10.13.6 10.15.7 12.0 14.6.1; do
     write_sw_vers macOS "$old_version"
     run_bare --dry-run
-    if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "10.15" && has "$OUT" "Catalina"; then
-        pass "macOS ${old_version}：拒绝，并说明需要 10.15 Catalina 或更高"
+    if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "15.0" && has "$OUT" "Sequoia"; then
+        pass "arm64 + macOS ${old_version}：拒绝，并说明 Apple Silicon 要 15"
     else
-        fail "macOS ${old_version} 没有被拒绝（rc=${RC}）"
+        fail "arm64 + macOS ${old_version} 没有被拒绝（rc=${RC}）"
     fi
 done
 
-for ok_version in 10.15 10.15.7 11.2 14.4; do
+for ok_version in 15.0 15.5 26.0; do
     write_sw_vers macOS "$ok_version"
     run_bare --dry-run
     if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "too old"; then
-        pass "macOS ${ok_version}：放行"
+        pass "arm64 + macOS ${ok_version}：放行"
     else
-        fail "macOS ${ok_version} 被误拦（rc=${RC}）"
+        fail "arm64 + macOS ${ok_version} 被误拦（rc=${RC}）"
+    fi
+done
+
+write_uname Darwin x86_64
+for old_version in 10.13.6 11.7; do
+    write_sw_vers macOS "$old_version"
+    run_bare --dry-run
+    if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "12.0" && has "$OUT" "Monterey"; then
+        pass "Intel + macOS ${old_version}：拒绝，并说明 Intel 要 12"
+    else
+        fail "Intel + macOS ${old_version} 没有被拒绝（rc=${RC}）"
+    fi
+done
+
+for ok_version in 12.0 12.7.6 14.4 26.0; do
+    write_sw_vers macOS "$ok_version"
+    run_bare --dry-run
+    if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "too old"; then
+        pass "Intel + macOS ${ok_version}：放行"
+    else
+        fail "Intel + macOS ${ok_version} 被误拦（rc=${RC}）"
     fi
 done
 

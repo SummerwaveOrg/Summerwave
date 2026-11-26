@@ -136,7 +136,7 @@ def data_build(data):
 BLOCKED_VALUE = "blocked"
 
 # 声明 blocked 时要给用户的出路。与安装文档、官网写的是同一条命令。
-INSTALL_URL = "https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh"
+INSTALL_URL = "https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh"
 INSTALL_TIMEOUT = "--max-time 60"
 
 

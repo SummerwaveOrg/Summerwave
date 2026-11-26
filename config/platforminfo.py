@@ -53,6 +53,28 @@ _ARCH_ALIASES = {"x86_64": "amd64", "amd64": "amd64", "x64": "amd64",
                  "arm64": "arm64", "aarch64": "arm64"}
 
 
+# 对外承诺的支持范围：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
+#
+# 为什么按架构分而不是全库一个值：任何 Apple Silicon Mac 都跑得动 15，所以 15 这个
+# 地板排除不了任何硬件，只排除「能升但不升」的人；而 Intel 侧由构建机的 SDK 决定
+# （Ports 用一台 Monterey 12 的机器），天然就是 12，白捡了老 Intel Mac 的兼容面。
+# 理由与构建侧的地板表见 Ports/README.md。
+MIN_SUPPORTED_OS = {"arm64": (15, 0), "amd64": (12, 0)}
+
+
+def arch_of(machine=None):
+    """把 `uname -m` / `platform.machine()` 的值归一成 arm64 / amd64 / 原值。"""
+    import platform as _platform
+
+    raw = (machine or _platform.machine() or "").lower()
+    return _ARCH_ALIASES.get(raw, raw or "unknown")
+
+
+def minimum_supported_os(machine=None):
+    """这台机器受支持的最低 macOS 版本，返回 (major, minor)。"""
+    return MIN_SUPPORTED_OS.get(arch_of(machine), (0, 0))
+
+
 def bottle_tag(machine=None, os_name=None):
     """1.0 的产物标签：`<os>-<arch>`，如 `macos-arm64` / `linux-amd64`。
 
@@ -67,9 +89,7 @@ def bottle_tag(machine=None, os_name=None):
     if os_name is not None and os_name not in BOTTLE_OSES:
         raise ValueError(f"unknown os {os_name!r}, expected one of {BOTTLE_OSES}")
 
-    raw = (machine or _platform.machine() or "").lower()
-    arch = _ARCH_ALIASES.get(raw, raw or "unknown")
-    return f"{os_name or ('macos' if IS_MAC else 'linux')}-{arch}"
+    return f"{os_name or ('macos' if IS_MAC else 'linux')}-{arch_of(machine)}"
 
 
 _BOTTLE_TAG_RE = re.compile(r"\.(?:macos|linux)-(?:arm64|amd64)$")

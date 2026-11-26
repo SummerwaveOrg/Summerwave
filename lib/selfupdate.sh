@@ -86,7 +86,7 @@ mw_redact() {
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
 # MacWave 自身文件（后面再拼 /<分支>/<路径>）
-CORE_URL="$(mw_domain MACWAVE_CORE_DOMAIN "${MACWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/MacWave}")"
+CORE_URL="$(mw_domain MACWAVE_CORE_DOMAIN "${MACWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自更新数据：版本号、文件清单、目录迁移脚本
 SELFUPDATE_URL="$(mw_domain MACWAVE_SELFUPDATE_DOMAIN "${MACWAVE_SELFUPDATE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD}")"
 # 自带 CPython 的清单
@@ -729,7 +729,7 @@ if [[ "$(printf '%s' "$(read_toml_string "$VERSION_DATA" selfupdate)" | tr '[:up
     echo -e "${YELLOW}🌊 The release $VERSION cannot be installed with selfupdate.${RESET}" >&2
     [[ -n "$REASON" ]] && echo -e "${YELLOW}🌊 Why       $REASON${RESET}" >&2
     echo -e "${YELLOW}🌊 Next      run the installer once; it replaces every file:${RESET}" >&2
-    echo -e "${YELLOW}🌊           /bin/bash -c \"\$(curl -fsSL --max-time 60 https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)\"${RESET}" >&2
+    echo -e "${YELLOW}🌊           /bin/bash -c \"\$(curl -fsSL --max-time 60 https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)\"${RESET}" >&2
     echo -e "${GREEN}🌊 Nothing was changed.${RESET}" >&2
     exit 0
 fi

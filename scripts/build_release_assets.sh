@@ -118,7 +118,7 @@ if [[ "$SIGN" -eq 0 ]]; then
 fi
 cat <<EOF
     files=\$(find ${OUT} -type f | sort)
-    gh release create v${VERSION} --repo MacWaveOrg/MacWave \\
+    gh release create v${VERSION} --repo SummerwaveOrg/Summerwave \\
       --verify-tag --title "MacWave ${VERSION}" \\
       --notes-file docs/RELEASE-${VERSION}.md \$files
 EOF

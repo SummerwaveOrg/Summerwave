@@ -26,7 +26,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 | `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/MacWaveOrg/infosource/HEAD` |
 | `MACWAVE_BOTTLE_DOMAIN` | 预编译二进制包 | `github.com/MacWaveOrg/Bottle/releases/download` |
 | `MACWAVE_DEPS_DOMAIN` | 依赖二进制 | `github.com/MacWaveOrg/Deps/releases/download` |
-| `MACWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/MacWaveOrg/MacWave` |
+| `MACWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/SummerwaveOrg/Summerwave` |
 | `MACWAVE_PYTHON_DOMAIN` | 自带 CPython | `raw.githubusercontent.com/MacWaveOrg/Python/HEAD` |
 | `MACWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | `raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD` |
 

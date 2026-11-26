@@ -46,13 +46,13 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 在终端中运行：
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" && source ~/.zshrc
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" && source ~/.zshrc
 ```
 
 安装选项写在 `--` 之后（那个 `--` 用来结束 bash 自己的选项）：
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --zh
 ```
 
 安装器一律装到 `/opt/macwave` —— 这个位置是写死的，没有别的选项。它会先告诉你、只问一次 —— 答 `n` 就干净退出，磁盘上什么都没改。
@@ -86,7 +86,7 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 /bin/bash install.sh --ci
 
 # 直接从仓库执行
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --ci
 ```
 
 `--ci`（也可写 `--CI`）不确认也不提问，直接装到 `/opt/macwave`，所以需要免密 sudo
@@ -100,7 +100,7 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 （因此在 CI 里请使用 `--force`）：
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)" -- --force
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)" -- --force
 ```
 
 ## 🌊 安装目录
@@ -243,7 +243,7 @@ wave install jq --proxy http://proxy.corp:3128
 要从系统中彻底移除 MacWave，请在终端中运行以下命令：
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)"
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)"
 ```
 
 ## 🌊 运行软件包
@@ -521,7 +521,7 @@ MacWave 由纯 Python 与 Shell 写成，没有构建步骤 —— 本仓库里�
 ```bash
 mkdir -p ~/src
 cd ~/src
-git clone https://github.com/MacWaveOrg/MacWave.git macwave
+git clone https://github.com/SummerwaveOrg/Summerwave.git summerwave
 cd macwave
 ```
 
@@ -564,7 +564,7 @@ shallow clone 会报：
 
 | 仓库 | 存放内容 |
 | --- | --- |
-| `MacWaveOrg/MacWave` | 程序本体 |
+| `SummerwaveOrg/Summerwave` | 程序本体 |
 | `MacWaveOrg/infosource` | 软件包索引，每个软件包、每种架构各一个目录 |
 | `MacWaveOrg/configdata` | 已发布的版本、自更新的文件清单、自带的解释器 |
 

@@ -47,13 +47,13 @@ MacWave is a **package manager for macOS**, built to distribute the command-line
 In the terminal, run:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" && source ~/.zshrc
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" && source ~/.zshrc
 ```
 
 Installer options go after `--`, which ends bash's own options:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --zh
 ```
 
 The installer always goes to `/opt/macwave` — that location is fixed, there is no
@@ -90,7 +90,7 @@ Options go after `--`, which ends bash's own options:
 /bin/bash install.sh --ci
 
 # straight from the repository
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --ci
 ```
 
 `--ci` (same as `--CI`) answers the agreement automatically and installs into
@@ -106,7 +106,7 @@ the full list of options.
 which otherwise needs a terminal (so use `--force` in CI):
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)" -- --force
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)" -- --force
 ```
 
 ## 🌊 Install Directory
@@ -253,7 +253,7 @@ A mirror is a static file tree, so `nginx`, an object bucket or any file server 
 To completely remove MacWave from your system, run the following command in your terminal:
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)"
+/bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)"
 ```
 
 ## 🌊 Run Packages
@@ -534,7 +534,7 @@ Clone the source to read or change it:
 ```bash
 mkdir -p ~/src
 cd ~/src
-git clone https://github.com/MacWaveOrg/MacWave.git macwave
+git clone https://github.com/SummerwaveOrg/Summerwave.git summerwave
 cd macwave
 ```
 
@@ -582,7 +582,7 @@ install a throwaway copy under a temporary root, or run the scripts in
 
 | Repository | Holds |
 | --- | --- |
-| `MacWaveOrg/MacWave` | The program itself |
+| `SummerwaveOrg/Summerwave` | The program itself |
 | `MacWaveOrg/infosource` | The package index, one directory per package and architecture |
 | `MacWaveOrg/configdata` | The published version, the updater's file list, and the bundled interpreter |
 

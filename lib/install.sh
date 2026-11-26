@@ -5,8 +5,8 @@
 
 # MacWave 🌊 Official Installer
 # This script downloads wave.py, installs dependencies, and configures PATH.
-# Usage: /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)"
-# Unattended (CI): /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
+# Usage: /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)"
+# Unattended (CI): /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --ci
 
 # 退出码要有语义
 # 0 = 成功
@@ -275,7 +275,7 @@ mw_redact() {
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
 # MacWave 自身文件（后面再拼 /<分支>/<路径>）
-CORE_URL="$(mw_domain MACWAVE_CORE_DOMAIN "${MACWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/MacWave}")"
+CORE_URL="$(mw_domain MACWAVE_CORE_DOMAIN "${MACWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自更新数据：版本号、文件清单、目录迁移脚本
 SELFUPDATE_URL="$(mw_domain MACWAVE_SELFUPDATE_DOMAIN "${MACWAVE_SELFUPDATE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD}")"
 # 自带 CPython 的清单
@@ -840,33 +840,58 @@ mw_platform() {
     esac
 }
 
-# 版本下限：10.15 Catalina。再往下连捆绑的便携 Python 都起不来 —— 那棵树里
-# 每个 Mach-O 的 minos 就是 10.15；更别说 Xcode 命令行工具与 SIP 判定那套。
+# 支持范围（对外承诺）：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
 #
-# 只拦真正的硬地板。12（Monterey）才是端到端实测过的下限，但 10.15 / 11 上装
-# 得成不成让用户自己试，不替他们决定；这条判断的标准是「一定装不上」。
+# 与 config/platforminfo.py 的 MIN_SUPPORTED_OS 是同一张表 —— 那边给客户端与构建侧读，
+# 这边给「还没装任何东西」的安装脚本读（这时树都还不存在，导入不了 python 常量）。
+# scripts/install_flags_test.sh 会核对两边是不是同一组值。
 #
+# 为什么按架构分而不是全库一个值：任何 Apple Silicon Mac 都跑得动 15，所以这个地板
+# 排除不了任何硬件，只排除「能升但不升」的人；Intel 侧由构建机的 SDK 决定（一台
+# Monterey 12 的机器），天然就是 12，白捡了停更老 Intel Mac 的兼容面。
+MW_MIN_MACOS_ARM64="15.0"
+MW_MIN_MACOS_X86_64="12.0"
+
 # 读不到版本号时不判：宁可放行，也不要在读不出信息时把一台正常机器挡在门外。
 MACWAVE_OLD_MACOS=""
+
+mw_min_macos_for_arch() {
+    case "${ARCH:-$(uname -m)}" in
+        arm64|aarch64) echo "$MW_MIN_MACOS_ARM64" ;;
+        *)             echo "$MW_MIN_MACOS_X86_64" ;;
+    esac
+}
+
+mw_version_ge() {
+    # $1 >= $2，按点分数字比较。不用 sort -V：老的 BSD sort 没有它，
+    # 而这条判断要在一台「可能很老」的机器上跑。
+    #
+    # 注意 `local IFS=.` 不会影响同一行里的 `x=($1)` —— 展开先于赋值，
+    # 那样 14.6.1 会被当成一个整体、去掉点后变成 1461 去跟 150 比。
+    # 必须用 read -a 在 IFS 生效之后切。
+    local IFS=.
+    local -a left right
+    read -r -a left <<< "$1"
+    read -r -a right <<< "$2"
+    local index a b
+    for index in 0 1 2; do
+        a="${left[index]:-0}"; b="${right[index]:-0}"
+        a="${a//[^0-9]/}"; b="${b//[^0-9]/}"
+        ((10#${a:-0} > 10#${b:-0})) && return 0
+        ((10#${a:-0} < 10#${b:-0})) && return 1
+    done
+    return 0
+}
+
 mw_macos_version_ok() {
-    local raw major minor
+    local raw floor
     raw="$("${MACWAVE_SW_VERS:-/usr/bin/sw_vers}" -productVersion 2>/dev/null || true)"
     if [[ -z "$raw" ]]; then
         return 0
     fi
-    major="${raw%%.*}"
-    minor="${raw#*.}"
-    minor="${minor%%.*}"
-    if [[ ! "$major" =~ ^[0-9]+$ ]]; then
-        return 0
-    fi
-    if [[ ! "$minor" =~ ^[0-9]+$ ]]; then
-        minor=0
-    fi
-    if [[ "$major" -gt 10 ]]; then
-        return 0
-    fi
-    if [[ "$major" -eq 10 && "$minor" -ge 15 ]]; then
+    [[ "$raw" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 0
+    floor="$(mw_min_macos_for_arch)"
+    if mw_version_ge "$raw" "$floor"; then
         return 0
     fi
     MACWAVE_OLD_MACOS="$raw"
@@ -885,8 +910,8 @@ mw_require_macos() {
     platform="$(mw_platform)"
     if [[ "$platform" == "macos" ]]; then
         if ! mw_macos_version_ok; then
-            mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} is too old — Summerwave needs macOS 10.15 (Catalina) or later." \
-                   "🌊 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— MacWave 需要 macOS 10.15（Catalina）或更高。"
+            mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} on ${ARCH} is too old — Apple Silicon needs macOS ${MW_MIN_MACOS_ARM64} (Sequoia), Intel needs macOS ${MW_MIN_MACOS_X86_64} (Monterey)." \
+                   "🌊 ${ARCH} 上的 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— Apple Silicon 需要 macOS ${MW_MIN_MACOS_ARM64}（Sequoia），Intel 需要 macOS ${MW_MIN_MACOS_X86_64}（Monterey）或更高。"
             mw_say "🌊 Nothing was changed. Upgrade macOS, then run this installer again." \
                    "🌊 什么都没改。升级 macOS 之后再跑一次这个安装脚本。"
             exit 2
@@ -1171,7 +1196,7 @@ if mw_dry_run; then
         "${YELLOW}🌊 试运行：完整走一遍安装流程，但不做任何改动。${RESET}"
 fi
 
-if [[ "$CORE_URL" != "https://raw.githubusercontent.com/MacWaveOrg/MacWave" ]]; then
+if [[ "$CORE_URL" != "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave" ]]; then
     mw_say "🌊 Install from mirror: $(mw_redact "$CORE_URL")" "🌊 从镜像安装：$(mw_redact "$CORE_URL")"
 fi
 

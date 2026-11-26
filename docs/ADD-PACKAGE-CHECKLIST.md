@@ -374,7 +374,7 @@ PY
 cd ~/Projects/MacWaveOrg/infosource && git add -A && git commit -m "Add <包名>" && git push origin main
 
 # MacWave 的两份 README
-cd ~/Projects/MacWaveOrg/MacWave && git add README.md README.zh-Hans.md && git commit -m "List <包名>" && git push origin <分支>
+cd ~/Projects/SummerwaveOrg/Summerwave && git add README.md README.zh-Hans.md && git commit -m "List <包名>" && git push origin <分支>
 
 # 官网：推上去就自动部署（build_type: legacy，无需手动）
 cd ~/Projects/MacWaveOrg/Pages && git add index.html && git commit -m "List <包名>" && git push origin main

@@ -34,7 +34,7 @@ except ModuleNotFoundError as exc:
     print(f"🌊 At        {Path(__file__).resolve()}", file=_sys.stderr)
     print("🌊 Next      reinstall it (nothing you installed will be removed):", file=_sys.stderr)
     print('🌊             /bin/bash -c "$(curl -fsSL '
-          'https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)"',
+          'https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)"',
           file=_sys.stderr)
     _sys.exit(1)
 

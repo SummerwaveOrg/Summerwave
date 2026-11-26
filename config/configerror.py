@@ -101,9 +101,9 @@ def check_environment():
     print(f"MacWave is not distributed as a shallow clone. Instead, it uses install.sh to download various files to {base_dir}. Among other things, install.sh writes a state file to {config_paths}, which records the installed version. Without it, many programs will not be able to find the installation.")
     print("")
     if is_shallow:
-        print("We have detected that you are using a shallow clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
+        print("We have detected that you are using a shallow clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
     else:
-        print("We have detected that you are using a git clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
+        print("We have detected that you are using a git clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
     print("")
     print("If you are a collaborator of MacWave, or if you cloned the source code for a specific purpose, please do not run it locally, or at least do not run it in the Git directory.")
     print("")

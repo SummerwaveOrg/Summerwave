@@ -206,7 +206,7 @@ ls /www/wwwroot/mirror.repohub.top/MacWave/
 在服务器上执行，它按索引里的清单逐个下载并校验 sha256：
 
 ```bash
-git clone --depth 1 https://github.com/MacWaveOrg/MacWave /tmp/macwave-src
+git clone --depth 1 https://github.com/SummerwaveOrg/Summerwave /tmp/summerwave-src
 git clone --depth 1 https://github.com/MacWaveOrg/infosource /tmp/infosource
 
 python3 /tmp/macwave-src/scripts/sync_payloads.py \
@@ -407,7 +407,7 @@ MacWave/core/lib/wave.py            ← 错误，缺了分支这一层，会 404
 
 ```bash
 for branch in 4.0 3.2; do
-  git clone --depth 1 --branch "$branch" https://github.com/MacWaveOrg/MacWave \
+  git clone --depth 1 --branch "$branch" https://github.com/SummerwaveOrg/Summerwave \
     "/www/wwwroot/mirror.repohub.top/MacWave/core/$branch"
   rm -rf "/www/wwwroot/mirror.repohub.top/MacWave/core/$branch/.git"
 done
@@ -508,7 +508,7 @@ rm -rf /www/wwwroot/mirror.repohub.top/MacWave/python/.git
 | `infosource/HEAD/` | `MacWaveOrg/infosource` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
 | `selfupdate/` | `MacWaveOrg/Selfupdate` 的 `main` | 同上 |
 | `python/` | `MacWaveOrg/Python` 的 `main` | 同上 |
-| `core/<分支>/` | `MacWaveOrg/MacWave` 的对应分支 | 同上；分支表 = `configdata` 的当前发布线 + `KEEP_BRANCHES` |
+| `core/<分支>/` | `SummerwaveOrg/Summerwave` 的对应分支 | 同上；分支表 = `configdata` 的当前发布线 + `KEEP_BRANCHES` |
 | `python/pythondata/<版本>/*.tar.gz` | `python_url.toml` 里记的**上游**地址 | 自己下载并校验 sha256；仓库里没有二进制 |
 | `bottle/` `deps/` | 我们自己的 Bottle / Deps **Release** | `sync_payloads.py --source payload`，只增不删；坏记录按 `scripts/known-bad-records.txt` 跳过 |
 
