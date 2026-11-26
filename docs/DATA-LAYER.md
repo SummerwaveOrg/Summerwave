@@ -345,12 +345,42 @@ infosource/pkg/pkginfo/jq/_jq@1.8.2.macos-arm64 ← 该平台的那份 sha256 / 
 **闸门**：`prepare_bottle.py` 打完包会重读一遍归档，逐成员搜本轮 `work` / `stage`
 的路径；命中就删掉产物并拒绝继续（`audit_archive()`）。所以这条规则不靠人记得。
 
-**不算违规的**：上游构建机烙在静态库与调试信息里的路径（conda 产物里普遍有
-`/private/var/folders/…/croot/<包>_<时间戳>/work/…`）。那是上游的字节，改它等于改
-`sha256`，与「字节原样搬运」冲突 —— 判据只看**我们自己这一轮的路径**。
+**不算违规的**：只出现在 `info/` 里的上游构建机路径（`info/paths.json`、
+`info/recipe/*`、`info/has_prefix` 的清单侧），以及静态库与调试信息里的
+`-fdebug-prefix-map=<老路径>=<新名字>` —— 这两类**运行时不参与路径解析**。
+判据是「运行时会去打开它吗」，不是「字节能不能动」：**重编本来就该改字节，
+`sha256` 算出来回填即可，正确性优先于字节原样。**
 
 同样地，`@loader_path/…` 里的相对路径是相对**运行时布局**算的，与 staging 目录无关
 （staging 根 ≙ 安装根），所以它天然活得过打包。
+
+### conda 的占位前缀：安装时替换，我们改成**构建时烘死**
+
+conda 产物里的绝对路径不是「漏了」，而是故意留了一个 255 字节的占位前缀，等安装时替换。
+清单就在 `info/has_prefix`：
+
+```
+<占位符> <text|binary|script> <相对路径>
+```
+
+以前由 conda 自己替换；我们不跑 conda，于是 `lib/pkgconfig/*.pc` 的 `prefix`、
+`bin/icu-config` 里的 `default_prefix`、编译进二进制里的资源目录全都指向**上游构建机**
+（`/Users/ktietz/Code/oss/ci_pkgs/…`）—— 用户机上一条都不存在，编译与运行都会挂。
+
+1.0 的安装根写死，所以 `prepare_bottle.py` 直接把**最终路径**烘进去：
+
+| 模式 | 做法 |
+| --- | --- |
+| `text` | 整文件替换占位符 |
+| `script` | 同上（首行 shebang 与正文里的前缀是同一件事） |
+| `binary` | 同长度替换：前缀 + `NUL` 补齐到 255 字节，C 字符串在 NUL 处结束 |
+
+目标值是 `<安装根>/Shore/<名>/<版本>`，由 `install_prefix_for()` 算，可用
+`MACWAVE_PREBUILT_PREFIX_ROOT` 覆盖。改完会复查：`has_prefix` 点过名的文件里若还留着
+占位符，**拒绝出包**。
+
+这也解释了为什么「安装根写死」不只是简化：它让「构建时就能知道最终绝对路径」成立，
+`.pc` / wrapper / 编译期常量才有得救。
 
 为什么不按平台拆仓库：`versions` 会变成两份、迟早漂；镜像方要按平台各配一套 URL；
 平台判断会从 `config/platforminfo.py` 一处散进各个地址。代价只是仓库里两种平台的产物混放

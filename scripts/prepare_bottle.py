@@ -227,6 +227,99 @@ def extract(path, dest):
     shutil.copy2(path, dest / path.name)
 
 
+# -------------------- 前缀改写（conda 的 has_prefix） --------------------
+#
+# conda 产物里的路径不是「漏了」，而是**故意留了一个占位前缀**，等安装时替换：
+#
+#   info/has_prefix 每行 `<占位符> <text|binary|script> <相对路径>`
+#
+# 以前由 conda 自己替换。我们不跑 conda，于是 lib/pkgconfig/*.pc 的 prefix、
+# bin/icu-config 里的 ICU 路径、编译进二进制里的资源目录全都指向**上游构建机**
+# （/Users/ktietz/Code/oss/ci_pkgs/...）—— 用户机上一条都不存在。
+#
+# 1.0 的安装根是写死的，所以这里可以**把最终路径直接烘进去**：
+#   text   ：整文件替换占位符
+#   script ：只替换第一行（shebang）
+#   binary ：同长度替换 —— 占位符 255 字节，用前缀 + NUL 补齐，C 字符串在 NUL 处结束
+# 改字节完全没问题：重编本来就会变 sha256，算出来回填即可。正确性优先。
+
+
+def parse_has_prefix(path):
+    entries = []
+    if not path.is_file():
+        return entries
+    for line in path.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) == 3:
+            placeholder, mode, relative = parts
+        elif len(parts) == 2:          # 老格式：省略 mode，默认 text
+            placeholder, relative = parts
+            mode = "text"
+        else:
+            continue
+        entries.append((placeholder, mode, relative))
+    return entries
+
+
+def apply_has_prefix(target, install_prefix):
+    """把 info/has_prefix 列出的占位符换成安装后的绝对路径。返回 (改动数, 遗留列表)。"""
+    entries = parse_has_prefix(target / "info" / "has_prefix")
+    if not entries:
+        return 0, []
+
+    prefix_bytes = install_prefix.encode()
+    touched = 0
+    leftovers = []
+    for placeholder, mode, relative in entries:
+        path = target / relative
+        if not path.is_file() or path.is_symlink():
+            continue
+        needle = placeholder.encode()
+        if mode == "binary":
+            data = path.read_bytes()
+            if needle not in data:
+                continue
+            # 同长度替换：前缀 + NUL 补齐，保证文件长度与偏移不变
+            if len(prefix_bytes) > len(needle):
+                leftovers.append(f"{relative}（前缀比占位符长，binary 模式放不下）")
+                continue
+            data = data.replace(needle, prefix_bytes + b"\x00" * (len(needle) - len(prefix_bytes)))
+            path.write_bytes(data)
+            touched += 1
+            continue
+
+        text = path.read_text(errors="surrogateescape")
+        if needle.decode() not in text:
+            continue
+        if mode == "script":
+            # shebang 只在首行；其余行里的前缀属于同一件事，一起换也无害
+            text = text.replace(needle.decode(), install_prefix)
+        else:
+            text = text.replace(needle.decode(), install_prefix)
+        path.write_text(text, errors="surrogateescape")
+        touched += 1
+
+    # 复查：has_prefix 点过名的文件里不许再有占位符
+    for placeholder, _mode, relative in entries:
+        path = target / relative
+        if path.is_file() and not path.is_symlink():
+            if placeholder.encode() in path.read_bytes():
+                leftovers.append(relative)
+    return touched, leftovers
+
+
+def install_prefix_for(kind, name, version):
+    """安装后的绝对路径：<安装根>/Shore/<名>/<版本>（根写死，所以构建时就能算）。"""
+    base = os.environ.get("MACWAVE_PREBUILT_PREFIX_ROOT", "")
+    if not base:
+        base = platforminfo.DEFAULT_BASE_DIR if platforminfo.IS_MAC else "/home/linuxwave/.linuxwave"
+    base = base.rstrip("/")
+    return f"{base}/Shore/{name}/{version}"
+
+
 # 解压 staging 之后、打包之前，产物里绝不能出现「本次解压用的临时路径」——
 # 那个目录在打包结束就被删掉，产物里一旦写进它，用户机上就是一条死路
 # （典型症状：跑起来才 "Library not loaded"，或者 .pc / wrapper 指向不存在的目录）。
@@ -305,6 +398,7 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
 
         # 2. 重定位整棵 stage，并确认真的位置无关了
         target = stage_target(stage, kind, name, version)
+
         print(f"🌊 relocating {len(seen)} artifact(s) in the staging tree")
         rc = subprocess.run([sys.executable, str(RELOCATE), str(stage)])
         if rc.returncode != 0:
@@ -312,6 +406,14 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
         rc = subprocess.run([sys.executable, str(RELOCATE), str(stage), "--check"])
         if rc.returncode != 0:
             sys.exit("🌊 Error: staging tree is still not position-independent")
+
+        # 2.5 conda 的占位前缀 → 安装后的绝对路径（.pc / wrapper / 编译进去的资源目录）
+        touched, leftovers = apply_has_prefix(target, install_prefix_for(kind, name, version))
+        if touched:
+            print(f"🌊 rewrote prefixes in {touched} file(s) listed by info/has_prefix")
+        if leftovers:
+            sys.exit("🌊 Error: has_prefix placeholders survive in "
+                     + ", ".join(leftovers[:5]) + " — the payload would point at the build machine")
 
         # 3. 打标记 + 只重打目标产物（依赖由它们自己那一轮处理）
         (target / MARKER).write_text("@loader_path\n", encoding="utf-8")

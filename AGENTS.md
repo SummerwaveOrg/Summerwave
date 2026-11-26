@@ -59,8 +59,12 @@ gh api repos/MacWaveOrg/MacWave/contents/lib/wave.py \
   路径，命中就删产物并拒绝继续（`audit_archive()`）。不要绕过它。
 - 相对引用（`@loader_path/…`）是相对**运行时布局**算的，staging 根 ≙ 安装根，
   所以它天然活得过打包 —— 该用它的地方不要写绝对路径。
-- **不算违规**：上游烙在静态库 / 调试信息里的构建机路径（conda 产物里普遍有
-  `/private/var/folders/…/croot/…`）。判据只看我们自己这一轮的路径。
+- **不算违规**：只在 `info/` 里的构建记录，以及静态库 / 调试信息里的
+  `-fdebug-prefix-map` —— 判据是「运行时会去打开它吗」。
+- **但要修就修**：`.pc` 的 `prefix`、wrapper 的 `#!/`、编译进去的资源目录属于
+  「运行时会读」，必须改对。conda 的占位前缀（`info/has_prefix`）在
+  `prepare_bottle.py` 里由 `apply_has_prefix()` 换成**安装后的绝对路径**。
+  **不要拿「改了 sha256 会变」当理由放着** —— 重编本来就该变，算出来回填即可。
 
 详细判据见 [`docs/DATA-LAYER.md`](./docs/DATA-LAYER.md) 的「产物不得引用临时路径」，
 上线流程里的位置见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md) 第 ④ 道闸门。

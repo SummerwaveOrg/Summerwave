@@ -114,6 +114,11 @@ jobs:
         run: |
           /bin/bash scripts/versions_index_test.sh
 
+      # 占位前缀改写：conda 的 info/has_prefix → 安装后的绝对路径（text/script/binary）。
+      - name: Run prepare_bottle test
+        run: |
+          /bin/bash scripts/prepare_bottle_test.sh
+
       # 重定位判据：@loader_path 前缀对但目标不在，必须判「未就位」。
       - name: Run relocation judgement test
         run: |

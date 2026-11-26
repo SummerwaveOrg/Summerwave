@@ -210,11 +210,40 @@ def package_root(path, root):
     return parts[0]
 
 
+def iter_symlink_names(root):
+    """树里指向 Mach-O 的符号链接，产出 (链接名, 链接路径)。
+
+    为什么也要进索引：产物里引用的是 **soname**（`libz.1.dylib`），而真实文件叫
+    `libz.1.2.13.dylib`，两者靠一层符号链接连起来。只按真实文件名建索引的话，
+    `not provided by staging tree: libz.1.dylib` 会把每一个「带版本号的 dylib」
+    都判成缺依赖 —— 而那是 conda 产物的常态。
+    链接会被原样打进产物（tar 存的是链接本身），所以指向链接就是指向运行时可用的路径。
+    """
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if not os.path.islink(path):
+                continue
+            target = os.path.realpath(path)
+            try:
+                with open(target, "rb") as handle:
+                    if handle.read(4).hex() not in MAGICS:
+                        continue
+            except OSError:
+                continue
+            yield name, path
+
+
 def build_index(root):
-    """basename -> [绝对路径]；同名多份时留给调用方去按"同包优先"裁决。"""
+    """basename -> [绝对路径]；同名多份时留给调用方去按"同包优先"裁决。
+
+    soname 与真实文件名都在里面：引用写哪个名字都能找到目标。
+    """
     index = {}
     for path in iter_macho(root):
         index.setdefault(os.path.basename(path), []).append(path)
+    for name, path in iter_symlink_names(root):
+        index.setdefault(name, []).append(path)
     return index
 
 

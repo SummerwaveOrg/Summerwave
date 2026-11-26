@@ -73,6 +73,29 @@ done
 mkdir -p "$WORK/root2/Shore/ncurses/6.6/lib"
 : > "$WORK/root2/Shore/ncurses/6.6/lib/libncursesw.6.dylib"
 echo ""
+echo "========== 符号链接（soname）也算「树里有」 =========="
+# conda 产物引用的是 soname libz.1.dylib，真实文件叫 libz.1.2.13.dylib ——
+# 只按真实文件名建索引会把每个带版本号的 dylib 都判成缺依赖。
+mkdir -p "$WORK/soname/Shore/zlib/1.2.13/lib"
+printf '\xcf\xfa\xed\xfe0000' > "$WORK/soname/Shore/zlib/1.2.13/lib/libz.1.2.13.dylib"
+ln -s libz.1.2.13.dylib "$WORK/soname/Shore/zlib/1.2.13/lib/libz.1.dylib"
+
+INDEX_OUT="$("$PYTHON" - "$REPO_DIR" "$WORK/soname" <<'PYEOF'
+import sys
+repo, root = sys.argv[1], sys.argv[2]
+import importlib.util
+spec = importlib.util.spec_from_file_location("reloc", f"{repo}/scripts/relocate_rpath.py")
+reloc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reloc)
+index = reloc.build_index(root)
+print("soname:", "libz.1.dylib" in index)
+print('real:', 'libz.1.2.13.dylib' in index)
+PYEOF
+)"
+check "soname（符号链接名）进了索引" "$(printf '%s\n' "$INDEX_OUT" | grep '^soname:' | awk '{print $2}')" "True"
+check "真实文件名也在索引里" "$(printf '%s\n' "$INDEX_OUT" | grep '^real:' | awk '{print $2}')" "True"
+
+echo ""
 echo "========== plan() 确实打算改写旧引用 =========="
 grep -q 'if ref == current_id' "$REPO_DIR/scripts/relocate_rpath.py" \
     && pass "plan() 的改写分支还在" || fail "plan() 结构变了，这条测试要跟着改"
