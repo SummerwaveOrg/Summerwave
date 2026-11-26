@@ -129,3 +129,23 @@ grep -rn 'sys.platform\|platform.system()\|os.uname' --include=*.py \
    （旧线的客户端只认旧域名，互不影响）。
 2. **Actions 在新仓库是关闭的**（`enabled=false`）：继承来的工作流里有
    `sync-release-branch.yml` 会按发布线把分支建回来。等 1.0 的 CI 重新设计后再开。
+
+## 1.0 只装一处：`/opt/macwave`
+
+2026-11-26 定。安装位置不再是一道选择题，也不再支持三/四个候选：
+
+- **唯一位置** `/opt/macwave`，配置 `/opt/macwave_config`。`~/.local/macwave`、
+  `/usr/local/macwave`、自定义目录全部取消。
+- `--dir-option` 随之删除；`--ci` 与交互式装到同一处（拿不到提权就明确报错退出）。
+- **CI 不许装到自定义目录**：路径一变，排查问题时日志里的路径就对不上，收益为零。
+- 要一起拿掉的连带逻辑：位置菜单与候选校验、SIP/SSV 里「目标在保护范围」的分支
+  （`/opt` 从不被保护）、提权判定里「用户级不需要 sudo」的分支、`RESERVED_ROOTS`
+  的一大半、配置目录的「系统级优先」。
+
+删除顺序（每步 `bash -n` + 跑对应测试，不整块盲删）：① 先删候选位置，`--dir-option`
+只认 1；② 再删依赖位置判断的分支；③ 最后删 `--dir-option` 本身，并改 6 个测试
+（`install_flags` / `sandbox` / `install_privilege` / `raw` / `multi_install` / `upgrade`）、
+帮助文案与 README/docs。
+
+沙箱测试的前提已经具备：`MACWAVE_TEST` 把任意目录当作 `/`，所以 `/opt/macwave`
+在沙箱里照样能端到端跑。
