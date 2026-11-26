@@ -131,11 +131,11 @@ macOS 是 `/opt/macwave`，Linux 是 `/home/linuxwave/.linuxwave`。
 ```
 BASE_DIR/Shore/<名>/<版本>/                   解开的软件包与依赖（同构）
 BASE_DIR/Shore/<名>/<版本>/Note               收据（JSON；requested 区分包/依赖）
-BASE_DIR/bin/<命令> -> ../Shore/<名>/<版本>/…  PATH 里唯一要加的目录，只放无版本号链接
+BASE_DIR/bin/<命令>[@<版本>] -> ../Shore/<名>/<版本>/…   PATH 里唯一要加的目录，只放链接
 BASE_DIR/downloads/tmp/                       下载临时目录（*.partial 表示未下载完）
 BASE_DIR/{lib,pkg,surfboard,cli,config,net}/  程序文件自身
 BASE_DIR/{man,info,Keys}/                     手册、info、验签公钥
-BASE_DIR/var/config.sh                        已安装的版本与构建号（唯一的状态）
+BASE_DIR/var/config.sh                        已安装的版本与渠道（唯一的状态）
 ```
 
 4.x 的 `bin/<名>@<版本>/`、`deps/…`、`links/` 已经不存在；1.0 的 `apply_migrations`

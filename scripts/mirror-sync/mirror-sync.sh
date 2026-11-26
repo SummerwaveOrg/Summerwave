@@ -261,8 +261,8 @@ hr
 mw_say "第 2/6 步 · 同步三棵主干"
 # infosource 要铺进一层 `HEAD/`：客户端默认地址是
 # `…/MacWaveOrg/infosource/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
-# `pkg/pkginfo_<arch>/…`。站点上那层 HEAD 是真实目录（nginx 只做
-# `alias /…/MacWave/infosource/`），所以数据必须落在 HEAD 里。
+# `pkg/pkginfo/…`（1.0 起不再按架构分目录，平台标签编在记录名里）。站点上那层
+# HEAD 是真实目录（nginx 只做 `alias /…/MacWave/infosource/`），所以数据必须落在 HEAD 里。
 infosource_publish() {
     tree infosource infosource main "$DEST/infosource/HEAD" || return 1
 

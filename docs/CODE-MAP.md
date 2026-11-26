@@ -360,7 +360,7 @@ MacWave 装完之后，机器上会有两类目录：**代码树**（安装根�
 
 | 路径 | 作用 |
 | --- | --- |
-| `versiondata/latest_version` | 最新版本号、发布日期、构建号、发布分支、更新命令 |
+| `versiondata/latest_version` | 最新版本号、发布日期、发布分支、更新命令（1.0 起没有构建号） |
 | `versiondata/files_info` | 要下载的程序文件清单（缩进树） |
 | `versiondata/latest_test_version` | 测试用版本文件，内容为空，仅占位 |
 | `updatedata/{版本号}/dir_structure_change` | 单字符标记，表示该版本是否改了目录结构 |
