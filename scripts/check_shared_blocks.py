@@ -30,11 +30,6 @@ END = "# <<< SHARED"
 # 块名 → 必须带上这个块的脚本（相对仓库根）。新增块时在这里登记：
 # 少登记一个，就等于允许那一路悄悄不用同步。
 SYNC = {
-    "legacy-config-action": (
-        "lib/install.sh",
-        "lib/selfupdate.sh",
-        "scripts/update_commands.template.sh",
-    ),
     # 验签闸门：两份副本漂移的表现是「某条路径上验签被悄悄跳过」，必须钉死。
     # update_commands.template.sh 不带这段（旧客户端执行它时，脚本与数据都已经由
     # 前面那一步验过了）。

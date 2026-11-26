@@ -119,7 +119,6 @@ except ImportError:
 try:
     from depsinstaller import (
         install_dependencies, parse_common_fields, get_field, get_deps,
-        transfer_installed_artifacts,
     )
 except ImportError as error:
     print(f"{RED_BOLD}🌊 Error: 'surfboard' module is not available ({error}).{RESET}")
@@ -1373,13 +1372,10 @@ def _install_single_locked(input_string):
     # 11. 路径替换：依赖与软件包都就位后统一做一遍
     #     （必须放最后：先装的依赖可能引用后装的依赖，提前替换会解析不到）
     steplog.begin("relocate and link")
-    if prebuilt:
-        # 构建时就重定位好的产物：本包什么都不用做。新装的依赖仍要处理，
-        # 所以照常走一遍（只处理这一轮解包落盘的那些）。
-        steplog.detail("this bottle was relocated at build time; nothing to rewrite")
-        transfer_installed_artifacts()
-    else:
-        transfer_installed_artifacts(target_dir)
+    # 1.0 起不再有「事后重定位」这一步：产物在构建期就是位置无关的
+    # （scripts/relocate_rpath.py 在打 bottle 时写 @loader_path），装上去直接能用。
+    # 以前这里对绝对路径的旧产物跑一遍 transfer.sh，那条兼容路径已删除。
+    steplog.detail("bottles are position-independent at build time; no rewrite needed")
 
     # 12. 把不带版本号的软链接指到刚装好的版本（--no-link 可跳过）
     linked = False

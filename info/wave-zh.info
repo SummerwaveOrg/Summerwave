@@ -36,10 +36,6 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
         --raw 只输出原样的绝对路径。加 --set 会把整棵树搬到新位置并
         改写base_dir：需要三次逐字确认，而且每个已装产物必须已经是位
         置无关的（先跑 wave transfer --all）。
-* transfer::	改写已装软件包的二进制里的路径引用，让它们不再写死安装目录的
-        绝对路径，然后重新做一次临时签名。已经是位置无关的包会被认出
-        来并跳过，所以这条命令可以反复跑。被点名的包用到的依赖也会一
-        起改写，否则整棵树还是搬不走。
 * doctor::	只读体检：找出已经坏了、但平时不容易发现的地方 —— 版本目录里
         没有可执行文件、悬空的链接、装了却没链接的包、没人引用的依赖
         树、还写着绝对路径的产物。什么都不会改动，每条发现都附上该跑
@@ -458,7 +454,7 @@ Examples:
      wave latest -a --max-time=1min
 
 
-File: wave-zh.info, Node: basedir, Next: transfer, Prev: latest, Up: Top
+File: wave-zh.info, Node: basedir, Next: doctor, Prev: latest, Up: Top
 
 
 打印 MacWave 的安装根目录 —— 即 config.json 里的 base_dir，可执行文件、
@@ -484,28 +480,7 @@ Examples:
      wave basedir --set ~/apps/macwave --dry-run
 
 
-File: wave-zh.info, Node: transfer, Next: doctor, Prev: basedir, Up: Top
-
-
-改写已装软件包的二进制里的路径引用，让它们不再写死安装目录的绝对路径，然
-后重新做一次临时签名。已经是位置无关的包会被认出来并跳过，所以这条命令可
-以反复跑。被点名的包用到的依赖也会一起改写，否则整棵树还是搬不走。
-
-  -a, --all
-      改写所有已安装的软件包与依赖
-
-  -n, --dry-run
-      只报告哪些包会被改写，不动文件
-
-Examples:
-
-     wave transfer jq
-     wave transfer ffmpeg@6.1
-     wave transfer jq, yq
-     wave transfer --all --dry-run
-
-
-File: wave-zh.info, Node: doctor, Next: shellenv, Prev: transfer, Up: Top
+File: wave-zh.info, Node: doctor, Next: shellenv, Prev: basedir, Up: Top
 
 
 只读体检：找出已经坏了、但平时不容易发现的地方 —— 版本目录里没有可执行文

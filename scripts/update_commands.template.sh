@@ -36,31 +36,7 @@ set -u
 # 判据正文来自 scripts/shared/legacy_config_action.sh（三处副本逐字节一致，
 # 由 scripts/check_shared_blocks.py 在 CI 里盯着）。
 
-# >>> SHARED: legacy-config-action
-mw_legacy_config_action() {
-    local base_dir="$1" state_file="$2" legacy_dir="$3"
 
-    [[ -n "$state_file" && -f "$state_file" ]] || { printf 'none\n'; return 0; }
-    [[ -n "$legacy_dir" && -f "$legacy_dir/config.json" ]] || { printf 'none\n'; return 0; }
-
-    local recorded
-    recorded="$(python3 -c 'import json,sys
-try:
-    print(json.load(open(sys.argv[1])).get("base_dir", "") or "")
-except Exception:
-    print("")' "$legacy_dir/config.json" 2>/dev/null)"
-
-    if [[ -z "$recorded" ]]; then
-        printf 'none\n'
-        return 0
-    fi
-    if [[ "$recorded" == "$base_dir" ]]; then
-        printf 'clear\n'
-    else
-        printf 'other:%s\n' "$recorded"
-    fi
-}
-# <<< SHARED
 
 mq_migrate_legacy_config() {
     # install.sh 调起本脚本时会自己做这件事（而且要等版本凭据写完才做），

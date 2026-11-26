@@ -444,13 +444,11 @@ resolve_config_dir() {
         CONFIG_FILE=""
         VERSION_FILE="$CONFIG_DIR/VERSION.json"
         BASE_DIR="$MACWAVE_BASE_DIR"
-        LEGACY_CONFIG_DIR=""
         return 0
     fi
 
     CONFIG_FILE="$CONFIG_DIR/config.json"
     VERSION_FILE="$CONFIG_DIR/VERSION.json"
-    LEGACY_CONFIG_DIR="$CONFIG_DIR"
 
     # 判据是「这个目录**写不写得动**」，不是「它在不在 $HOME 下面」。
     # 原来的 HOME 判据把系统级安装（/opt/macwave_config）一律当成需要提权，
@@ -1340,66 +1338,5 @@ config_cmd chmod 644 "$STATE_FILE" "$VERSION_FILE"
 
 echo "🌊 State saved to $STATE_FILE"
 
-# ==========================================
-# 迁移：清理旧版外部配置目录（4.7）
-# ==========================================
-#
-# 与 install.sh 那一段同一条规则，判据也不在这里：`mw_legacy_config_action` 的
-# 正文来自 scripts/shared/legacy_config_action.sh，三处副本逐字节一致，由
-# scripts/check_shared_blocks.py 在 CI 里盯着。
-#
-# 这一路只覆盖「4.7 → 4.8 及以后」。4.6 → 4.7 走的是 update_commands.sh ——
-# 旧客户端的 selfupdate.sh 不认得 var/，新逻辑只能来自那份被下载的新脚本。
-
-# >>> SHARED: legacy-config-action
-mw_legacy_config_action() {
-    local base_dir="$1" state_file="$2" legacy_dir="$3"
-
-    [[ -n "$state_file" && -f "$state_file" ]] || { printf 'none\n'; return 0; }
-    [[ -n "$legacy_dir" && -f "$legacy_dir/config.json" ]] || { printf 'none\n'; return 0; }
-
-    local recorded
-    recorded="$(python3 -c 'import json,sys
-try:
-    print(json.load(open(sys.argv[1])).get("base_dir", "") or "")
-except Exception:
-    print("")' "$legacy_dir/config.json" 2>/dev/null)"
-
-    if [[ -z "$recorded" ]]; then
-        printf 'none\n'
-        return 0
-    fi
-    if [[ "$recorded" == "$base_dir" ]]; then
-        printf 'clear\n'
-    else
-        printf 'other:%s\n' "$recorded"
-    fi
-}
-# <<< SHARED
-
-if ! mw_dry_run; then
-    _legacy_action="$(mw_legacy_config_action "$BASE_DIR" "$STATE_FILE" "${LEGACY_CONFIG_DIR:-}")"
-    case "$_legacy_action" in
-        none)
-            :
-            ;;
-        other:*)
-            echo "🌊 Keeping ${LEGACY_CONFIG_DIR}: it points at another installation (${_legacy_action#other:})."
-            ;;
-        clear)
-            for _legacy_file in "$LEGACY_CONFIG_DIR/config.json" \
-                               "$LEGACY_CONFIG_DIR/VERSION.json" \
-                               "$LEGACY_CONFIG_DIR/AGREEMENT.json"; do
-                [[ -f "$_legacy_file" ]] && run_cmd rm -f "$_legacy_file"
-            done
-            if [[ -z "$(ls -A "$LEGACY_CONFIG_DIR" 2>/dev/null)" ]]; then
-                run_cmd rmdir "$LEGACY_CONFIG_DIR" 2>/dev/null || true
-                echo "🌊 Removed the legacy config directory $LEGACY_CONFIG_DIR (state now lives in $STATE_DIR)."
-            else
-                echo "🌊 Cleared the MacWave files in $LEGACY_CONFIG_DIR; kept the directory itself (it holds other files)."
-            fi
-            ;;
-    esac
-fi
 
 exit 0

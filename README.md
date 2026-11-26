@@ -291,7 +291,6 @@ Commands:
   install     Install one or more packages (Latest Version)
   upgrade     Install a package at the latest version
   reinstall   Reinstall the version(s) already installed
-  transfer    Make installed packages independent of the install directory
   uninstall   Uninstall a package
   list        List installed packages (two columns; --raw for scripts)
   search      Search for a package in the index
@@ -636,7 +635,6 @@ Each script runs end to end and reports `PASS` or `FAIL`:
 /bin/bash scripts/link_test.sh          # versionless links
 /bin/bash scripts/upgrade_test.sh       # wave upgrade, offline
 /bin/bash scripts/selfupdate_test.sh    # self-update; ends by updating for real
-/bin/bash scripts/transfer_test.sh      # Mach-O relocation (macOS only)
 /bin/bash scripts/basedir_set_test.sh   # wave basedir --set, confirmations via a pty
 /bin/bash scripts/lock_test.sh           # one writer at a time on the install tree
 python3 scripts/random_test.py     # randomised end-to-end regression, needs network

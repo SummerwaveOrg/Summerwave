@@ -6,10 +6,8 @@
 
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 
@@ -27,7 +25,6 @@ from configpaths import assert_inside, load_base_dir, require_safe_filename
 import domains
 import tls
 import silent
-import steplog
 
 
 BASE_DIR = load_base_dir()
@@ -263,55 +260,6 @@ def transfer_paths(target_dir, shared_index_dir=None):
         silent.show(result)
     if result.returncode != 0:
         sys.exit(result.returncode)
-
-
-def transfer_installed_artifacts(*extra_dirs):
-
-    # 统一收尾的路径替换：等所有依赖与软件包都落到磁盘上再做，
-    # 否则“先装的依赖引用了后装的依赖”（例如 libidn2 → libunistring）会解析不到，
-    # 留下 @rpath 引用导致运行时 dyld 加载失败。
-    # 每个目录单独处理，解析时优先该产物自己的 lib/。
-    #
-    # 只处理**这一轮真的落到磁盘上**的东西：本次新装的依赖 + 调用方给的目录。
-    # 以前这里无条件把 deps/ 下所有已装依赖再扫一遍 —— 装 git 时就是「21 个产物」，
-    # 其中 20 个是几个月前就重定位好的依赖，扫它们只会花掉十几秒，一个字节都不会改
-    # （2026-11-25 实测：整步 16 秒，git 自己 9 秒，依赖 7 秒，全在空扫）。
-    # 旧依赖若真有没重定位好的（上次安装中断、或用了很老的客户端），
-    # 用 `wave transfer --all` 统一体检一次即可 —— 那才是这条路径该在的地方。
-
-    targets = []
-
-    prebuilt = 0
-    for target in list(drain_newly_installed()) + list(extra_dirs):
-        path = Path(target)
-        if path in targets:
-            continue
-        # 构建时就重定位好、并带了 _RELOCATED 标记的产物：客户端无事可做。
-        # 连"要不要扫"都不用问 —— 这就是「用户端不再构建」的落点。
-        if (path / "_RELOCATED").is_file():
-            prebuilt += 1
-            continue
-        targets.append(path)
-
-    if not targets:
-        if prebuilt:
-            steplog.detail(f"{prebuilt} artifact(s) were relocated at build time; nothing to do")
-        return
-
-    # 这一步会逐个扫描产物里的 Mach-O（依赖多时有上万文件），不打声招呼
-    # 用户会以为卡死了。只报总进度，实际改写了几个文件由 transfer.sh 逐个报告。
-    silent.say(f"🌊 Checking Mach-O files in {len(targets)} installed artifact(s)...")
-
-    # 兜底索引目录：多个 target 共用一个，否则每个 target 都要把全部依赖树重扫
-    # 一遍，target 一多就是 O(n²)。实测 18 个依赖时收尾会从几秒涨到 5 分钟。
-    shared_index = tempfile.mkdtemp(prefix="macwave-index-") if len(targets) > 1 else None
-
-    try:
-        for target in targets:
-            transfer_paths(target, shared_index)
-    finally:
-        if shared_index:
-            shutil.rmtree(shared_index, ignore_errors=True)
 
 
 def install_dependency_shell(dep_name, dep_version, dep_sha256, dep_display_name,

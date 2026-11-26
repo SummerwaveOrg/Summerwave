@@ -154,30 +154,6 @@ COMMANDS = (
         ],
     ),
     Command(
-        name="transfer",
-        module="transferrer",
-        handler="handle_transfer",
-        takes_input=True,
-        listed=True,
-        summary="Make installed packages independent of the install directory",
-        usage="wave transfer <package>[@<version>] [, ...] | wave transfer --all",
-        desc="Rewrite the Mach-O references of already installed packages so they no "
-             "longer name an absolute install path, then ad-hoc sign them again. "
-             "Packages that are already position-independent are detected and skipped, "
-             "so the command is safe to repeat. Dependencies used by the named packages "
-             "are transferred too, otherwise the tree still could not be moved.",
-        flags=[
-            ("-a, --all", "Transfer every installed package and dependency"),
-            ("-n, --dry-run", "Only report which packages would be transferred"),
-        ],
-        examples=[
-            "wave transfer jq",
-            "wave transfer ffmpeg@6.1",
-            "wave transfer jq, yq",
-            "wave transfer --all --dry-run",
-        ],
-    ),
-    Command(
         name="doctor",
         module="doctor",
         handler="handle_doctor",
@@ -417,7 +393,7 @@ COMMANDS = (
         listed=True,
         summary="Print the directory MacWave is installed into",
         usage="wave basedir [--raw] | wave basedir --set <path>",
-        desc="Print MacWave's install root -- the base_dir in config.json, which is where the binaries, the links and the dependencies live. A path under your home directory is shown with ~. With --raw it prints the absolute path as-is and nothing else. With --set it copies the whole tree to a new location and rewrites base_dir; that needs three typed confirmations, and every installed artifact must already be position-independent (run wave transfer --all first).",
+        desc="Print MacWave's install root -- the base_dir in config.json, which is where the binaries, the links and the dependencies live. A path under your home directory is shown with ~. With --raw it prints the absolute path as-is and nothing else. With --set it copies the whole tree to a new location and rewrites base_dir; that needs three typed confirmations, and every installed artifact must already be position-independent.",
         flags=[
             ("--raw", "Print the absolute path as-is, with no emoji or colour (for scripts)"),
             ("--set <path>", "Move the whole install tree to <path> and update base_dir"),

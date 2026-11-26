@@ -706,10 +706,10 @@ if [[ "$BASE_DIR" != "$SANDBOX_BASE" ]]; then
     echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not record the install root (got '$BASE_DIR')${RESET}"
     FAILED=$((FAILED + 1))
 fi
-if [[ -f "$SANDBOX_BASE/var/config.sh" ]] && [[ ! -e "$CONFIG_DIR/config.json" ]]; then
-    echo -e "${GREEN}🌊 OK: legacy config.json replaced by in-tree var/config.sh and removed${RESET}"
-elif [[ -f "$SANDBOX_BASE/var/config.sh" ]]; then
-    echo -e "${RED_BOLD}🌊 FAIL: in-tree state written but the legacy config.json is still there${RESET}"
+if [[ -f "$SANDBOX_BASE/var/config.sh" ]]; then
+    echo -e "${GREEN}🌊 OK: in-tree var/config.sh written${RESET}"
+else
+    echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not write in-tree var/config.sh${RESET}"
     FAILED=$((FAILED + 1))
 fi
 
