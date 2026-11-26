@@ -156,21 +156,6 @@ def bin_dir(base_dir=None):
     return (base_dir or load_base_dir()) / BIN_DIR_NAME
 
 
-def links_dir(base_dir=None):
-    # 兼容旧调用点：4.x 的 links/ 已并进 bin/。
-    return bin_dir(base_dir)
-
-
-def pkg_root(base_dir=None):
-    # 兼容旧调用点：4.x 的 bin/（包树）现在叫 Shore/。
-    return payload_root(base_dir)
-
-
-def dep_root(base_dir=None):
-    # 兼容旧调用点：4.x 的 deps/ 已并进 Shore/。
-    return payload_root(base_dir)
-
-
 def pkg_dir(name, version, base_dir=None):
     # 软件包的目标目录：<根>/Shore/<包名>/<版本>/
     name = require_safe_token(name, "package name")
@@ -184,20 +169,6 @@ def dep_dir(name, version, base_dir=None):
     name = require_safe_token(name, "dependency name")
     version = require_safe_token(version, "dependency version")
     return payload_root(base_dir) / name / version
-
-
-def legacy_pkg_dir(name, version, base_dir=None):
-    # 4.x 的位置（<根>/bin/<名>@<版本>），只给迁移与"读到旧树"用。
-    name = require_safe_token(name, "package name")
-    version = require_safe_token(version, "package version")
-    return (base_dir or load_base_dir()) / "bin" / f"{name}@{version}"
-
-
-def legacy_dep_dir(name, version, base_dir=None):
-    # 4.x 的位置（<根>/deps/<名>/<名>@<版本>），同上。
-    name = require_safe_token(name, "dependency name")
-    version = require_safe_token(version, "dependency version")
-    return (base_dir or load_base_dir()) / "deps" / name / f"{name}@{version}"
 
 
 def self_install_root():

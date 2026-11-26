@@ -1488,7 +1488,7 @@ def installed_bin_names(wave):
 
 def linked_names(wave):
     """links/ 下真实存在的不带版本号的链接名。"""
-    links_dir = wave.layout.base_dir / "links"
+    links_dir = wave.layout.bin_dir()
     names = set()
     if links_dir.is_dir():
         for entry in links_dir.iterdir():
