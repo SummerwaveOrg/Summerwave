@@ -737,12 +737,10 @@ usage() {
     mw_say ""
     mw_say "Options:" "选项："
     mw_say "      --ci, --CI          No interaction at all: no confirmation, no questions.\n\
-                          Installs into ~/.local/macwave unless --dir-option says\n\
-                          otherwise (unattended, so no administrator password is\n\
-                          requested). --dir-option=1 needs passwordless sudo." \
+                          Installs into /opt/macwave (the default) unless --dir-option\n\
+                          says otherwise, so it needs passwordless sudo or root." \
            "      --ci, --CI          完全不交互：不确认、不提问。不带 --dir-option 时装到\n\
-                          ~/.local/macwave（无人值守，不会去要管理员密码）。\n\
-                          --dir-option=1 需要 sudo 免密。"
+                          默认位置 /opt/macwave，因此需要免密 sudo 或以 root 运行。"
     mw_say "      --dry-run           Print what the installer would do and change\n\
                           nothing: no download, no sudo, no directory\n\
                           created, no file written. When the latest version\n\
@@ -1184,15 +1182,14 @@ elif [[ -n "$CLI_DIR_OPTION" ]]; then
     choice="$CLI_DIR_OPTION"
     mw_say "🌊 Directory option: $choice (from --dir-option)" "🌊 目录选项：${choice}（来自 --dir-option）"
 elif [[ "$CLI_CI" == "true" ]]; then
-    # --ci 是无人值守：这时候不该反过来要管理员密码，所以它默认装用户级目录，
-    # 而交互式默认是第一项（/opt/macwave）。两者不同是**故意的**：
-    # 「没人看着」与「有人能输密码」是两种处境。想让它装到 /opt，就显式给
-    # --dir-option=1（并要求免密 sudo，否则它会明确报错退出）。
-    choice="2"
-    mw_say "🌊 --ci: installing into ~/.local/macwave (unattended, so no administrator password is requested)." \
-        "🌊 --ci：装到 ~/.local/macwave（无人值守，不会去要管理员密码）。"
-    mw_say "🌊       pass --dir-option=1 for /opt/macwave if this machine has passwordless sudo." \
-        "🌊       要装到 /opt/macwave，加 --dir-option=1（需要免密 sudo）。"
+    # --ci 与交互式**装到同一个地方**：默认系统级 /opt/macwave。
+    # 以前 --ci 默认装用户级，理由是「无人值守不该要管理员密码」；但那让「同一台
+    # 机器、同一条命令、只是加了 --ci」落到两个不同的树里，排查时最容易踩。
+    # 现在统一：无人值守就必须有免密 sudo（或以 root 运行），拿不到就明确报错退出，
+    # 而不是悄悄换一个位置装。
+    choice="1"
+    mw_say "🌊 --ci: installing into /opt/macwave (the default; needs passwordless sudo or root)." \
+        "🌊 --ci：装到 /opt/macwave（默认位置；需要免密 sudo 或以 root 运行）。"
 else
     # 不再是一道选择题：装到哪儿是产品决定，不该让人在安装前先做一次架构与权限
     # 判断。默认就是系统级 /opt/macwave；想换地方的人用 --dir-option 明确说出来。

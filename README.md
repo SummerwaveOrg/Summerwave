@@ -62,7 +62,7 @@ installs for the current user only, under `~/.local/macwave`, with no password.)
 
 `--zh` and `--en` force the installer's language; without them it follows
 `LC_ALL` / `LANG` and the macOS preferred language, so a Chinese machine is
-spoken to in Chinese. `--ci` asks nothing at all. `--dry-run` walks through the
+spoken to in Chinese. `--ci` asks nothing at all and installs into `/opt/macwave` like any other run (it needs passwordless sudo or root). `--dry-run` walks through the
 whole install and prints every step without downloading, asking for a password,
 or writing anything. `install.sh --help` lists the rest.
 
