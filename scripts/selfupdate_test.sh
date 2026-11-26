@@ -4,6 +4,12 @@
 # selfupdate 回归：版本数据解析 → 已是最新时的短路 → 跨大版本被拒绝 → 同大版本的端到端自更新
 # 最后一步会真的把安装目录更新一遍，所以放在 CI 的最后执行。
 
+# 语言：install.sh 会按 locale / 系统首选语言自动切中文，断言因此会随开发者的
+# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖，
+# 专测语言的那几段自己显式给 LANG。
+unset MACWAVE_LANG LC_ALL LC_MESSAGES
+export LANG=en_US.UTF-8
+
 set -e
 
 RED_BOLD='\033[1;31m'

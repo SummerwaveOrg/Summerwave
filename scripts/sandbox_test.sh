@@ -27,6 +27,12 @@
 # 前置条件：macOS（sandbox-exec）、curl、python3（且 requests / packaging / rich
 # 已装，否则安装器会去跑 pip，而 pip 写不到沙箱外）。
 
+# 语言：install.sh 会按 locale / 系统首选语言自动切中文，断言因此会随开发者的
+# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖，
+# 专测语言的那几段自己显式给 LANG。
+unset MACWAVE_LANG LC_ALL LC_MESSAGES
+export LANG=en_US.UTF-8
+
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -321,8 +327,12 @@ scenario_mid_failure() {
     reset_state
     install_run --ci --dir-option=$USER_LEVEL_OPTION
     check "修好后重跑可自愈" "$?" "0"
-    check "自愈后文件数 20" \
-        "$(find "$FAKE_HOME/.local/macwave" -type f | wc -l | tr -d ' ')" "20"
+    check "自愈后六个组件目录齐全" \
+        "$(for d in cli config lib net pkg surfboard; do
+             [[ -d "$FAKE_HOME/.local/macwave/$d" ]] || exit 1
+           done; echo yes)" "yes"
+    check "自愈后 lib/wave 可执行" \
+        "$([[ -x "$FAKE_HOME/.local/macwave/lib/wave" ]] && echo yes || echo no)" "yes"
     check "正常安装不误报失败指引" "$(count_in "$OUT" "did not finish")" "0"
 }
 
@@ -700,8 +710,16 @@ cat > "$SANDBOX_DIR/profile.sb" << SBEOF
 (allow file-ioctl)
 SBEOF
 
-# bash 的 here-document 在配合函数/内建以外的命令时要落一个真实临时文件，位置写死在
-# /tmp（即 /private/tmp），不看 TMPDIR——安装器写 config.json / VERSION.json 正是这样。
+# 被测的「系统级安装路径」必须在沙箱里**看不见**：开发机上 /opt/macwave 是
+# 真的存在的（早就装过了），不遮掉的话，安装器会把宿主机的安装当成「已有安装」
+# 去读它的配置，卸载器会拿宿主机的 /opt/macwave_config 去 sudo 删——
+# 测试断言的是沙箱里那台「干净的机器」，不是开发者这台机器。
+for _host_path in /opt/macwave /opt/macwave_config /opt/macwave_custom /usr/local/macwave; do
+    echo "(deny file-read* (subpath \"$_host_path\"))" >> "$SANDBOX_DIR/profile.sb"
+    echo "(deny file-write* (subpath \"$_host_path\"))" >> "$SANDBOX_DIR/profile.sb"
+done
+
+# bash 的 here-document 在配合函数/内建以外的命令时要落一个真实临时文件，位置写死在# /tmp（即 /private/tmp），不看 TMPDIR——安装器写 config.json / VERSION.json 正是这样。
 # 放开这个公共临时目录，沙箱目录本身也在它下面。
 echo "(allow file-write* (subpath \"/private/tmp\"))" >> "$SANDBOX_DIR/profile.sb"
 

@@ -78,113 +78,60 @@ RED='\033[1;31m'
 # 语言
 # ==========================================
 # 不做 gettext、不依赖外部工具 —— 这个脚本要在裸 macOS 上跑，多一个依赖就多一处
-# 装不上。文案直接写两份，由 mw_say() 按 --zh 选。默认英文：终端不一定有中文
-# locale，反过来会让英文用户看到乱码或问号。
-MW_LANG="en"
-
-# ⚠️⚠️⚠️=====================================
-# 一次调试时作者在会议室不小心把含有 say 部分的代码粘贴到 bash 终端，他的 Mac 开始大声播报命令：
-# “波浪（🌊）执行下列命令将 MacWave 添加到 PATH，eval（还念成了 evil）…………（此处省略若干字）”
-# 以后谁也不许把函数命名为 say！
-# 甚至 Siri 把 eval 念成 evil，导致作者获得外号“Evil哥”！
-# 谁敢让我的 Mac 发出一点声音，我跟他拼了！ ———— Sha0huaZhang，2026
+# 装不上。文案直接写两份，由 mw_say() 按 MW_LANG 选。
 #
-# During one debugging session, the author accidentally pasted code containing the say part into a bash terminal in the meeting room, and his Mac started loudly announcing the commands:
-# "Wave (🌊) Execute the following command to add MacWave to PATH, eval (which was also pronounced as evil) ………… (several words omitted here)"
-# From now on, no one is allowed to name a function say!
-# Even Siri pronounced eval as evil, which earned the author the nickname "Brother Evil"!
-# Whoever dares to make my Mac emit even a single sound—I'll fight them to the death! ———— Sha0huaZhang, 2026
-
-# ⚠️⚠️⚠️-------------------------------------
-# 原因很简单：macOS 自带 /usr/bin/say —— 一个把参数念出来的朗读命令。函数一旦
-# 也叫 say，任何一行 `say "…" "…"` 被粘进终端（从文档、从源码、从聊天记录里）
-# 都不会报 command not found，而是把参数念给整个房间听。改成 mw_say 之后，同样的
-# 误粘贴只会得到一句 command not found，安静且无副作用。
-# ⚠️⚠️⚠️=====================================
-
-# ==========================================
-# 安全检查：mw_say 绝不能变成 /usr/bin/say
-# ==========================================
-# /usr/bin/say 是 macOS 的朗读命令。如果 mw_say 被劫持成它，
-# 任何 `mw_say "..."` 都会把参数念给整个房间听。
-# 三条路径都查：PATH 上的可执行文件、它的软链接目标、当前 shell profile 里的 alias/函数/export。
-
-
-# 💀💀💀=====================================
-
-mw_check_say_hijack() {
-    local bad=0 reason=""
-
-    # ---- 1) PATH 上的可执行文件 ----
-    # 用 type -P 强制只看 PATH 上的文件，忽略 shell 函数（此刻 mw_say 函数还没定义，
-    # 但如果用户 .zshrc 里定义了同名函数，type -P 也不会被骗）。
-    local found
-    found="$(type -P mw_say 2>/dev/null || true)"
-    if [[ -n "$found" ]]; then
-        # ---- 2) 软链接 ----
-        # -ef 比较 inode：即使中间有多层链接也能穿透。
-        if [ "$found" -ef /usr/bin/say ]; then
-            bad=1
-            reason="PATH entry '$found' is a symlink to /usr/bin/say"
-        fi
-        # 再补一道：直接 readlink 看是不是字面指向 /usr/bin/say（捕获 -ef 因权限/不存在失效的情况）
-        if [ "$bad" -eq 0 ] && [ -L "$found" ] && [ "$(readlink "$found")" = "/usr/bin/say" ]; then
-            bad=1
-            reason="PATH entry '$found' links directly to /usr/bin/say"
-        fi
-    fi
-
-    # ---- 3) 当前 shell 的 profile ----
-    # 检查用户 shell 配置里有没有把 mw_say 指向 say 的 alias / 函数 / export。
-    # 只看**当前** shell 对应的文件，避免误报别的 shell 的配置。
-    local rc candidates=()
-    case "${SHELL:-}" in
-        *zsh*)  candidates=("$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.zshenv") ;;
-        *bash*) candidates=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile") ;;
-        *)      candidates=("$HOME/.profile") ;;
+# 默认英文，但**自动认**中文用户：手上这个终端/这台机器如果本来就是中文环境，
+# 就没有理由先用英文糊一脸、再让人自己去加 --zh。
+mw_lang_of_tag() {
+    # mw_lang_of_tag <locale 或语言标签>：认得出就 echo zh / en，认不出（空串）返回 1。
+    local tag="$1" lang charset=""
+    [[ -n "$tag" ]] || return 1
+    lang="${tag%%.*}"
+    [[ "$tag" == *.* ]] && charset="${tag#*.}"
+    case "$lang" in
+        [Zz][Hh]|[Zz][Hh]_*|[Zz][Hh]-*) ;;
+        *) echo en; return 0 ;;
     esac
-    for rc in "${candidates[@]}"; do
-        [ -f "$rc" ] || continue
-        # alias mw_say=...  或  alias mw_say = '...'（宽松匹配）
-        if grep -Eq "^[[:space:]]*alias[[:space:]]+mw_say[[:space:]]*=" "$rc" 2>/dev/null; then
-            # 只要 alias 值里出现 say 就拦（可以是 say、/usr/bin/say、say -v ...）
-            if grep -Eq "^[[:space:]]*alias[[:space:]]+mw_say[[:space:]]*=.*\bsay\b" "$rc" 2>/dev/null; then
-                bad=1
-                reason="$rc aliases mw_say to say"
-            fi
-        fi
-        # mw_say() { ... say ... }  函数定义里调用 say
-        if grep -Eq "^[[:space:]]*mw_say[[:space:]]*\(\)" "$rc" 2>/dev/null; then
-            bad=1
-            reason="$rc defines a mw_say shell function"
-        fi
-        # export PATH=... 把 /usr/bin 前置（极端情况，几乎不会有人这么干，但查一下）
-        # 只报「PATH 里显式把 /usr/bin 放在最前且同时提到 mw_say」这种，避免误报
-        if grep -Eq "^[[:space:]]*export[[:space:]]+PATH=.*/usr/bin" "$rc" 2>/dev/null \
-           && grep -q "mw_say" "$rc" 2>/dev/null; then
-            bad=1
-            reason="$rc prepends /usr/bin to PATH and mentions mw_say"
-        fi
-    done
-
-    if [ "$bad" -eq 1 ]; then
-    echo "" >&2
-    echo -e "${RED}██████╗  █████╗ ██████╗ ██╗${RESET}" >&2
-    echo -e "${RED}██╔══██╗██╔══██╗██╔══██╗██║${RESET}" >&2
-    echo -e "${RED}██████╔╝███████║██║  ██║██║${RESET}" >&2
-    echo -e "${RED}██╔══██╗██╔══██║██║  ██║╚═╝${RESET}" >&2
-    echo -e "${RED}██████╔╝██║  ██║██████╔╝██╗${RESET}" >&2
-    echo -e "${RED}╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚═╝${RESET}" >&2
-    echo "" >&2
-    echo -e "${RED_BOLD}YOU, FAILED!${RESET}" >&2
-        exit 1
-    fi
+    # 非 UTF-8 的中文 locale（zh_CN.eucCN、zh_TW.Big5）下，我们的 UTF-8 文案会糊成
+    # 一片问号，那还不如给英文。
+    case "$charset" in
+        ""|*[Uu][Tt][Ff][-_]8*|*[Uu][Tt][Ff]8*) echo zh; return 0 ;;
+        *) echo en; return 0 ;;
+    esac
 }
 
-# 调用点不在这里：这段代码跑在参数解析**之前**，那时还不知道有没有 --no-noise。
-# 见下面参数解析之后的调用。函数定义先留着。
+mw_detect_lang() {
+    # 判定顺序（先到先算）：
+    #   1. MACWAVE_LANG —— 调用方（update_commands.sh、CI、用户自己）显式给的；
+    #   2. LC_ALL / LC_MESSAGES / LANG —— POSIX 惯例，终端与 ssh 都认这几项；
+    #   3. macOS 的系统首选语言（`defaults read -g AppleLanguages` 的第一项）。
+    #
+    # 第 2 步一旦有值就以它为准，**不再看系统语言**：系统设成中文、LANG 却特意留在
+    # en_US.UTF-8 的人（日志、CI、工具链要英文）通常是真不想要中文，反着猜只会更烦。
+    local tag chosen
+    for tag in "${MACWAVE_LANG:-}" "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+        if chosen="$(mw_lang_of_tag "$tag")"; then
+            echo "$chosen"
+            return 0
+        fi
+    done
+    # `defaults read` 打出来是一个 plist 数组，第一项就是用户排在最前面的语言。
+    # 取不到（容器里没有 defaults、被沙箱挡掉）就当没设过。
+    if command -v defaults >/dev/null 2>&1; then
+        tag="$(defaults read -g AppleLanguages 2>/dev/null | grep -m1 -o '"[^"]*"' | tr -d '"' || true)"
+        if chosen="$(mw_lang_of_tag "$tag")"; then
+            echo "$chosen"
+            return 0
+        fi
+    fi
+    echo en
+}
 
-# 💀💀💀=====================================
+MW_LANG="$(mw_detect_lang)"
+
+# 输出函数一律带 mw_ 前缀。macOS 自带 /usr/bin/say（把参数念出来的朗读命令），
+# 一个裸名 say 的函数被粘进终端时不会 command not found，只会把参数念给整个
+# 房间听；叫 mw_say 最坏也只是 command not found，安静且无副作用。
 
 mw_mktemp() {
     # mw_mktemp <名字前缀>：可移植的临时文件。
@@ -216,6 +163,21 @@ mw_say_err() {
     else
         printf '%b\n' "$1" >&2
     fi
+}
+
+# 中途失败的收尾三句：什么都没删、半成品在哪、重跑是安全的。
+# ERR trap 走这里；那些自己打了更具体原因的失败（比如下载失败）也要在退出前
+# 调一次 —— 否则用户只看到「cannot download xxx」，既不知道有没有被删东西，
+# 也不知道重跑会不会把现场搅得更糟。
+install_failure_notice() {
+    local code="${1:-1}"
+    echo "" >&2
+    echo -e "${RED_BOLD}🌊 Installation did not finish (exit $code).${RESET}" >&2
+    mw_say_err "🌊 Nothing was removed. Files already downloaded may be left in:" "🌊 没有删除任何内容。已下载的文件可能留在："
+    echo "     ${BASE_DIR:-<not chosen yet>}" >&2
+    echo "     ${CONFIG_DIR:-<not chosen yet>}" >&2
+    mw_say_err "🌊 Fix the cause (network, permissions, disk space) and run the installer again;" "🌊 请排除原因（网络、权限、磁盘空间）后重新运行安装程序；"
+    mw_say_err "🌊 a repeated install overwrites what it downloaded and is safe to rerun." "🌊 重复安装会覆盖已下载的内容，可以安全重跑。"
 }
 
 # ==========================================
@@ -711,9 +673,6 @@ mw_download() {
 # ==========================================
 
 CLI_CI=false
-# --no-noise：额外做一次「mw_say 有没有被劫持成 /usr/bin/say」的检查。
-# 默认不查：那件事只影响开发机，普通人装个包不该被前置闸门挡住拦下。
-NO_NOISE=false
 CLI_DIR_OPTION=""
 CLI_CUSTOM_DIR=""
 # --skip-probe：不真写那个探针文件，提权判定只用 test -w 的静态结论。
@@ -784,13 +743,12 @@ usage() {
                             自带 CPython 改从上游 URL 下载（记录在\n\
                             pythondata/<version>/python_url.toml），\n\
                             而不是从 MacWave 自己的 Python 仓库取。"
-    mw_say "        --no-noise          Also check that mw_say has not been hijacked by\n\
-                            /usr/bin/say (the macOS spoken-text command).\n\
-                            Off by default; --NO-NOISE and --No-Noise work too." \
-           "        --no-noise          额外检查 mw_say 有没有被 /usr/bin/say（macOS 的朗读\n\
-                            命令）劫持。默认不查；--NO-NOISE、--No-Noise 也认。"
-    mw_say "      --zh                Print in Chinese (English by default)." \
-           "      --zh                用中文输出（默认英文）。"
+    mw_say "      --zh                Print in Chinese. Auto-detected from the locale or\n\
+                          the macOS preferred language; --zh forces it." \
+           "      --zh                用中文输出。语言本来就会按 locale 与系统首选语言\n\
+                          自动识别，--zh 是强制指定。"
+    mw_say "      --en                Print in English (overrides auto-detection)." \
+           "      --en                用英文输出（压过自动识别）。"
     mw_say "  -h, --help              Show this help and stop. May only be combined with\n\
                           --dry-run (print the usage, then walk the install)." \
            "  -h, --help              显示本帮助后停止。只能单独用，或与 --dry-run 连用\n\
@@ -853,13 +811,11 @@ while [[ $# -gt 0 ]]; do
         --install-python-from-source)
             INSTALL_PYTHON_FROM_SOURCE=1
             ;;
-        # --no-noise / --NO-NOISE / --No-Noise 都认：这是给自己人用的开关，
-        # 强求统一大小写只会浪费一次重敲。
-        --[Nn][Oo]-[Nn][Oo][Ii][Ss][Ee])
-            NO_NOISE=true
-            ;;
         --zh|--ZH)
             MW_LANG="zh"
+            ;;
+        --en|--EN)
+            MW_LANG="en"
             ;;
         -h|--help)
             CLI_HELP=true
@@ -894,6 +850,7 @@ mw_apply_presentation() {
         case "$arg" in
             --raw|--RAW) CLI_RAW=true ;;
             --zh|--ZH) MW_LANG="zh" ;;
+            --en|--EN) MW_LANG="en" ;;
         esac
     done
     if mw_raw; then
@@ -929,7 +886,7 @@ if [[ "$CLI_HELP" == "true" ]]; then
     _bad=""
     for _arg in ${CLI_ARGV[@]+"${CLI_ARGV[@]}"}; do
         case "$_arg" in
-            -h|--help|--dry-run|--DRY-RUN|--zh|--ZH|--raw|--RAW) ;;
+            -h|--help|--dry-run|--DRY-RUN|--zh|--ZH|--en|--EN|--raw|--RAW) ;;
             *) _bad="$_arg"; break ;;
         esac
     done
@@ -955,16 +912,6 @@ if [[ "$CLI_HELP" == "true" ]]; then
     # 与 --dry-run 连用时继续往下走；单独出现时到此为止。
     [[ "$CLI_DRY_RUN" == "true" ]] || exit 0
 fi
-
-# --no-noise 的正事。必须放在解析之后 —— 放前面的话 NO_NOISE 还是默认值 false，
-# 旗标永远不会生效（第一版就是这么错的，实测三种写法全都没触发）。
-#
-# 默认不查的理由：这个检查防的是「开发机上的 mw_say 被劫持成朗读命令」，
-# 与普通人装包无关；默认拦下来只会让人一脸问号地装不上。
-if [[ "$NO_NOISE" == "true" ]]; then
-    mw_check_say_hijack
-fi
-unset -f mw_check_say_hijack   # 用完即删，避免污染后面的函数命名空间
 
 # 通过管道安装时，选项很容易被当成脚本名传进来：
 #   bash -c "$(curl ...)" --ci         ← --ci 变成 $0，被静默丢掉
@@ -1022,116 +969,20 @@ resolve_custom_dir() {
 # found」，不如第一句就说清楚该去哪 —— Linux 由兄弟项目 LinuxWave 覆盖，两边的
 # 安装命令是同一个形状（releases/latest/download/install.sh）。
 #
-# 平台判断分两层：
-#
-#   1. uname -s —— Darwin / Linux / 其它（FreeBSD、MSYS 之类）；
-#   2. Darwin 之上再分 macOS 与 iOS：iOS 也报 Darwin，光看内核分不出来。这里只认
-#      **不可伪造**的三条线索 —— 内核给的 `hw.model` 前缀（Mac* / iPhone* / iPad*），
-#      `sw_vers -productName`，以及密封卷上 SystemVersion.plist 里的 ProductName。
-#
-# **不看越狱痕迹**（/var/jb、/private/var/mobile 之类），两条理由都成立才做得下去：
-#   · RootHide 那类反检测工具的工作方式就是把痕迹藏起来/重定向，认它等于留一个
-#     一按就过的后门；
-#   · 老式**有根**越狱（checkra1n / unc0ver）压根没有 /var/jb，认它又会漏判。
-# 换成内核与密封卷上的信息，rootful / rootless 一视同仁，也绕不过去。
-#
-# 为什么值得为 iPhone 单独写一段：本项目的作者有个朋友真的这么干过 —— 在越狱的
-# iPhone 上跑了这个安装脚本，一路装到 /var/jb/macwave，看起来像成功了；随后每条
-# wave 命令都死在 macOS 有、iOS 没有的东西上（csrutil、Xcode 的命令行工具、
-# /usr/local），排查了半天才发现「这个包管理器本来就不该在这台设备上」。
-# 所以认出 iOS 时不但要拒绝，还要把话说得让人不必再试第二次。
+# 只认内核：Darwin 就是 macOS，Linux 交给 LinuxWave，其它照 uname -s 的原值报出来。
+# 越狱的 iPhone、Android 上的 Termux、ChromeOS 的容器**一概不单独识别** ——
+# 这些设备上装不装得成，由用户自己保证，见 docs/DEVELOPING.md「平台判断」。
 #
 # MACWAVE_TEST 下不判：那是在「把某个目录当作 /」的沙箱里跑同一份脚本，宿主是
 # Linux 完全正常（CircleCI 的 Linux 容器就是这么跑的）。
 mw_platform() {
-    # macos / ios / linux / android / chromeos / unknown
-    local kernel sysctl_bin sw_vers_bin product model machine version_plist chromeos_release jb_root
-    chromeos_release="${MACWAVE_CHROMEOS_RELEASE:-/etc/lsb-release}"
+    # macos / linux / unknown
+    local kernel
     kernel="$(uname -s 2>/dev/null || true)"
     case "$kernel" in
-        Darwin)
-            # 认 macOS 与 iOS 只看**不可伪造**的信息，不看越狱痕迹：
-            #
-            #   · hw.model 由内核给出 —— Mac 是 MacBookPro18,3 这种，iOS 是
-            #     iPhone15,3 / iPad13,4 这种，两类前缀不重叠；
-            #   · sw_vers -productName 与 SystemVersion.plist 内的 ProductName
-            #     都在密封系统卷（SSV）上，写不进去。
-            #
-            # 为什么不用 /var/jb、/private/var/mobile 这些：RootHide 那类反检测
-            # 工具的工作方式就是把越狱痕迹藏起来 / 重定向，认它等于给自己留一个
-            # 一按就过的后门；而且老式**有根**越狱（checkra1n / unc0ver）根本
-            # 没有 /var/jb，认它又会漏判。两代越狱在这三条线索面前是一样的。
-            sysctl_bin="${MACWAVE_SYSCTL:-/usr/sbin/sysctl}"
-            model="$("$sysctl_bin" -n hw.model 2>/dev/null || true)"
-            case "$model" in
-                iPhone*|iPad*|iPod*) echo ios; return 0 ;;
-                Mac*) echo macos; return 0 ;;
-            esac
-            # hw.machine 只当补充线索：macOS 与 iOS 的 shell 都可能把它报成 arm64
-            # （本机 macOS 就是 arm64），所以 arm64 / x86_64 **不能**用来证明是 Mac，
-            # 否则等于把 iOS 全放行；反过来，它若报出 iPhone*/iPad* 就是 iOS 的直接
-            # 证据，可以立刻结束。
-            machine="$("$sysctl_bin" -n hw.machine 2>/dev/null || true)"
-            case "$machine" in
-                iPhone*|iPad*|iPod*) echo ios; return 0 ;;
-            esac
-            # 快速命中：rootless 越狱的根前缀。放在 hw.model 之后是有意的 —— 真 Mac
-            # 上 hw.model 一定答 Mac*，所以有人故意在 macOS 建一个 /var/jb 也绝不会
-            # 让它被误判；反过来，sysctl 被挡、sw_vers 被删的极端情况下，这条能让
-            # 判定提前结束，不必再往下试。
-            #
-            # 只当线索、不当证据，两个理由：
-            #   · 一台 Mac 上也可能有人自己 mkdir 一个 /var/jb（就想看看会怎样），
-            #     所以还要求它长得像一棵越狱根（有 usr/ 或 Library/）才算数；
-            #   · 'jb' 本身没有权威含义，别的工具占了这个名字也不该影响判断 ——
-            #     因此它只用来**提前结束**，绝不用来单独下结论。
-            jb_root="${MACWAVE_JB_ROOT:-/var/jb}"
-            if [[ -d "$jb_root" ]] && { [[ -e "$jb_root/usr" ]] || [[ -e "$jb_root/Library" ]]; }; then
-                echo ios
-                return 0
-            fi
-            sw_vers_bin="${MACWAVE_SW_VERS:-/usr/bin/sw_vers}"
-            product="$("$sw_vers_bin" -productName 2>/dev/null || true)"
-            case "$product" in
-                *iOS*|*iPhone*|*iPad*) echo ios; return 0 ;;
-                *macOS*|*Mac*) echo macos; return 0 ;;
-            esac
-            version_plist="${MACWAVE_SYSTEM_VERSION_PLIST:-/System/Library/CoreServices/SystemVersion.plist}"
-            if [[ -r "$version_plist" ]] && grep -q "iPhone OS\|<string>iOS" "$version_plist" 2>/dev/null; then
-                echo ios
-                return 0
-            fi
-            # 三条线索都给不出结论时按 macOS 处理：误拦一台真的 Mac 比漏判更糟，
-            # 而漏判的代价只是这人之后会撞上一串「iOS 没有这东西」的报错。
-            echo macos
-            ;;
-        Linux)
-            # Linux 内核之上还要分三种：Android（bionic、没有 /usr/local、没有
-            # 桌面发行版那套）、ChromeOS（Crostini 容器确实是 Linux）、以及普通
-            # 桌面 Linux。判据都只读环境与现成的文件，不装任何新工具。
-            #
-            # 大胆想象一下：iOS 那位朋友总有一天也会在 ChromeOS 或 Android 上试一遍。
-            # 先防他一手 —— 这两种都能跑 bash，看起来「有终端就能装」，而 Android 上
-            # 连 glibc 都没有，ChromeOS 的终端只是个容器。早点把话说清楚，我省一次
-            # 排查，他省一次白装。
-            #
-            # ANDROID_ROOT / ANDROID_DATA 由 Android 的 init 设，Termux 与 adb
-            # shell 里都有；getprop 是 Android 独有的系统命令。
-            if [[ -n "${ANDROID_ROOT:-}${ANDROID_DATA:-}" ]] \
-               || [[ -d /system/app && -d /data/data ]] \
-               || command -v getprop >/dev/null 2>&1; then
-                echo android
-            # ChromeOS 的容器里 /etc/lsb-release 带一串 CHROMEOS_* 变量；
-            # crossystem 是 Chromebook 上的固件查询命令。
-            elif [[ -r "$chromeos_release" ]] && grep -q "CHROMEOS" "$chromeos_release" 2>/dev/null; then
-                echo chromeos
-            elif command -v crossystem >/dev/null 2>&1; then
-                echo chromeos
-            else
-                echo linux
-            fi
-            ;;
-        *) echo unknown ;;
+        Darwin) echo macos ;;
+        Linux)  echo linux ;;
+        *)      echo unknown ;;
     esac
 }
 
@@ -1190,33 +1041,6 @@ mw_require_macos() {
     fi
 
     case "$platform" in
-        ios)
-            # 全部英文：越狱设备的终端 locale 不可预期。
-            mw_say "🌊 An iPhone or iPad — jailbroken, and running a macOS package manager on it."
-            mw_say "🌊 That has been tried before: the install went through to /var/jb/macwave and looked fine,"
-            mw_say "🌊 then every 'wave' command died on things iOS does not have — csrutil, Xcode's"
-            mw_say "🌊 command line tools, /usr/local. Nothing here is a step towards a working install."
-            mw_say "🌊 MacWave targets macOS only. Nothing was changed on this device."
-            mw_say "🌊 Set MACWAVE_TEST=<dir> only if you meant to run this in a sandbox."
-            exit 2
-            ;;
-        android)
-            # 手机终端里的 locale 不可预期，这段也全部英文。
-            mw_say "🌊 Android. That shell is Linux, but a different Linux: bionic libc, no /usr/local,"
-            mw_say "🌊 no Xcode tooling, and nothing MacWave would look for."
-            mw_say "🌊 MacWave targets macOS; LinuxWave targets desktop Linux. Neither installs here."
-            mw_say "🌊 Nothing was changed on this device."
-            exit 2
-            ;;
-        chromeos)
-            mw_say "🌊 ChromeOS — the terminal here is a Linux container, but not a desktop Linux." \
-                   "🌊 ChromeOS —— 这里的终端是个 Linux 容器，但不是桌面 Linux。"
-            mw_say "🌊 MacWave is macOS-only. For Linux (this container included), use LinuxWave:" \
-                   "🌊 MacWave 只装 macOS 软件。Linux（包括这个容器）请用 LinuxWave："
-            mw_say "🌊   https://linuxwave.org"
-            mw_say "$linuxwave_cmd"
-            exit 2
-            ;;
         linux)
             mw_say "🌊 MacWave installs macOS software; this machine is Linux." \
                    "🌊 MacWave 装的是 macOS 软件 —— 这台机器是 Linux。"
@@ -2100,6 +1924,7 @@ sync_tree() {
             echo -e "${RED_BOLD}🌊   $(mw_redact "$url")${RESET}" >&2
             echo -e "${RED_BOLD}🌊 If every file fails like this, the mirror has not synced branch $BRANCH yet.${RESET}" >&2
             echo -e "${RED_BOLD}🌊 Run scripts/mirror-sync/mirror-sync.sh on the mirror (see docs/MIRROR-SETUP.md).${RESET}" >&2
+            install_failure_notice 1
             exit 1
         fi
 
@@ -2110,6 +1935,7 @@ sync_tree() {
                 echo -e "${RED_BOLD}🌊   expected $expect_sha${RESET}" >&2
                 echo -e "${RED_BOLD}🌊   got      ${digest:-<unreadable>}${RESET}" >&2
                 echo -e "${RED_BOLD}🌊 The mirror copy is probably stale; re-run the mirror sync.${RESET}" >&2
+                install_failure_notice 1
                 exit 1
             fi
         fi
@@ -2230,13 +2056,7 @@ install_failed() {
         return 0
     fi
 
-    echo "" >&2
-    echo -e "${RED_BOLD}🌊 Installation did not finish (exit $code).${RESET}" >&2
-    mw_say_err "🌊 Nothing was removed. Files already downloaded may be left in:" "🌊 没有删除任何内容。已下载的文件可能留在："
-    echo "     ${BASE_DIR:-<not chosen yet>}" >&2
-    echo "     ${CONFIG_DIR:-<not chosen yet>}" >&2
-    mw_say_err "🌊 Fix the cause (network, permissions, disk space) and run the installer again;" "🌊 请排除原因（网络、权限、磁盘空间）后重新运行安装程序；"
-    mw_say_err "🌊 a repeated install overwrites what it downloaded and is safe to rerun." "🌊 重复安装会覆盖已下载的内容，可以安全重跑。"
+    install_failure_notice "$code"
 }
 trap install_failed ERR
 

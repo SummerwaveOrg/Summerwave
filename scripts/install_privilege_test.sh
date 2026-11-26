@@ -15,6 +15,12 @@
 # 全程 `--dry-run`：不下载、不提权、不建目录；版本数据指向一个必然失败的本地地址，
 # 于是不必联网。
 
+# 语言：install.sh 会按 locale / 系统首选语言自动切中文，断言因此会随开发者的
+# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖，
+# 专测语言的那几段自己显式给 LANG。
+unset MACWAVE_LANG LC_ALL LC_MESSAGES
+export LANG=en_US.UTF-8
+
 set -u
 
 RED_BOLD='\033[1;31m'

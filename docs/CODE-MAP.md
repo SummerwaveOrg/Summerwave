@@ -122,11 +122,14 @@
 
 **`install.sh` 内部的分段结构**（按执行顺序）：
 
-0. 平台守卫（`mw_platform`）：`macos` / `ios` / `android` / `chromeos` / `linux` / `unknown` 六种，
-   非 macOS 一律拒绝并指路 —— Linux 去 LinuxWave，越狱的 iPhone/iPad 单独说一段，
-   Android 明说两个项目都不装那里，ChromeOS 指出容器不算桌面 Linux，认不出的平台报出
-   `uname -s` 原值。认成 macOS 后还要过版本下限（< 10.15 Catalina 拒绝）。
-   `MACWAVE_TEST` 下不判（沙箱里宿主是 Linux 很正常）
+0. 平台守卫（`mw_platform`）：**只看内核**，`macos` / `linux` / `unknown` 三种。非 macOS
+   一律拒绝并指路（Linux 去 LinuxWave，认不出的报出 `uname -s` 原值）。认成 macOS 后
+   还要过版本下限（< 10.15 Catalina 拒绝）。`MACWAVE_TEST` 下不判（沙箱里宿主是 Linux
+   很正常）。
+   **iOS / iPadOS / Android / ChromeOS 一概不单独识别** —— 这些设备上装不装得成、值不值
+   得装，**由用户自己保证**。理由：这些平台每种的「像 Linux/像 macOS 但不完整」的判据都
+   要单独维护（越狱痕迹、bionic、Crostini 容器……），而猜错的代价全落在用户身上
+   （被误拦的正常机器比漏判更烦），收益却只是省下一段报错
 1. 命令行参数解析（**只解析一遍**，纯计算、无副作用、无网络）
 2. 呈现层：装上 `--raw` 过滤器、定语言（必须早于第一条输出）
 3. `--help` 的连用规则（只打用法、不安装）

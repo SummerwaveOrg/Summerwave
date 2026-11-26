@@ -17,6 +17,12 @@
 #
 # 全程离线、隔离测试根、只用 --dry-run（或干脆什么都不做）。
 
+# 语言：install.sh 会按 locale / 系统首选语言自动切中文，断言因此会随开发者的
+# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖，
+# 专测语言的那几段自己显式给 LANG。
+unset MACWAVE_LANG LC_ALL LC_MESSAGES
+export LANG=en_US.UTF-8
+
 set -u
 
 RED_BOLD='\033[1;31m'
@@ -248,10 +254,73 @@ else
     fail "MACWAVE_TEST 下被平台守卫拦住了（rc=${RC}）"
 fi
 
-# -------------------- 7b. iOS / iPadOS：越狱设备上别让人白装一遍 --------------------
+# -------------------- 7a2. 输出语言：能自动认中文，也能被 --zh/--en 压过 --------------------
 #
-# iOS 也报 uname -s = Darwin，光看内核分不出越狱的 iPad 与 Mac，所以脚本会再问
-# sw_vers -productName。这里用替身把它摆成 iOS（真机上没法造）。
+# 自动识别只看环境：MACWAVE_LANG / LC_ALL / LC_MESSAGES / LANG，都没有才看 macOS 的
+# 系统首选语言。测试一律显式给 LANG，否则结果会随开发者自己的系统语言漂。
+run_lang() {
+    # run_lang <LANG 值> [参数...]：干净环境里跑一次，别被外层的 MACWAVE_LANG 干扰
+    local lang="$1"; shift
+    OUT=$(env -u MACWAVE_LANG -u LC_ALL -u LC_MESSAGES LANG="$lang" \
+          MACWAVE_TEST="$WORK/lang-$lang" \
+          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+          /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
+    RC=$?
+}
+
+run_lang zh_CN.UTF-8 --help
+if [[ "$RC" -eq 0 ]] && has "$OUT" "用中文输出"; then
+    pass "LANG=zh_CN.UTF-8：自动用中文"
+else
+    fail "中文 locale 没有自动切中文（rc=${RC}）"
+fi
+
+run_lang en_US.UTF-8 --help
+if [[ "$RC" -eq 0 ]] && hasnt "$OUT" "用中文输出"; then
+    pass "LANG=en_US.UTF-8：仍是英文"
+else
+    fail "英文 locale 被切成了中文（rc=${RC}）"
+fi
+
+# LANG=zh_CN.eucCN 这类非 UTF-8 的中文 locale：中文文案会糊成问号，给英文
+run_lang zh_CN.eucCN --help
+if [[ "$RC" -eq 0 ]] && hasnt "$OUT" "用中文输出"; then
+    pass "非 UTF-8 的中文 locale：退回英文（避免乱码）"
+else
+    fail "非 UTF-8 的中文 locale 仍给了中文（rc=${RC}）"
+fi
+
+run_lang en_US.UTF-8 --zh --help
+if [[ "$RC" -eq 0 ]] && has "$OUT" "用中文输出"; then
+    pass "--zh 压过英文 locale"
+else
+    fail "--zh 没能压过英文 locale（rc=${RC}）"
+fi
+
+run_lang zh_CN.UTF-8 --en --help
+if [[ "$RC" -eq 0 ]] && hasnt "$OUT" "用中文输出"; then
+    pass "--en 压过中文 locale"
+else
+    fail "--en 没能压过中文 locale（rc=${RC}）"
+fi
+
+# MACWAVE_LANG 是调用方（update_commands.sh / CI）给的，优先级最高
+OUT=$(env -u LC_ALL -u LC_MESSAGES LANG=en_US.UTF-8 MACWAVE_LANG=zh \
+      MACWAVE_TEST="$WORK/lang-env" \
+      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+      /bin/bash "$INSTALL_SH" --help < /dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 ]] && has "$OUT" "用中文输出"; then
+    pass "MACWAVE_LANG=zh 压过 LANG=en_US.UTF-8"
+else
+    fail "MACWAVE_LANG 没能压过 LANG（rc=${RC}）"
+fi
+
+# -------------------- 7b. 平台判断：只看内核 --------------------
+#
+# iOS / iPadOS / Android / ChromeOS 一概不单独识别 —— 这些设备上装不装得成由用户
+# 自己保证（见 docs/DEVELOPING.md「平台判断」）。这里只钉三件事：Darwin 放行、
+# Linux 指向 LinuxWave、其它报出 uname -s 的原值。
 write_uname() {
     printf '#!/bin/sh\ncase "$1" in\n  -s) echo %s ;;\n  *) exec /usr/bin/uname "$@" ;;\nesac\n' "$1" \
         > "$STUB_BIN/uname"
@@ -266,50 +335,25 @@ write_sw_vers() {
 run_bare() {
     # run_bare [参数...]：不设 MACWAVE_TEST，平台判断才会真的跑起来
     OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SW_VERS="$STUB_BIN/sw_vers" \
-          MACWAVE_SYSCTL="$STUB_BIN/sysctl" \
           MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
     RC=$?
 }
 
 write_uname Darwin
-write_sw_vers iOS
-write_sysctl ""
+write_sw_vers macOS
 run_bare --dry-run --dir-option=1
-if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad" && has "$OUT" "targets macOS only"; then
-    pass "iOS/iPadOS：认出越狱设备，说明为什么不该在这上面装（rc=2）"
+if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run"; then
+    pass "Darwin：放行"
 else
-    fail "iOS 的提示不对（rc=${RC}）：$(printf '%s' "$OUT" | head -2)"
+    fail "正常 macOS 被平台守卫误伤（rc=${RC}）"
 fi
 
-# 主线索是内核给的 hw.model：Mac 与 iPhone/iPad 的前缀不重叠，也不受越狱方式影响
-# （RootHide 藏得掉 /var/jb，藏不掉内核报的机型）。
-write_sysctl() {
-    printf '#!/bin/sh\ncase "$*" in\n  *hw.model*) echo "%s" ;;\n  *) exit 1 ;;\nesac\n' "$1" \
-        > "$STUB_BIN/sysctl"
-    chmod +x "$STUB_BIN/sysctl"
-}
-
-for device in iPhone15,3 iPad13,4; do
-    write_sysctl "$device"
-    OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl" \
-          MACWAVE_SW_VERS="$STUB_BIN/sw_vers" \
-          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-          /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-    RC=$?
-    if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad"; then
-        pass "hw.model=${device}：认作 iOS（与越狱方式无关）"
-    else
-        fail "hw.model=$device 没认成 iOS（rc=${RC}）"
-    fi
-done
-
-# -------------------- 7d. macOS 版本下限：10.15 Catalina --------------------
+# -------------------- 7c. macOS 版本下限：10.15 Catalina --------------------
 #
 # 低于 10.15 连捆绑的便携 Python 都起不来（那棵树里 Mach-O 的 minos 就是 10.15）。
 # 12（Monterey）才是端到端实测过的下限，但这里只拦硬地板。
 
-write_sysctl "Mac16,13"
 for old_version in 10.13.6 10.14.6; do
     write_sw_vers macOS "$old_version"
     run_bare --dry-run --dir-option=1
@@ -342,96 +386,6 @@ else
 fi
 write_sw_vers macOS
 
-# hw.machine 只当补充：报出 iPhone*/iPad* 才算数，报 arm64 不足以证明是 Mac。
-printf '#!/bin/sh\ncase "$*" in\n  *hw.machine*) echo "iPhone14,2" ;;\n  *) exit 1 ;;\nesac\n' \
-    > "$STUB_BIN/sysctl-machine"
-chmod +x "$STUB_BIN/sysctl-machine"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl-machine" \
-      MACWAVE_SW_VERS="$STUB_BIN/sw_vers" MACWAVE_JB_ROOT="$WORK/nonexistent-jb" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad"; then
-    pass "hw.model 失灵 + hw.machine 报 iPhone14,2：认作 iOS"
-else
-    fail "hw.machine 这条补充线索没生效（rc=${RC}）"
-fi
-
-# hw.model 失灵时，/var/jb 那条能提前给出结论 —— 但必须长得像一棵越狱根。
-write_sysctl ""
-mkdir -p "$WORK/jb/usr/bin" "$WORK/not-jb"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl" \
-      MACWAVE_SW_VERS="$STUB_BIN/sw_vers" MACWAVE_JB_ROOT="$WORK/jb" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad"; then
-    pass "hw.model 失灵 + /var/jb 有结构：提前判定为 iOS"
-else
-    fail "/var/jb 快速路径没生效（rc=${RC}）"
-fi
-
-# 空目录（没有 usr/ 也没有 Library/）不算越狱根：macOS 上真有人 mkdir 一个 /var/jb
-# 也不能因此把一台 Mac 拦掉。
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl" \
-      MACWAVE_SW_VERS="$STUB_BIN/sw_vers" MACWAVE_JB_ROOT="$WORK/not-jb" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --help < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 0 ]]; then
-    pass "空的 /var/jb（有人手建的）不会把 macOS 误判成 iOS"
-else
-    fail "空的 /var/jb 触发了误判（rc=${RC}）"
-fi
-
-# hw.model 读不到时才退到 sw_vers；两条都读不到再看密封卷上的 plist。
-write_sysctl ""
-write_sw_vers iOS
-run_bare --dry-run --dir-option=1
-if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad"; then
-    pass "hw.model 读不到：退到 sw_vers -productName 仍认得出 iOS"
-else
-    fail "sw_vers 这条兜底没生效（rc=${RC}）"
-fi
-
-write_sw_vers ""
-printf '<?xml version="1.0"?><plist><dict><key>ProductName</key><string>iPhone OS</string></dict></plist>' \
-    > "$WORK/systemversion.plist"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl" \
-      MACWAVE_SW_VERS="$STUB_BIN/sw_vers" \
-      MACWAVE_SYSTEM_VERSION_PLIST="$WORK/systemversion.plist" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "iPhone or iPad"; then
-    pass "两条都读不到：密封卷上的 SystemVersion.plist 仍认得出 iOS"
-else
-    fail "plist 这条兜底没生效（rc=${RC}）"
-fi
-
-# 三条都给不出结论时按 macOS 处理（误拦真 Mac 比漏判更糟）
-write_sysctl ""
-printf '#!/bin/sh\nexit 1\n' > "$STUB_BIN/sw_vers"; chmod +x "$STUB_BIN/sw_vers"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SYSCTL="$STUB_BIN/sysctl" MACWAVE_SW_VERS="$STUB_BIN/sw_vers" \
-      MACWAVE_SYSTEM_VERSION_PLIST="$WORK/nonexistent.plist" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --help < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 0 ]]; then
-    pass "三条线索都没有时按 macOS 处理（不误拦）"
-else
-    fail "线索缺失时把 macOS 拦掉了（rc=${RC}）"
-fi
-
-write_sw_vers macOS
-run_bare --help
-if [[ "$RC" -eq 0 ]] && has "$OUT" "Usage:"; then
-    pass "Darwin + sw_vers 报 macOS：放行（没有被 iOS 判定误伤）"
-else
-    fail "正常 macOS 被平台守卫误伤（rc=${RC}）"
-fi
-
-# 认不出来的平台（FreeBSD / MSYS 之类）：说清「只支持 macOS」，别静默继续
 write_uname FreeBSD
 run_bare --dry-run --dir-option=1
 if [[ "$RC" -eq 2 ]] && has "$OUT" "not recognised" && has "$OUT" "FreeBSD"; then
@@ -440,46 +394,6 @@ else
     fail "未知平台的提示不对（rc=${RC}）"
 fi
 
-# -------------------- 7c. Android / ChromeOS：Linux 内核，但不是桌面 Linux --------------------
-#
-# 两者都报 uname -s = Linux。Android 靠 ANDROID_ROOT/ANDROID_DATA 与 getprop 认，
-# ChromeOS 靠 /etc/lsb-release 里的 CHROMEOS_* 认（测试用 MACWAVE_CHROMEOS_RELEASE 指一份赝品）。
-
-write_uname Linux
-OUT=$(PATH="$STUB_BIN:$PATH" ANDROID_ROOT=/system \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "Android" && has "$OUT" "Neither installs here"; then
-    pass "Android：认出 bionic 上的 shell，说明两个项目都不装这里（rc=2）"
-else
-    fail "Android 的提示不对（rc=${RC}）：$(printf '%s' "$OUT" | head -2)"
-fi
-
-printf 'CHROMEOS_RELEASE_NAME=Chrome OS\nCHROMEOS_ARC_ANDROID_SDK_VERSION=30\n' > "$WORK/lsb-release"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_CHROMEOS_RELEASE="$WORK/lsb-release" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "ChromeOS" && has "$OUT" "https://linuxwave.org"; then
-    pass "ChromeOS：认出容器，指向 LinuxWave（rc=2）"
-else
-    fail "ChromeOS 的提示不对（rc=${RC}）：$(printf '%s' "$OUT" | head -2)"
-fi
-
-# 一份不含 CHROMEOS_ 的 lsb-release（普通发行版）不该被误判
-printf 'DISTRIB_ID=Ubuntu\nDISTRIB_RELEASE=22.04\n' > "$WORK/lsb-ubuntu"
-OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_CHROMEOS_RELEASE="$WORK/lsb-ubuntu" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
-RC=$?
-if [[ "$RC" -eq 2 ]] && has "$OUT" "this machine is Linux" && hasnt "$OUT" "ChromeOS"; then
-    pass "普通发行版（lsb-release 无 CHROMEOS_）：仍按 Linux 处理"
-else
-    fail "普通 Linux 被误判成 ChromeOS（rc=${RC}）"
-fi
-
-# 真 macOS 上不该出现这段提示（Linux runner 上这条不适用）
 write_uname "$(uname -s)"
 if [[ "$(uname -s)" == "Darwin" ]]; then
     run_install darwin-host --dry-run --dir-option=1
