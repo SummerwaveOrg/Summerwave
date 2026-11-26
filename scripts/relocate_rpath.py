@@ -90,7 +90,18 @@ def is_position_independent(path, file_path=None):
     （2026-11-24 的 htop / ncdu / tmux）。构建端必须用同一套判据，
     否则会给 conda 产物打上"已就位"的标记，客户端于是跳过改写，装完跑不起来。
     """
-    if path.startswith(("@loader_path/", "@executable_path/")):
+    if path.startswith("@loader_path/"):
+        if file_path is None:
+            return True
+        # 「相对」不等于「对得上」：4.x 的产物写的是
+        # @loader_path/../../../deps/ncurses/ncurses@6.6/lib/…，而 1.0 的依赖在
+        # Shore/ncurses/6.6/lib/ 下 —— 前缀没错，但那棵树已经不存在了。
+        # 旧瓶子重编时就是靠这一条才不会被当成「已经就位」放过。
+        target = os.path.normpath(os.path.join(
+            os.path.dirname(file_path), path[len("@loader_path/"):]))
+        return os.path.exists(target)
+    if path.startswith("@executable_path/"):
+        # 运行时才定的相对基准，构建时判不了，按「就位」处理
         return True
     if path.startswith("@rpath/"):
         if file_path is None:

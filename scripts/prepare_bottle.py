@@ -35,11 +35,17 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
 REPO = Path(__file__).resolve().parent.parent
 RELOCATE = REPO / "scripts" / "relocate_rpath.py"
+sys.path.insert(0, str(REPO / "scripts"))
+import components  # noqa: E402
+
+components.add_to_sys_path()
+
+import domains  # noqa: E402  —— 产物命名只此一份（与客户端同一个函数）
 # 平台标签与客户端同源（config/platforminfo.bottle_tag），不在这里再抄一份词表。
-sys.path.insert(0, str(REPO / "config"))
 import platforminfo  # noqa: E402
 DEFAULT_INFOSOURCE = Path.home() / "Projects" / "MacWaveOrg" / "infosource"
 MARKER = "_RELOCATED"
@@ -98,8 +104,12 @@ def domain(kind):
     return base
 
 
-def stored_name(name, version, arch, filename):
-    # 客户端存进 Bottle/Deps 的名字：<名>@<版本>.<架构><扩展名>
+def legacy_stored_name(name, version, arch, filename):
+    """4.x 时代存在 Bottle/Deps Release 里的名字：<名>@<版本>.<架构><扩展名>。
+
+    1.0 的产物名换了（带完整瓶子标签），但**旧资产还在**能被这里取件 ——
+    重编不依赖任何人先改名。
+    """
     for marker in (".tar.xz", ".tar.bz2", ".tar.gz", ".conda", ".zip"):
         if filename.endswith(marker):
             ext = marker
@@ -109,21 +119,84 @@ def stored_name(name, version, arch, filename):
     return f"{name}@{version}.{arch}{ext}"
 
 
-def fetch(kind, name, version, arch, fields, work):
+def repacked_name(name, version, arch):
+    """重打之后的产物名：<名>@<版本>.<os>-<arch>.tar.bz2（repack 只出 bz2）。"""
+    out = f"{name}@{version}.{platforminfo.bottle_tag(arch)}.tar.bz2"
+    # 与客户端拼地址用的是同一个函数，这里当场对齐 —— 一旦两边漂了，宁可在打包时炸
+    assert domains.payload_filename(name, version, arch, out) == out, out
+    return out
+
+
+def extension_of(filename):
+    for marker in (".tar.zst", ".tar.xz", ".tar.bz2", ".tar.gz", ".conda", ".zip"):
+        if filename.endswith(marker):
+            return marker
+    return os.path.splitext(filename)[1]
+
+
+def candidate_sources(kind, name, version, arch, fields, source):
+    """可能存着我们这份字节的地方，按可信度排好。
+
+    为什么不止一个：索引记录里的 `sha256` 描述的是**我们发布的那个文件**，而
+    `file:` 记的是**上游**文件名（客户端靠它推扩展名）。两者不是同一个名字 ——
+    历史上 `prepare_bottle` 一次就把记录从上游名改成了重打包的 `.tar.bz2`，
+    于是「再跑一遍」没有唯一入口可猜。这里把可能的名字都列出来，用 sha256 挑出对的那份：
+    对得上就用，对不上就换下一个。sha256 一直在校验，所以猜名字不降低安全性。
+    """
+    ext = extension_of(fields.get("file", ""))
+    tag = platforminfo.bottle_tag(arch)
+    storage = [
+        f"{name}@{version}.{arch}.tar.bz2",     # prepare_bottle 曾经产出的名字
+        f"{name}@{version}.{tag}.tar.bz2",      # 1.0 改名之后
+        f"{name}@{version}.{arch}{ext}",        # 字节原样搬运的旧名字
+        f"{name}@{version}.{tag}{ext}",         # 字节原样搬运的新名字
+    ]
+    candidates = []
+    base = os.environ.get("MACWAVE_BOTTLE_DOMAIN" if kind == "pkg" else "MACWAVE_DEPS_DOMAIN", "").rstrip("/")
+    if base and source in ("auto", "storage"):
+        for stored in dict.fromkeys(storage):        # dict 保序 + 去重
+            candidates.append((f"{base}/{name}/{quote(stored)}", stored))
+    url = fields.get("url", "")
+    if url.startswith("https://") and source in ("auto", "upstream"):
+        candidates.append((url, url.split("/")[-1]))
+    return candidates
+
+
+def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
+    """取一份「索引里写的 sha256」对应的字节。
+
+    source=auto     ：先问我们自己的存储（按几个可能的名字试），再回记录里的 url。
+    source=storage  ：只问存储。
+    source=upstream ：只回上游（字节原样搬运的记录才是同一次哈希）。
+    """
     filename = fields.get("file")
     if not filename:
         sys.exit(f"🌊 Error: record for {name}@{version} has no file field")
-    url = f"{domain(kind)}/{name}/{stored_name(name, version, arch, filename)}"
-    out = work / filename
-    print(f"🌊 fetching {url.split('repohub.top')[-1]}")
-    if subprocess.run(["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode:
-        sys.exit(f"🌊 Error: download failed: {url}")
-    digest = hashlib.sha256(out.read_bytes()).hexdigest()
     expect = fields.get("sha256", "")
-    if expect and digest != expect:
-        sys.exit(f"🌊 Error: sha256 mismatch for {name}@{version}\n"
-                 f"   expected {expect}\n   got      {digest}")
-    return out, filename
+    if not expect:
+        sys.exit(f"🌊 Error: record for {name}@{version} has no sha256; cannot verify")
+
+    candidates = candidate_sources(kind, name, version, arch, fields, source)
+    if not candidates:
+        sys.exit(f"🌊 Error: no source for {name}@{version} "
+                 f"(set MACWAVE_BOTTLE_DOMAIN / MACWAVE_DEPS_DOMAIN, or the record needs a url)")
+
+    for url, basename in candidates:
+        out = (cache or work) / f"{name}@{version}.{arch}-{basename}"
+        if out.is_file():
+            if hashlib.sha256(out.read_bytes()).hexdigest() == expect:
+                print(f"🌊 cached  {out.name}")
+                return out, filename
+            out.unlink()
+        print(f"🌊 fetching {url[:120]}")
+        if subprocess.run(["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode:
+            continue
+        if hashlib.sha256(out.read_bytes()).hexdigest() == expect:
+            return out, filename
+        out.unlink(missing_ok=True)
+
+    sys.exit(f"🌊 Error: none of the {len(candidates)} candidate(s) matched sha256 {expect[:12]}… "
+             f"for {name}@{version}.{arch}")
 
 
 # -------------------- 解包 / 打包 --------------------
@@ -170,7 +243,8 @@ def stage_target(stage, kind, name, version):
     return stage / "Shore" / name / version
 
 
-def prepare(infosource, kind, name, version, arch, out_dir, keep):
+def prepare(infosource, kind, name, version, arch, out_dir, keep,
+            source="auto", cache=None):
     work = Path(tempfile.mkdtemp(prefix=f"prepare-{name}-"))
     try:
         stage = work / "stage"
@@ -187,7 +261,8 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep):
             fields = read_record(infosource, current_kind, arch, current_name, current_version)
             target = stage_target(stage, current_kind, current_name, current_version)
             target.mkdir(parents=True, exist_ok=True)
-            payload, _ = fetch(current_kind, current_name, current_version, arch, fields, work)
+            payload, _ = fetch(current_kind, current_name, current_version, arch,
+                               fields, work, source=source, cache=cache)
             extract(payload, target)
             for ref in dep_list(fields):
                 dep_name, _, dep_version = ref.partition("@")
@@ -206,7 +281,7 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep):
         # 3. 打标记 + 只重打目标产物（依赖由它们自己那一轮处理）
         (target / MARKER).write_text("@loader_path\n", encoding="utf-8")
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = out_dir / f"{name}@{version}.{arch}.tar.bz2"
+        out_file = out_dir / repacked_name(name, version, arch)
         digest = repack(target, out_file)
 
         print()
@@ -218,17 +293,83 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep):
         print(f"   archive: {out_file}")
         if keep:
             print(f"   staging: {stage}")
+        return {"kind": kind, "name": name, "version": version, "arch": arch,
+                "file": out_file.name, "sha256": digest, "archive": str(out_file),
+                "staged": len(seen)}
     finally:
         if not keep:
             shutil.rmtree(work, ignore_errors=True)
 
 
+def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_existing):
+    """把索引里所有记录重打一遍。断点续跑：产物已在 out_dir 就跳过。"""
+    from sync_payloads import records
+
+    todo = []
+    for kind, arch, name, version, record in records(infosource):
+        # sync_payloads 用 bottle/deps 命名（产物侧），索引与记录用 pkg/deps
+        kind = "pkg" if kind == "bottle" else "deps"
+        if kinds and kind not in kinds:
+            continue
+        if only and name not in only:
+            continue
+        todo.append((kind, arch, name, version, record))
+    if limit:
+        todo = todo[:limit]
+
+    print(f"🌊 {len(todo)} payload(s) to rebuild (source: {source})")
+    done = skipped = 0
+    failures = []
+    if tsv and not Path(tsv).exists():
+        Path(tsv).write_text("kind\tname\tversion\tarch\tfile\tsha256\n", encoding="utf-8")
+
+    for index, (kind, arch, name, version, record) in enumerate(todo, 1):
+        expected = out_dir / repacked_name(name, version, arch)
+        if skip_existing and expected.is_file():
+            skipped += 1
+            continue
+        print(f"\n=== [{index}/{len(todo)}] {name}@{version} ({kind}, {arch}) ===")
+        try:
+            result = prepare(infosource, kind, name, version, arch, out_dir,
+                             keep=False, source=source, cache=cache)
+        except SystemExit as error:            # prepare() 用 sys.exit 报错
+            failures.append((f"{name}@{version}.{arch}", str(error)))
+            print(f"🌊 FAILED: {error}")
+            continue
+        done += 1
+        if tsv:
+            with open(tsv, "a", encoding="utf-8") as stream:
+                stream.write("\t".join([result["kind"], result["name"], result["version"],
+                                        result["arch"], result["file"], result["sha256"]]) + "\n")
+
+    print()
+    print(f"🌊 rebuilt {done}, skipped {skipped}, failed {len(failures)}")
+    for label, reason in failures[:20]:
+        print(f"   ✗ {label}: {reason.splitlines()[0] if reason else 'unknown'}")
+    if len(failures) > 20:
+        print(f"   … and {len(failures) - 20} more")
+    return 0 if not failures else 1
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Repack an upstream payload into a prebuilt artifact")
-    parser.add_argument("--kind", choices=("pkg", "deps"), required=True)
-    parser.add_argument("--name", required=True)
-    parser.add_argument("--version", required=True)
+    parser = argparse.ArgumentParser(
+        description="Repack upstream payloads into prebuilt artifacts (build-time relocation)")
+    parser.add_argument("--kind", choices=("pkg", "deps"))
+    parser.add_argument("--name")
+    parser.add_argument("--version")
     parser.add_argument("--arch", default="arm64", choices=("arm64", "amd64"))
+    parser.add_argument("--all", action="store_true",
+                        help="rebuild every record in the index (use --only/--limit/--kinds to narrow)")
+    parser.add_argument("--only", default="", help="comma-separated package names (with --all)")
+    parser.add_argument("--limit", type=int, default=0, help="stop after N payloads (with --all)")
+    parser.add_argument("--kinds", default="", help="comma-separated: pkg,deps (with --all)")
+    parser.add_argument("--source", default="auto", choices=("auto", "upstream", "storage"),
+                        help="auto = our storage first, then the record's url (default); "
+                             "storage = only Bottle/Deps; upstream = only the record's url")
+    parser.add_argument("--cache", default="", help="keep downloaded payloads here (batch mode)")
+    parser.add_argument("--tsv", default="", help="append kind/name/version/arch/file/sha256 rows here")
+    parser.add_argument("--resume", action="store_true",
+                        help="skip payloads whose rebuilt archive already exists (with --all)")
     parser.add_argument("--infosource", default=str(DEFAULT_INFOSOURCE))
     parser.add_argument("--out", default=str(Path.cwd() / "prebuilt"))
     parser.add_argument("--keep", action="store_true", help="keep the staging tree for inspection")
@@ -236,9 +377,23 @@ def main():
 
     if not RELOCATE.is_file():
         sys.exit(f"🌊 Error: {RELOCATE} not found")
+
+    cache = Path(args.cache) if args.cache else None
+    if cache:
+        cache.mkdir(parents=True, exist_ok=True)
+
+    if args.all:
+        only = {n.strip() for n in args.only.split(",") if n.strip()}
+        kinds = {k.strip() for k in args.kinds.split(",") if k.strip()}
+        return batch(Path(args.infosource), Path(args.out), args.source, cache,
+                     only, args.limit, kinds, args.tsv, args.resume)
+
+    if not (args.kind and args.name and args.version):
+        parser.error("either --all, or --kind + --name + --version")
     prepare(Path(args.infosource), args.kind, args.name, args.version,
-            args.arch, Path(args.out), args.keep)
+            args.arch, Path(args.out), args.keep, source=args.source, cache=cache)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
