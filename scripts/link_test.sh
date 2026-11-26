@@ -158,7 +158,7 @@ python3 "$WAVE_BIN" uninstall "$PKG@2.0" --no-link >/dev/null 2>&1
 UNLINK_EXIT=$?
 set -e
 check "删链接指向的版本时拒绝执行" "$UNLINK_EXIT" "1"
-check "被拒绝后版本仍在" "$([[ -d "$BIN_DIR/$PKG@2.0" ]] && echo yes || echo no)" "yes"
+check "被拒绝后版本仍在" "$([[ -d "$PAYLOAD_DIR/$PKG/2.0" ]] && echo yes || echo no)" "yes"
 check "被拒绝后链接未被破坏" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊 $PKG => 2.0"
 
 # 5.2 要删的不是链接指向的版本 → 允许，链接继续指向 2.0

@@ -122,7 +122,7 @@ case "$OUT" in
     *"failed test_zzz"*) pass "汇总里点名失败的是 test_zzz" ;;
     *) fail "没点名失败的包" ;;
 esac
-if [ -L "$BASE/links/test_x" ]; then
+if [ -L "$BASE/bin/test_x" ]; then
     pass "失败的那个没妨碍 test_x 装好"
 else
     fail "test_x 没装上（一个坏名字拖垮了整批）"
@@ -137,7 +137,7 @@ else
     fail "无空格写法失败（rc=${RC}）：$(printf '%s' "$OUT" | tail -3)"
 fi
 for name in test_y test_z; do
-    if [ -L "$BASE/links/$name" ]; then
+    if [ -L "$BASE/bin/$name" ]; then
         pass "$name 的链接在"
     else
         fail "$name 没装上"

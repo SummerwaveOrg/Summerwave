@@ -209,12 +209,12 @@ ok "--all 在没装任何包时说清楚" "$out" "No packages installed yet"
 echo
 echo "========== 5. 链接指向旧版本时的附注 =========="
 
-mkdir -p "$BASE/bin/jq@1.8.2" && : > "$BASE/bin/jq@1.8.2/jq"
+mkdir -p "$BASE/Shore/jq/1.8.2" && : > "$BASE/Shore/jq/1.8.2/jq"
 out=$(env HOME="$HOME_DIR" MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
       PYTHONPATH="$USER_SITE" python3 "$BASE/lib/wave.py" latest jq 2>&1)
 ok "已装新版：状态是 up to date" "$out" "up to date"
 ok "但仍附注真正在跑的旧版本"     "$out" "(linked: 1.7.1)"
-rm -rf "$BASE/bin/jq@1.8.2"
+rm -rf "$BASE/Shore/jq/1.8.2"
 
 echo
 echo "========== 6. 参数校验 =========="

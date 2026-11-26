@@ -205,17 +205,21 @@ for component in cli config lib net pkg surfboard; do
     ln -sfn "$REPO_DIR/$component" "$BASEDIR/$component"
 done
 
-build_legacy "$TESTROOT/fixture" 11
-cp -R "$TESTROOT/fixture/stage/." "$BASEDIR/"
-echo "foo@1.0" > "$BASEDIR/bin/bar@1.0/_DEPS"
+build_legacy "$WORK/fixture" 11
+# 1.0 起安装树只有一种形态：Shore/<名>/<版本>/。低层用例（1–5 段）仍用老的
+# stage 布局验「旧 bottle 也能重定位」，这一段验的是 CLI 在新布局上的行为。
+mkdir -p "$BASEDIR/Shore/bar" "$BASEDIR/Shore/foo"
+cp -R "$WORK/fixture/stage/bin/bar@1.0" "$BASEDIR/Shore/bar/1.0"
+cp -R "$WORK/fixture/stage/deps/foo/foo@1.0" "$BASEDIR/Shore/foo/1.0"
+echo "foo@1.0" > "$BASEDIR/Shore/bar/1.0/_DEPS"
 
 wave() {  # wave <参数...>：始终在测试根里跑，绝不碰真实安装
     OUT=$(MACWAVE_TEST="$TESTROOT" python3 "$REPO_DIR/lib/wave.py" "$@" 2>&1)
     RC=$?
 }
 
-CLI_PKG="$BASEDIR/bin/bar@1.0/bin/bar"
-CLI_DEP="$BASEDIR/deps/foo/foo@1.0/lib/libfoo.dylib"
+CLI_PKG="$BASEDIR/Shore/bar/1.0/bin/bar"
+CLI_DEP="$BASEDIR/Shore/foo/1.0/lib/libfoo.dylib"
 
 BEFORE_PKG=$(sum_of "$CLI_PKG")
 BEFORE_DEP=$(sum_of "$CLI_DEP")
