@@ -22,19 +22,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 import versioncompare  # noqa: E402
 
-# 版本目录名必须是纯数字段：3.14.9、4.0.0、2.5
-VERSION_DIR_RE = re.compile(r'^\d+(?:\.\d+)*$')
+# 版本目录名有两种形状：
+#   发布时刻  2026.11.26-15:52:43（1.0 起客户端版本的格式）
+#   老式版本号 4.0.0 / 2.5 / 3.14.9（历史版本，指针脚本还要读得懂）
+VERSION_DIR_RE = re.compile(r'^(?:\d{4}\.\d{1,2}\.\d{1,2}-\d{1,2}:\d{2}:\d{2}|\d+(?:\.\d+)*)$')
 
 
 def version_key(value):
-    """版本键走 lib/versioncompare.py 那一份（PEP 440）。
+    """版本键走 lib/versioncompare.py 那一份（客户端版本规则）。
 
-    这个脚本只扫纯数字目录（VERSION_DIR_RE），所以今天用不到预发布顺序；
-    但仍然与客户端共用同一个实现 —— 两份「差不多」的比较迟早会在某次改动后
+    与客户端**必须**共用同一个实现：两份「差不多」的比较迟早会在某次改动后
     给出相反的结论，而那种分歧表现为「指针说已最新、客户端说该升级」这种最难
-    查的状态。
+    查的状态。发布时刻（2026.11.26-15:52:43）与老式版本号在那边已经能一起排序。
     """
-    return versioncompare.sort_key(value)
+    return versioncompare.client_key(value)
 
 
 def version_dirs(subdir, require):

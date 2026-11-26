@@ -21,8 +21,8 @@ RESET = '\033[0m'
 
 # -------------------- 常量 --------------------
 
-from configpaths import (installed_build, installed_version, internal_state_dir,
-                         load_base_dir)
+from configpaths import (installed_build, installed_channel, installed_version,
+                         internal_state_dir, load_base_dir)
 import domains
 import versioncompare
 import tls
@@ -125,6 +125,40 @@ def data_build(data):
     return ""
 
 
+# 指针可以用 selfupdate = "blocked" 声明「不要用自更新装进这一版」。
+#
+# 只留给真正做不到的情形（布局变更到 prune 也不敢自动删、需要新解释器、换了仓库或
+# 分支、给老版本线的回溯修复包）。**缺省是允许** —— 字段缺失、写错、值为空，一律按
+# 允许处理：一个笔误不该让所有客户端卡死。
+#
+# 它描述的是「装进这一版」这件事，不是「这一版能不能跑」：`install.sh` 直接装同一版
+# 完全不受影响。
+BLOCKED_VALUE = "blocked"
+
+# 声明 blocked 时要给用户的出路。与安装文档、官网写的是同一条命令。
+INSTALL_URL = "https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh"
+INSTALL_TIMEOUT = "--max-time 60"
+
+
+def selfupdate_blocked(data):
+    """这份指针有没有声明「不能通过自更新装进去」。返回 (是否阻止, 原因)。"""
+    raw = str(data.get("selfupdate", "") or "").strip().lower()
+    if raw != BLOCKED_VALUE:
+        return False, ""
+    reason = str(data.get("selfupdate_reason", "") or "").strip()
+    return True, reason
+
+
+def refuse_blocked(current, latest, reason):
+    """目标版本声明了 blocked：不下载任何东西，说清原因与出路。"""
+    print(f"{YELLOW}🌊 The newest release ({latest}) cannot be installed with selfupdate.{RESET}")
+    if reason:
+        print(f"{YELLOW}🌊 Why       {reason}{RESET}")
+    print(f"{YELLOW}🌊 Next      run the installer once; it replaces every file:{RESET}")
+    print(f"{YELLOW}🌊           /bin/bash -c \"$(curl -fsSL {INSTALL_TIMEOUT} {INSTALL_URL})\"{RESET}")
+    print(f"{GREEN}🌊 Your current installation ({current or 'unknown'}) has not been changed.{RESET}")
+
+
 def probe_is_newer(data, current, current_build):
     """这份探针里的版本比本机新吗（版本优先，版本相同看构建号）。"""
     return versioncompare.newer_release(data.get("version", ""), data_build(data),
@@ -172,43 +206,6 @@ def version_data(text):
         sys.exit(1)
 
 
-# 版本比较只看一处（lib/versioncompare.py）。以前这里是「只比数字段」的实现，于是
-# 4.4.0-beta1 被判成比 4.4.0 大 —— 装过 beta 的人永远等不到正式版。
-version_key = versioncompare.sort_key
-
-
-# 官方安装入口。beta 用户被拦下来之后要照着这条命令重装，所以写在这里而不是
-# 只在文案里 —— 同一个地址在 install.sh 的用法注释、官网、发布说明里也有，
-# 改的时候一起改。
-# 命令里的 curl 也带 --max-time：这条是给用户抄的，没有超时就会一直挂着。
-# scripts/net_policy_test.sh 里那条契约同样要求每个 curl 有超时 —— 打印出来的也算。
-INSTALL_SH_URL = "https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh"
-INSTALL_SH_TIMEOUT = "--max-time 60"
-RELEASE_TAG_URL = "https://github.com/MacWaveOrg/MacWave/releases/tag"
-
-
-def refuse_on_prerelease(current):
-    """当前装的是 beta / rc 时，拒绝 selfupdate 并给出重装命令。
-
-    为什么必须拒绝，而不是「让它升到正式版」：beta 与正式版在**不同分支**上，
-    selfupdate 取的增量是按 latest.toml 里那条正式版分支算的。把它的文件盖在一棵
-    beta 树上，得到的是两条线混在一起的安装（2026-11-15 那次 wave 启动即崩，
-    就是这么来的）。重装是唯一安全的路径 —— 它走全量，且由 install.sh 重新
-    决定分支。
-
-    消息全部用 RED_BOLD：这不是用法提示，是「你什么都没装成」的失败。
-    """
-    print(f"{RED_BOLD}🌊 Error: MacWave {current} is a beta build, and selfupdate does not "
-          f"handle beta builds.{RESET}")
-    print(f"{RED_BOLD}🌊 Why       betas live on their own branch; selfupdate would mix two "
-          f"lines of code in one tree.{RESET}")
-    print(f"{RED_BOLD}🌊 Next      install the version you want from its Release page:{RESET}")
-    print(f"{RED_BOLD}🌊           stable: /bin/bash -c \"$(curl -fsSL {INSTALL_SH_TIMEOUT} {INSTALL_SH_URL})\"{RESET}")
-    print(f"{RED_BOLD}🌊           this beta: {RELEASE_TAG_URL}/v{current}{RESET}")
-    print(f"{RED_BOLD}🌊 Your current installation has not been changed.{RESET}")
-    sys.exit(1)
-
-
 # -------------------- 用户协议 --------------------
 #
 # 4.7 起**不再询问、也不再记录**同意：
@@ -222,28 +219,15 @@ def refuse_on_prerelease(current):
 # 没有闸门、没有 AGREEMENT.json、没有「已同意过」这种状态。
 AGREEMENT_URL = "https://macwave.org/#agreement"
 
+
 def print_agreement_notice():
     """升级前说一句协议地址。只说一次，不提问、不写文件。"""
     print(f"🌊 User agreement: {AGREEMENT_URL}")
 
 
-def _is_cross_major(current, latest):
-    """这次更新是不是跨大版本。
-
-    只用来决定**要不要问协议**，不参与拒绝：跨大版本的更新本来就装不了（要重装），
-    在它上面问「同不同意新协议」纯属噪音 —— 用户答应了也还是得去官网重装。
-    真正的拒绝在 lib/selfupdate.sh 里（那里才是唯一判定处，因为 selfupdate.sh 才是
-    「从目标分支拉下来执行」的那一份，每个大版本自带自己的规则）。
-    """
-    def major_of(value):
-        match = re.search(r"[0-9]+", str(value or ""))
-        return match.group(0) if match else ""
-
-    left, right = major_of(current), major_of(latest)
-    return bool(left) and bool(right) and left != right
-
-
-# -------------------- 试运行 --------------------
+# 版本比较只看一处（lib/versioncompare.py）。客户端版本是发布时刻，用 client_key；
+# 软件包版本走 pkg 那一套 —— 两者混用会得出「老客户端比新客户端新」。
+version_key = versioncompare.client_key
 
 DRY_RUN_FLAG = "--dry-run"
 
@@ -267,20 +251,20 @@ def report_dry_run(current, latest, data, options, overall_timeout,
 
     print(f"🌊 Dry run: MacWave would be updated from {current or 'unknown'} to {latest}.")
 
-    if channel == versioncompare.CHANNEL_RC:
-        line("channel", "rc (testing builds, follows rcdata/latest.toml)")
+    if channel == versioncompare.CHANNEL_PREVIEW:
+        line("channel", "preview (follows prerelease/latest.toml)")
     else:
         line("channel", "stable")
     if data_build(data):
         line("build", data_build(data))
     if crossed:
-        line("switch", "RC → stable as a *full* install (every file replaced)")
+        line("switch", "preview → stable as a *full* install (every file replaced)")
+    blocked, blocked_reason = selfupdate_blocked(data)
+    if blocked:
+        line("selfupdate", "blocked by this release" + (f": {blocked_reason}" if blocked_reason else "")
+             + " — run the installer instead")
     if data.get("branch"):
         line("branch", data["branch"])
-    if _is_cross_major(current, latest):
-        # selfupdate.sh 不跨大版本；这里只是提前说清楚，免得用户以为 dry run 会装上去
-        line("version", "this is a cross-major update: lib/selfupdate.sh refuses those, "
-                        "reinstall from the release page instead")
     # 4.7 起不问也不记：安装时按过一次 y 就算同意，升级是用户主动执行的动作。
     line("agreement", f"not asked (notice only): {AGREEMENT_URL}")
     line("skip-ssl", "on" if tls.enabled() else "off")
@@ -318,15 +302,11 @@ def _handle_selfupdate_locked(input_string=""):
     # 先看本机装的是什么，再决定要不要联网 —— 判断渠道不需要网络，
     # 早退一步就少一次「Fetching the latest version...」之后的失败。
     #
-    # 渠道由「装的是什么」推出来，客户端不记任何额外状态：
-    #   -rc            → RC 渠道，读 rcdata/latest.toml，只跟 RC
-    #   beta/alpha/dev → 仍然拒绝（它们没有自己的探针，跟正式版走会混分支）
-    #   其余           → 正式渠道
+    # 渠道是**这棵树跟的是哪条流**，记在 <base>/var/config.sh 的 MACWAVE_CHANNEL 里。
+    # 1.0 起版本号是发布时刻，没有再能从版本串推出渠道的后缀。
     current = installed_version()
     current_build = installed_build()
-    channel = versioncompare.channel_for(current)
-    if channel == versioncompare.CHANNEL_BETA:
-        refuse_on_prerelease(current)
+    channel = versioncompare.normalize_channel(installed_channel())
 
     options = options_from(input_string)
     timeout_raws = options.timeout_raws
@@ -337,14 +317,15 @@ def _handle_selfupdate_locked(input_string=""):
     print("🌊 Fetching the latest version...")
 
     data = None
-    crossed_from_rc = False
-    if channel == versioncompare.CHANNEL_RC:
-        text = fetch_version_data(budget, timeout_raws, domains.selfupdate_rc_latest_url())
+    crossed_stream = False
+    if channel == versioncompare.CHANNEL_PREVIEW:
+        text = fetch_version_data(budget, timeout_raws,
+                                  domains.selfupdate_prerelease_latest_url())
         if text is not None:
             candidate = version_data(text)
             if probe_is_newer(candidate, current, current_build):
                 data = candidate
-            # 否则 RC 渠道没有更新的构建，接着看正式版 —— 渠道收尾之后，
+            # 否则预发布流没有更新的构建，接着看正式版 —— 预发布收尾之后，
             # 正式版就是出路（走全量，见下面 MACWAVE_FULL_INSTALL）。
 
     if data is None:
@@ -361,16 +342,16 @@ def _handle_selfupdate_locked(input_string=""):
                     print(f"{RED_BOLD}{prefix}{line}{RESET}")
             sys.exit(1)
         data = version_data(text)
-        crossed_from_rc = (channel == versioncompare.CHANNEL_RC
-                           and probe_is_newer(data, current, current_build))
+        crossed_stream = (channel == versioncompare.CHANNEL_PREVIEW
+                          and probe_is_newer(data, current, current_build))
     latest = data.get("version", "")
     latest_build = data_build(data)
     if not latest:
         print(f"{RED_BOLD}🌊 Error: The version data has no 'version' field.{RESET}")
         sys.exit(1)
 
-    if channel == versioncompare.CHANNEL_RC:
-        print("🌊 Channel: RC (testing builds) — updates follow rcdata/latest.toml")
+    if channel == versioncompare.CHANNEL_PREVIEW:
+        print("🌊 Channel: preview — updates follow prerelease/latest.toml")
     else:
         print("🌊 Channel: stable")
     print(f"🌊 Latest version found: {latest}"
@@ -383,22 +364,29 @@ def _handle_selfupdate_locked(input_string=""):
             print("🌊 Dry run: nothing would be downloaded or changed.")
         sys.exit(0)
 
-    if channel == versioncompare.CHANNEL_RC and not crossed_from_rc:
-        print("🌊 The RC channel has no newer build, and the stable release is not newer either.")
+    # 目标版本声明了 blocked：新版确实存在，但不能用自更新装进去。这不是错误，
+    # 是「换一种装法」，所以退出码是 0 —— 与「已是最新」同一个语义层。
+    blocked, blocked_reason = selfupdate_blocked(data)
+    if blocked:
+        refuse_blocked(current, latest, blocked_reason)
+        sys.exit(0)
 
-    if crossed_from_rc:
-        print(f"{YELLOW}🌊 The RC channel has no newer build; the stable release "
+    if channel == versioncompare.CHANNEL_PREVIEW and not crossed_stream:
+        print("🌊 The preview channel has no newer build, and the stable release is not newer either.")
+
+    if crossed_stream:
+        print(f"{YELLOW}🌊 The preview channel has no newer build; the stable release "
               f"{latest} is newer.{RESET}")
         print(f"{YELLOW}🌊 Moving to it as a full install: every file is replaced, so no "
-              f"RC and stable files end up in the same tree.{RESET}")
+              f"preview and stable files end up in the same tree.{RESET}")
 
     # 试运行在**问协议之前**结束：它既不该弹询问，也不该写 AGREEMENT.json。
     # 这一段的判断全是只读的（版本比较、协议是否已记录）。
     if dry_run:
         report_dry_run(current, latest, data, options,
                        max(UPDATE_TIMEOUT, int(budget.total) * 20),
-                       channel=versioncompare.channel_for(latest),
-                       crossed=crossed_from_rc)
+                       channel=versioncompare.CHANNEL_STABLE if crossed_stream else channel,
+                       crossed=crossed_stream)
         sys.exit(0)
 
     # 「确实要更新」之后才问协议：没东西可装的时候不打扰人。
@@ -421,11 +409,12 @@ def _handle_selfupdate_locked(input_string=""):
     environment["MACWAVE_UPDATE_VERSION"] = latest
     # 编排脚本还要自己取一份 latest.toml（验签与哈希都对着那份），所以渠道也得传，
     # 否则它会去读正式版探针，验的是另一份数据。
-    environment["MACWAVE_UPDATE_CHANNEL"] = versioncompare.channel_for(latest)
+    environment["MACWAVE_UPDATE_CHANNEL"] = (
+        versioncompare.CHANNEL_STABLE if crossed_stream else channel)
     if latest_build:
         environment["MACWAVE_UPDATE_BUILD"] = latest_build
-    if crossed_from_rc:
-        # 跨渠道必须全量：增量按目标分支的文件列表铺，盖在 RC 树上就是两条线混装。
+    if crossed_stream:
+        # 跨流必须全量：增量按目标分支的文件列表铺，盖在预发布树上就是两条线混装。
         environment["MACWAVE_FULL_INSTALL"] = "1"
     if data.get("branch"):
         environment["MACWAVE_UPDATE_BRANCH"] = data["branch"]

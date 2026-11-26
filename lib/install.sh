@@ -1063,12 +1063,14 @@ fi
 # 格式是 TOML 的一个子集：平铺的 `key = "value"`，允许行尾 # 注释。
 # 这里用 sed 而不是引 TOML 解析器，因为此刻客户端还没有可用的 Python 环境。
 
-# 渠道：装 RC 时读 RC 自己的探针（rcdata/latest.toml），与正式版完全隔离。
-# 用环境变量而不是命令行旗标，是因为 install.sh 的参数要一路传到 update_commands
-# 里那份手抄的帮助文本（scripts/message_test.sh 钉着它），而 RC 是发布者视角的
-# 东西，不该出现在普通用户的用法里。
-if [[ "${MACWAVE_CHANNEL:-}" == "rc" ]]; then
-    LATEST_DATA_URL="$SELFUPDATE_URL/rcdata/latest.toml"
+# 渠道：只有两条流。preview 读自己的探针（prerelease/latest.toml），与正式版完全
+# 隔离。用环境变量而不是命令行旗标，是因为 install.sh 的参数要一路传到
+# update_commands 里那份手抄的帮助文本（scripts/message_test.sh 钉着它），而渠道是
+# 发布者/测试者视角的东西，不该出现在普通用户的用法里。
+MW_CHANNEL="stable"
+if [[ "${MACWAVE_CHANNEL:-}" == "preview" ]]; then
+    MW_CHANNEL="preview"
+    LATEST_DATA_URL="$SELFUPDATE_URL/prerelease/latest.toml"
 else
     LATEST_DATA_URL="$SELFUPDATE_URL/macwavedata/latest.toml"
 fi
@@ -1627,6 +1629,77 @@ sync_tree() {
         mw_say "🌊 $downloaded file(s) downloaded, $kept already up to date (of $total)." \
                "🌊 已下载 ${downloaded} 个文件，${kept} 个已是最新（共 ${total} 个）。"
     fi
+
+    prune_tree
+}
+
+# 清单管理的目录：只有这些目录里的文件会被 prune 删掉。
+#
+# 为什么要一张**写死在脚本里**的名单，而不是从清单里推：改名（lib/ → core/）之后
+# 旧目录已经不在新清单里了，从清单推就永远推不到它 —— 而那正是必须删掉的东西。
+# 加一个组件/资源目录时这里要跟着加一行；scripts/structure_test.sh 会盯着。
+MANAGED_ROOTS="cli config lib net pkg surfboard man info Keys"
+
+prune_tree() {
+    # 声明式收敛：清单里没有的、但躺在清单管理目录里的文件，删掉。
+    #
+    # 为什么必须有这一步：`sync_tree` 只会覆盖与新增，从不删除。升级到文件集合
+    # **变小**的版本（改名的模块、拆分的文件、换了目录）时，旧文件会留在原地。
+    # 旧模块留在 lib/ 里就是「同一份代码有两个副本」，sys.path 一变就会跑到旧代码
+    # 上 —— 这类故障看起来像「升级没生效」，实际是两份都在。
+    #
+    # 边界（宁可漏删，不可越界）：
+    #   * 只碰上面 MANAGED_ROOTS 里的目录；Shore/（已装包）、var/（状态）、
+    #     venv/、python/、downloads/ 一律不动。
+    #   * 只删**不在清单里**的普通文件与符号链接；目录留着（空的也没关系）。
+    #   * 清单里有的路径一律不删，哪怕哈希对不上（那是下面下载阶段的事）。
+    local root keep line rest removed=0 file relative
+    [[ -f "$MANIFEST_TMP" ]] || return 0
+
+    keep="$(mktemp)"
+    # 清单每行是 `<路径> <0|1> <sha 或 ->`。路径里若含空格，在清单里写成 `\ `，
+    # 所以不能按空格切三段 —— 从**右边**剥两个字段，剩下的整体就是路径。
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        line="${line% }"
+        line="${line% *}"          # 去掉 sha
+        rest="${line% *}"          # 去掉 exec 标志
+        [[ -n "$rest" ]] || continue
+        printf '%s\n' "${rest//\\ / }"
+    done < "$MANIFEST_TMP" | sort -u > "$keep"
+
+    for root in $MANAGED_ROOTS; do
+        [[ -d "$BASE_DIR/$root" ]] || continue
+        while IFS= read -r file; do
+            [[ -n "$file" ]] || continue
+            relative="${file#"$BASE_DIR"/}"
+            if grep -qxF -- "$relative" "$keep"; then
+                continue
+            fi
+            if mw_dry_run; then
+                mw_plan "🌊   would remove $relative (no longer shipped)" \
+                        "🌊   将删除 ${relative}（新版本已不再提供）"
+                removed=$((removed + 1))
+                continue
+            fi
+            if rm -f -- "$file"; then
+                removed=$((removed + 1))
+            else
+                rm -f "$keep"
+                echo -e "${RED_BOLD}🌊 Error: cannot remove $relative, which this version no longer ships.${RESET}" >&2
+                echo -e "${RED_BOLD}🌊 Leaving it would let the old copy shadow the new one.${RESET}" >&2
+                install_failure_notice 1
+                exit 1
+            fi
+        done < <(find "$BASE_DIR/$root" \( -type f -o -type l \) 2>/dev/null)
+    done
+    rm -f "$keep"
+
+    if [[ "$removed" -gt 0 ]]; then
+        mw_say "🌊 Removed $removed file(s) this version no longer ships (renamed or dropped)." \
+               "🌊 已删除 ${removed} 个新版本不再提供的文件（改名或已移除）。"
+    fi
+    return 0
 }
 
 apply_migrations() {
@@ -1865,6 +1938,7 @@ if ! mw_dry_run; then
 # 不要手工编辑：版本号在这里，升级用 wave selfupdate。
 MACWAVE_VERSION='$MACWAVE_VERSION'
 $( [[ -n "$BUILD_NUMBER" ]] && printf "MACWAVE_BUILD='%s'\n" "$BUILD_NUMBER" )
+MACWAVE_CHANNEL='$MW_CHANNEL'
 MACWAVE_INSTALLED_AT='$(date -u +%Y-%m-%dT%H:%M:%SZ)'
 EOF
     run_cmd chmod "$(state_file_mode)" "$STATE_FILE"

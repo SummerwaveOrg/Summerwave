@@ -204,6 +204,16 @@ def installed_version():
     return value or None
 
 
+def installed_channel():
+    # 这棵树跟的是哪条流（`stable` / `preview`）。没写过时返回 None，调用方按
+    # stable 处理 —— 1.0 之前的树没有这个字段。
+    state_dir = internal_state_dir()
+    if state_dir is None:
+        return None
+    value = read_state_values(state_dir / STATE_FILE_NAME).get("MACWAVE_CHANNEL", "")
+    return value or None
+
+
 def installed_build():
     # 构建号（`323R1250` 这种）。RC 渠道靠它区分同一版本的第几次构建。
     state_dir = internal_state_dir()

@@ -179,16 +179,13 @@ assert module.version_key('2.2.0') < module.version_key('2.3')
 assert module.version_key('2.10.0') > module.version_key('2.9.0')
 assert module.version_key('2.3') >= module.version_key('2.3')
 
-# 预发布必须排在正式版**之前**。这一条是必须钉死的：以前按数字段比较，
-# 4.4.0-beta1 被读成 [4,4,0,1]，比 4.4.0 的 [4,4,0,0] 大 —— 装过 beta 的人
-# 就永远等不到正式版，而平时没有预发布版本时怎么测都看不出来。
-assert module.version_key('4.4.0-beta1') < module.version_key('4.4.0'), 'beta 必须小于正式版'
-assert module.version_key('4.4.0b1') < module.version_key('4.4.0')
-assert module.version_key('4.4.0rc1') < module.version_key('4.4.0')
-assert module.version_key('4.4.0a1') < module.version_key('4.4.0b1')
-assert module.version_key('4.4.0.dev1') < module.version_key('4.4.0a1')
-assert module.version_key('4.4.0') < module.version_key('4.4.1')
-# 装着的正式版比「最新」还新时不应降级
+# 客户端版本是**发布时刻**（2026.11.26-15:52:43）：只按时间排序。
+assert module.version_key('2026.11.26-15:52:43') < module.version_key('2026.11.26-15:52:44')
+assert module.version_key('2026.11.27-00:00:00') > module.version_key('2026.11.26-23:59:59')
+assert module.version_key('2027.01.01-00:00:00') > module.version_key('2026.12.31-23:59:59')
+# 发布标志永远比老式版本号新，升级方向天然单向
+assert module.version_key('2026.11.26-15:52:43') > module.version_key('4.4.1')
+# 老版本号之间仍按 PEP 440（老机器、老数据还要读得懂）
 assert module.version_key('4.4.0') > module.version_key('4.4.0-beta1')
 
 print('🌊 Parsing and version comparison OK')
@@ -259,106 +256,66 @@ fi
 rm -f "$LOG_FILE"
 
 # ==========================================
-# 3. 跨大版本必须被拒绝（3.0 起的新规则）
-# ==========================================
-
-echo "========== cross-major selfupdate is refused =========="
-
-write_state_version "0.1"
-
-LOG_FILE="$(mktemp)"
-RC=0
-python3 "$WAVE_BIN" selfupdate > "$LOG_FILE" 2>&1 || RC=$?
-cat "$LOG_FILE"
-
-# 4.0 的守卫措辞已改为「is a new major version, so it cannot be installed with selfupdate」
-if [[ "$RC" -ne 0 ]] && grep -q 'cannot be installed with selfupdate' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: cross-major selfupdate refused${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: expected a cross-major refusal (exit $RC)${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-rm -f "$LOG_FILE"
-
-if [[ "$(state_version)" == "0.1" ]]; then
-    echo -e "${GREEN}🌊 OK: state untouched after the refusal${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: state changed despite the refusal${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-# ==========================================
-# 3.5 beta 版不许 selfupdate（Python 与 shell 两条入口都要拦）
+# 3.5 指针声明 selfupdate = "blocked" 时不许自更新
 # ==========================================
 #
-# beta 与正式版在不同分支上，selfupdate 的增量按 latest.toml 里那条正式版分支算 ——
-# 盖到一棵 beta 树上就是两条线混在一起（2026-11-15 那次 wave 启动即崩的成因）。
-# 两条入口分别验：wave selfupdate 走 selfupdate.py，直接 bash 走 selfupdate.sh。
-#
-# 全程离线：python 那条在联网之前就退出；shell 那条用 MACWAVE_UPDATE_VERSION
-# 跳过取 latest.toml。两条都不该改动 VERSION.json。
+# 新版确实存在，但不能用自更新装进去（布局变更到 prune 也不敢自动删、需要新解释器、
+# 换了仓库/分支、给老版本线的回溯修复包）。两条入口都要拦：wave selfupdate 走
+# selfupdate.py，直接 bash 走 selfupdate.sh。
 
-echo "========== beta builds cannot selfupdate =========="
+echo "========== a blocked release is not self-updated =========="
 
-BETA_VERSION="4.4.0-beta2"
 cp "$STATE_FILE" "$SU_WORK/config.sh.bak"
-write_state_version "$BETA_VERSION"
+# 装的是比目标更旧的版本，于是「确实有新版」这条路径走得通
+INSTALLED_VERSION_FOR_BLOCK="4.0.0"
+write_state_version "$INSTALLED_VERSION_FOR_BLOCK"
+
+# 让本地自更新数据把目标版本声明成 blocked
+BLOCKED_DATA="$SU_WORK/selfupdate/macwavedata/latest.toml"
+cp "$BLOCKED_DATA" "$SU_WORK/latest.toml.bak"
+printf 'selfupdate = "blocked"\nselfupdate_reason = "layout changed"\n' >> "$BLOCKED_DATA"
 
 LOG_FILE="$(mktemp)"
 RC=0
 python3 "$WAVE_BIN" selfupdate > "$LOG_FILE" 2>&1 || RC=$?
 cat "$LOG_FILE"
 
-if [[ "$RC" -ne 0 ]] && grep -q 'is a beta build' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: wave selfupdate refuses a beta${RESET}"
+if [[ "$RC" -eq 0 ]] && grep -q 'cannot be installed with selfupdate' "$LOG_FILE"; then
+    echo -e "${GREEN}🌊 OK: wave selfupdate refuses a blocked release${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: expected wave selfupdate to refuse a beta (exit $RC)${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: expected a refusal for a blocked release (exit $RC)${RESET}"
     FAILED=$((FAILED + 1))
 fi
-
-# 必须在联网之前就退出 —— 否则用户先看到 "Fetching the latest version..."，
-# 以为在正常推进，然后才被拒绝。
-if grep -q 'Fetching the latest version' "$LOG_FILE"; then
-    echo -e "${RED_BOLD}🌊 FAIL: the refusal happened after contacting the network${RESET}"
-    FAILED=$((FAILED + 1))
+if grep -q 'layout changed' "$LOG_FILE" && grep -q 'install.sh' "$LOG_FILE"; then
+    echo -e "${GREEN}🌊 OK: the refusal carries the reason and the way out${RESET}"
 else
-    echo -e "${GREEN}🌊 OK: refused before any network request${RESET}"
-fi
-
-# 拒绝必须把话说全：为什么、去哪装、以及装了什么命令。用户在 beta 上被拦住，
-# 唯一出路就是重装，命令不能让他自己去找。
-if grep -q 'install.sh' "$LOG_FILE" && grep -q "releases/tag/v$BETA_VERSION" "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: the refusal names the reinstall command and the Release page${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: the refusal does not say how to install${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: the refusal does not say why or what to do${RESET}"
     FAILED=$((FAILED + 1))
 fi
 rm -f "$LOG_FILE"
 
-# shell 那条入口：直接执行 lib/selfupdate.sh（文件头写着这条路，3.x 的
-# update_command 也走它）。MACWAVE_UPDATE_VERSION 让它跳过取 latest.toml，
-# 于是这一段不碰网络。
+# shell 那条入口：直接执行 lib/selfupdate.sh（文件头写着这条路）
 LOG_FILE="$(mktemp)"
 RC=0
-MACWAVE_UPDATE_VERSION=4.0.1 MACWAVE_UPDATE_BRANCH=4.0 \
+MACWAVE_UPDATE_VERSION="$SU_VERSION" MACWAVE_UPDATE_BRANCH=main \
     /bin/bash "$SELFUPDATE_SH" > "$LOG_FILE" 2>&1 || RC=$?
 cat "$LOG_FILE"
-
-if [[ "$RC" -ne 0 ]] && grep -q 'is a beta build' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: lib/selfupdate.sh refuses a beta too${RESET}"
+if [[ "$RC" -eq 0 ]] && grep -q 'cannot be installed with selfupdate' "$LOG_FILE"; then
+    echo -e "${GREEN}🌊 OK: lib/selfupdate.sh refuses a blocked release too${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: lib/selfupdate.sh did not refuse a beta (exit $RC)${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: lib/selfupdate.sh did not refuse a blocked release (exit $RC)${RESET}"
     FAILED=$((FAILED + 1))
 fi
 rm -f "$LOG_FILE"
 
-if [[ "$(state_version)" == "$BETA_VERSION" ]]; then
-    echo -e "${GREEN}🌊 OK: state untouched by both refusals${RESET}"
+if [[ "$(state_version)" == "$INSTALLED_VERSION_FOR_BLOCK" ]]; then
+    echo -e "${GREEN}🌊 OK: state untouched by the refusal${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: a refusal changed the state file${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: the refusal changed the state file${RESET}"
     FAILED=$((FAILED + 1))
 fi
 
+cp "$SU_WORK/latest.toml.bak" "$BLOCKED_DATA"
 cp "$SU_WORK/config.sh.bak" "$STATE_FILE"
 
 # ==========================================

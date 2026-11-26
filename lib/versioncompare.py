@@ -23,6 +23,17 @@
 #
 # 软件包还有一类历史写法（`procursus` / `macwaveteam` / `Xteam` 后缀），先在这里
 # 归一化成 `X.Y.Z.N` 再比较，避免它们退化成「读不出数字 = 0」。
+#
+# -------------------- 两套规则，别混用 --------------------
+#
+# 从 1.0 起**客户端版本**与**软件包版本**是两种东西：
+#
+#   客户端版本   发布时刻，`2026.11.26-15:52:43`。只为排序存在，秒级唯一，
+#                没有 alpha/beta/rc 后缀（渠道见 pointer 里的 channel 字段）。
+#   软件包版本   PEP 440，`1.8.2` / `4.4.0-beta1` / `1.0-procursus7`，规则不变。
+#
+# 两个入口：client_key() 与 pkg_key()。用错会得到「老客户端比新客户端新」这种
+# 结论，所以不要拿 _parse() 直接比客户端版本。
 
 import logging
 import re
@@ -99,8 +110,65 @@ def handle_pre_release(value):
     return text.replace(" 0", "0")
 
 
+# -------------------- 客户端版本：发布标志 --------------------
+#
+# `2026.11.26-15:52:43`。为什么用发布时刻而不是递增版本号：
+#
+#   * 顺序天然正确，不需要「预发布排在正式版之前」那套语义；
+#   * 不用维护「这一版该叫 1.0.7 还是 1.0.8」，发多少版都不会让版本号失去意义；
+#   * 两个人同时发版也不会撞号（秒级；真撞了说明同一秒发了两版，本就不该发生）。
+#
+# 排序实现：映射成带 **epoch 99** 的 PEP 440 版本。epoch 让任何发布标志都大于任何
+# 老式版本号（`4.7.0` 的 epoch 是 0），于是「从老版本升上来」天然单向；同时仍然
+# 复用 packaging 的比较，不自造第二套排序。
+_STAMP_RE = re.compile(
+    r"^(?P<y>\d{4})\.(?P<mo>\d{1,2})\.(?P<d>\d{1,2})"
+    r"-(?P<h>\d{1,2}):(?P<mi>\d{2}):(?P<s>\d{2})$"
+)
+_STAMP_EPOCH = 99
+
+
+def is_release_stamp(value):
+    """是不是发布标志（`2026.11.26-15:52:43`）。"""
+    return bool(_STAMP_RE.match(str(value or "").strip()))
+
+
+def _stamp_version(text):
+    # 合法时间 → 带 epoch 的 Version；日期时间越界（13 月、25 点）当没认出来。
+    match = _STAMP_RE.match(text)
+    if not match:
+        return None
+    parts = {key: int(match.group(key)) for key in ("y", "mo", "d", "h", "mi", "s")}
+    if not (1 <= parts["mo"] <= 12 and 1 <= parts["d"] <= 31
+            and 0 <= parts["h"] <= 23 and 0 <= parts["mi"] <= 59 and 0 <= parts["s"] <= 59):
+        return None
+    release = (f"{parts['y']:04d}{parts['mo']:02d}{parts['d']:02d}"
+               f".{parts['h']:02d}{parts['mi']:02d}{parts['s']:02d}")
+    return Version(f"{_STAMP_EPOCH}!{release}")
+
+
+def client_key(value):
+    """客户端版本的可比较键。
+
+    发布标志 → epoch 99；其它（老的 `4.7.0`、空的）→ 普通 PEP 440（epoch 0），
+    所以任何发布标志都排在任何老版本号之后。
+    """
+    text = str(value or "").strip()
+    stamped = _stamp_version(text)
+    if stamped is not None:
+        return stamped
+    return _parse(text)
+
+
+def client_is_newer(candidate, current):
+    """candidate 这个客户端版本是不是比 current 新。current 为空算「没装」。"""
+    if not current:
+        return True
+    return client_key(candidate) > client_key(current)
+
+
 def _parse(value):
-    """所有版本号解析的唯一入口。"""
+    """**软件包**版本的解析入口（PEP 440 + 社区后缀）。"""
     text = str(value).strip()
     if is_special_version(text):
         return safe_parse_special_version(text)
@@ -153,10 +221,8 @@ def is_prerelease(value):
 
 
 def is_newer(candidate, current):
-    """candidate 是否比 current 新。current 为空视为「没装」，一律算新。"""
-    if not current:
-        return True
-    return _parse(candidate) > _parse(current)
+    """客户端版本的 candidate 是否比 current 新。current 为空视为「没装」。"""
+    return client_is_newer(candidate, current)
 
 
 # -------------------- 发布渠道与构建号 --------------------
@@ -164,9 +230,17 @@ def is_newer(candidate, current):
 # 渠道（channel）不是一个客户端开关，而是**装的是什么东西**推出来的结论：
 # 预发布版本（`4.4.1-rc`、`4.4.0-beta2`）只跟 RC 渠道，其余跟正式渠道。
 # 这样 RC 的发布节奏不会把正式版用户卷进来，客户端也无需记住任何额外状态。
+# 只有两条流。beta / rc 不再是一种「版本属性」，而是「这条流里的第几次构建」——
+# 版本号就是时间，不用再区分质量阶段；不稳定的东西本来就只该进 preview。
 CHANNEL_STABLE = "stable"
-CHANNEL_RC = "rc"
-CHANNEL_BETA = "beta"
+CHANNEL_PREVIEW = "preview"
+CHANNELS = (CHANNEL_STABLE, CHANNEL_PREVIEW)
+
+
+def normalize_channel(value):
+    """读渠道字段：只认 stable / preview，其它（含空）按 stable 算。"""
+    text = str(value or "").strip().lower()
+    return CHANNEL_PREVIEW if text == CHANNEL_PREVIEW else CHANNEL_STABLE
 
 # 构建号（build number）的格式：3 位年内第几天 + 一个字母 + HHMM。
 #
@@ -176,23 +250,6 @@ CHANNEL_BETA = "beta"
 # 第四位只给人看，排序只用「天数 + 时分」—— 同一天不会有两份同日同分的发布，
 # 而跨渠道比较构建号本来就没有意义（各渠道各读自己的探针）。
 _BUILD_RE = re.compile(r"^([0-9]{3})([A-Z])([0-9]{4})$")
-
-
-def channel_for(value):
-    """这个版本属于哪个渠道。没装（空串）按正式渠道算。
-
-    `-rc` 有自己的一套探针（rcdata/latest.toml），所以它算 RC 渠道；
-    beta / alpha / dev 暂时仍是「不许 selfupdate」——它们没有自己的探针，
-    跟着正式版走就会把两条分支混在一棵树里（2026-11-15 的事故）。
-    """
-    if not value:
-        return CHANNEL_STABLE
-    parsed = _parse(value)
-    if not parsed.is_prerelease:
-        return CHANNEL_STABLE
-    if parsed.pre and parsed.pre[0] == "rc":
-        return CHANNEL_RC
-    return CHANNEL_BETA
 
 
 def build_key(value):
@@ -220,11 +277,15 @@ def is_newer_build(candidate, current):
 
 
 def newer_release(probe_version, probe_build, current_version, current_build):
-    """探针里那一份是不是比本机这份新。版本优先，版本相同再看构建号。"""
+    """探针里那一份是不是比本机这份新。
+
+    客户端版本用 client_key()（发布标志优先于任何老版本号）。版本相同（同一秒发布）
+    时再看构建号 —— 秒级已经足够区分，构建号只是给「同一秒真的发了两版」兜底。
+    """
     if not current_version:
         return True
-    if _parse(probe_version) != _parse(current_version):
-        return _parse(probe_version) > _parse(current_version)
+    if client_key(probe_version) != client_key(current_version):
+        return client_key(probe_version) > client_key(current_version)
     return is_newer_build(probe_build, current_build)
 
 

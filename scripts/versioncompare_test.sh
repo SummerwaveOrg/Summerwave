@@ -256,7 +256,7 @@ done
 
 FAILED=$((FAILED + HARD_FAIL))
 
-# 渠道与构建号：RC 与正式版各读自己的探针，同一个版本靠构建号区分先后
+# 渠道只有两条流；客户端版本是发布时刻（见 versioncompare 的说明）
 OUTPUT=$("$PYTHON" - "$REPO_DIR" <<'PYEOF' 2>&1
 import sys
 
@@ -265,7 +265,8 @@ components = [line.split("#", 1)[0].strip()
               for line in open(f"{repo}/scripts/components.txt", encoding="utf-8")]
 sys.path[:0] = [f"{repo}/{name}" for name in components if name]
 
-from versioncompare import channel_for, build_key, is_newer_build, newer_release
+from versioncompare import (client_key, client_is_newer, is_release_stamp,
+                            normalize_channel, build_key, is_newer_build, newer_release)
 
 passed = 0
 failed = 0
@@ -281,13 +282,25 @@ def check(label, got, want):
         print(f"FAIL: {label} -> got {got!r}, want {want!r}")
 
 
-check("rc 后缀是 RC 渠道", channel_for("4.4.1-rc"), "rc")
-check("beta 仍是「不许 selfupdate」那条路（没有自己的探针）",
-      channel_for("4.4.0-beta2"), "beta")
-check("dev 同上", channel_for("4.4.0.dev1"), "beta")
-check("带编号的 rc 也是 RC 渠道", channel_for("4.4.1-rc1"), "rc")
-check("正式版是正式渠道", channel_for("4.4.1"), "stable")
-check("没装按正式渠道", channel_for(""), "stable")
+check("渠道只有两档：stable", normalize_channel("stable"), "stable")
+check("渠道只有两档：preview", normalize_channel("preview"), "preview")
+check("大小写不敏感", normalize_channel("PREVIEW"), "preview")
+check("空值按 stable", normalize_channel(""), "stable")
+check("认不出的值按 stable（fail-open）", normalize_channel("rc"), "stable")
+check("老字段 beta 也按 stable", normalize_channel("beta"), "stable")
+
+# ---- 客户端版本：发布时刻 ----
+check("认得发布标志", is_release_stamp("2026.11.26-15:52:43"), True)
+check("带日期的普通版本号不是发布标志", is_release_stamp("4.4.1"), False)
+check("秒级先后", client_key("2026.11.26-15:52:44") > client_key("2026.11.26-15:52:43"), True)
+check("同秒相等", client_key("2026.11.26-15:52:43") == client_key("2026.11.26-15:52:43"), True)
+check("跨天", client_key("2026.11.27-00:00:00") > client_key("2026.11.26-23:59:59"), True)
+check("跨年", client_key("2027.01.01-00:00:00") > client_key("2026.12.31-23:59:59"), True)
+check("发布标志永远大于老版本号", client_key("2026.11.26-15:52:43") > client_key("4.7.0"), True)
+check("老版本号之间仍按 PEP 440", client_key("4.7.0") > client_key("4.6.1"), True)
+check("没装算旧", client_is_newer("2026.11.26-15:52:43", "") == True, True)
+check("更早的发布标志不算新",
+      client_is_newer("2026.01.01-00:00:00", "2026.12.31-23:59:59"), False)
 check("构建号解析（RC 的 R）", build_key("323R1250"), (323, 1250))
 check("构建号解析（正式版的周几）", build_key("323D1250"), (323, 1250))
 check("构建号坏值返回 None", build_key("323X"), None)
@@ -296,12 +309,16 @@ check("同一个不是新的", is_newer_build("323R1250", "323R1250"), False)
 check("跨天按天数算", is_newer_build("324R0001", "323R2359"), True)
 check("本机没有构建号时接受探针", is_newer_build("323R1250", ""), True)
 check("探针构建号坏了不接受", is_newer_build("", "323R1250"), False)
-check("版本更新时忽略构建号", newer_release("4.4.1", "320D0900", "4.4.0", "323R1250"), True)
-check("版本相同才比构建号", newer_release("4.4.1-rc", "323R1300", "4.4.1-rc", "323R1250"), True)
-check("版本相同构建号也相同 = 没有新版",
-      newer_release("4.4.1-rc", "323R1250", "4.4.1-rc", "323R1250"), False)
-check("RC 之上是正式版", newer_release("4.4.1", "323D1250", "4.4.1-rc", "323R1250"), True)
-check("正式版不会退回 RC", newer_release("4.4.1-rc", "323R1250", "4.4.1", "323D1250"), False)
+check("版本更新时忽略构建号",
+      newer_release("2026.11.26-15:52:43", "320D0900", "2026.11.20-10:00:00", "323R1250"), True)
+check("同一秒才比构建号",
+      newer_release("2026.11.26-15:52:43", "323R1300", "2026.11.26-15:52:43", "323R1250"), True)
+check("同一秒、构建号也相同 = 没有新版",
+      newer_release("2026.11.26-15:52:43", "323R1250", "2026.11.26-15:52:43", "323R1250"), False)
+check("更晚的发布标志是新版",
+      newer_release("2026.11.26-15:52:44", "323D1250", "2026.11.26-15:52:43", "323R1250"), True)
+check("更早的发布标志不是新版",
+      newer_release("2026.11.26-15:52:42", "323R1250", "2026.11.26-15:52:43", "323D1250"), False)
 
 print(f"# summary {passed} {failed}")
 PYEOF

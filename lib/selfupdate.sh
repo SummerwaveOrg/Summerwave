@@ -388,11 +388,13 @@ if [[ -n "${MACWAVE_TEST:-}" ]]; then
     echo "🌊 Test root: $SYS_ROOT"
 fi
 
-# RC 渠道读自己的探针（与正式版完全隔离，见 net/domains.py 的说明）。
+# 预发布流读自己的探针（与正式版完全隔离，见 net/domains.py 的说明）。
 # 渠道由调用方通过 MACWAVE_UPDATE_CHANNEL 传进来 —— 只有 selfupdate.py 知道
-# 本机装的是哪个渠道；直接执行本脚本时默认正式渠道。
-if [[ "${MACWAVE_UPDATE_CHANNEL:-}" == "rc" ]]; then
-    VERSION_DATA_URL="$SELFUPDATE_URL/rcdata/latest.toml"
+# 这棵树跟的是哪条流；直接执行本脚本时默认正式流。
+MW_CHANNEL="stable"
+if [[ "${MACWAVE_UPDATE_CHANNEL:-}" == "preview" ]]; then
+    MW_CHANNEL="preview"
+    VERSION_DATA_URL="$SELFUPDATE_URL/prerelease/latest.toml"
 else
     VERSION_DATA_URL="$SELFUPDATE_URL/macwavedata/latest.toml"
 fi
@@ -425,40 +427,6 @@ read_state_value() {
 }
 
 CURRENT_VERSION="$(read_state_value MACWAVE_VERSION)"
-
-is_prerelease() {
-    # 是不是预发布版（4.4.0-beta2 / 4.4.0rc1 / 4.4.0.dev1 …）。
-    #
-    # 唯一权威是 lib/versioncompare.py 的 is_prerelease()（PEP 440，用 packaging）。
-    # 这里是同一判定的 shell 版，写窄一点：MacWave 自己的预发布一律写成
-    # X.Y.Z-betaN，再加上 PEP 440 允许的紧凑写法（4.4.0b2 / 4.4.0rc1 / .dev1）。
-    # scripts/selfupdate_test.sh 会逐串断言两边结论一致，漂移会红。
-    #
-    # 为什么要在这里也判一次：selfupdate.sh 可以直接执行（文件头就写着这条路），
-    # 也可以被 3.x 客户端的 update_command 拉起来 —— 那些路径不经过 selfupdate.py。
-    # 小写化用 tr 而不是 ${var,,}：后者是 bash 4 的语法，而 macOS 自带的是
-    # bash 3.2 —— 它会在调用时报 "bad substitution" 并退出，症状是「脚本莫名
-    # 退出 1，一条消息都没有」。测试要用 /bin/bash 跑，不能用 Homebrew 的 5.x。
-    local v
-    v="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-    case "$v" in
-        *-beta*|*-alpha*|*-rc*|*-dev*|*-pre*) return 0 ;;
-    esac
-    [[ "$v" =~ ^[0-9]+(\.[0-9]+)*((a|b|rc)[0-9]+|\.dev[0-9]+)$ ]]
-}
-
-# beta / rc 一律不许 selfupdate：它们与正式版在不同分支上，而 selfupdate 的增量
-# 是按 latest.toml 里那条正式版分支算的 —— 盖到一棵 beta 树上就是两条线混在一起。
-# 重装是唯一安全的路径（全量，且由 install.sh 重新决定分支）。
-if [[ -n "$CURRENT_VERSION" ]] && is_prerelease "$CURRENT_VERSION"; then
-    echo -e "${RED_BOLD}🌊 Error: MacWave $CURRENT_VERSION is a beta build, and selfupdate does not handle beta builds.${RESET}" >&2
-    echo -e "${RED_BOLD}🌊 Why       betas live on their own branch; selfupdate would mix two lines of code in one tree.${RESET}" >&2
-    echo -e "${RED_BOLD}🌊 Next      install the version you want from its Release page:${RESET}" >&2
-    echo -e "${RED_BOLD}🌊           stable: /bin/bash -c \"\$(curl -fsSL --max-time 60 https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)\"${RESET}" >&2
-    echo -e "${RED_BOLD}🌊           this beta: https://github.com/MacWaveOrg/MacWave/releases/tag/v$CURRENT_VERSION${RESET}" >&2
-    echo -e "${RED_BOLD}🌊 Your current installation has not been changed.${RESET}" >&2
-    exit 1
-fi
 
 echo "🌊 Updating from branch: $BRANCH"
 echo ""
@@ -749,6 +717,21 @@ mw_verify_latest_signature "$VERSION_DATA" "$VERSION_DATA_URL"
 if [[ -z "$VERSION" ]]; then
     echo -e "${RED_BOLD}🌊 Error: Cannot determine the target version.${RESET}"
     exit 1
+fi
+
+# 指针可以声明 selfupdate = "blocked"：新版存在，但不能用自更新装进去。
+#
+# 这一份检查是**第二道**（第一道在 lib/selfupdate.py，用户看到的是那条）。留着它是
+# 因为本脚本也能被直接执行、或被老客户端拉起来 —— 那时没有 Python 侧的闸门，而真正
+# 下载文件的是这里。缺省允许：字段缺失/写错一律按允许处理。
+if [[ "$(printf '%s' "$(read_toml_string "$VERSION_DATA" selfupdate)" | tr '[:upper:]' '[:lower:]')" == "blocked" ]]; then
+    REASON="$(read_toml_string "$VERSION_DATA" selfupdate_reason)"
+    echo -e "${YELLOW}🌊 The release $VERSION cannot be installed with selfupdate.${RESET}" >&2
+    [[ -n "$REASON" ]] && echo -e "${YELLOW}🌊 Why       $REASON${RESET}" >&2
+    echo -e "${YELLOW}🌊 Next      run the installer once; it replaces every file:${RESET}" >&2
+    echo -e "${YELLOW}🌊           /bin/bash -c \"\$(curl -fsSL --max-time 60 https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)\"${RESET}" >&2
+    echo -e "${GREEN}🌊 Nothing was changed.${RESET}" >&2
+    exit 0
 fi
 
 echo "🌊 Updating MacWave to $VERSION$([[ -n "$BUILD" ]] && printf ' (build %s)' "$BUILD")"
@@ -1216,14 +1199,14 @@ fi
 
 # 状态只有一份，在树里：<base>/var/config.sh（见 config/configpaths.py）。
 #
-# 构建号（`323R1250` 这种）是 RC 渠道区分「同一个版本的第几次构建」的唯一依据，
-# 所以必须落进状态里 —— 少了它，RC 客户端会认为「已经是最新」，再也升不上去。
+# 渠道也写进去：它决定这棵树下次读哪个探针，是升级拓扑的一部分，不是临时状态。
 config_cmd mkdir -p "$STATE_DIR"
 config_cmd tee "$STATE_FILE" > /dev/null << EOF
 # Summerwave state file —— 由 install.sh / selfupdate.sh 生成，会被覆盖。
-# 不要手工编辑：版本号在这里，升级用 wave selfupdate。
+# 不要手工编辑：版本号与渠道都在这里，升级用 wave selfupdate。
 MACWAVE_VERSION='$VERSION'
 $( [[ -n "$BUILD" ]] && printf "MACWAVE_BUILD='%s'\n" "$BUILD" )
+MACWAVE_CHANNEL='$MW_CHANNEL'
 MACWAVE_INSTALLED_AT='$(date -u +%Y-%m-%dT%H:%M:%SZ)'
 EOF
 
