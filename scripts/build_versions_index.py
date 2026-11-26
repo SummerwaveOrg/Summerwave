@@ -5,8 +5,9 @@
 # 为「列出版本 / 列出软件包」生成镜像自备的清单。
 #
 # 为什么需要：设了 MACWAVE_API_DOMAIN 之后，客户端不再问 api.github.com，而是读
-#   <api>/pkg/pkginfo_<架构>/versions           一行一个包名
-#   <api>/pkg/pkginfo_<架构>/<包名>/versions     一行一个版本记录文件名（_jq@1.8.2）
+#   <api>/pkg/pkginfo/versions            一行一个包名
+#   <api>/pkg/pkginfo/<包名>/versions     一行一个版本记录文件名
+#                                         （_jq@1.8.2.macos-arm64 —— 平台标签在名字里）
 # infosource 仓库里没有这两类文件 —— 它们本来由 GitHub 的 contents 接口动态算出。
 #
 # 关键设计：**只列镜像里真实存在的产物**。索引里有 12 条记录按设计或缺陷拿不到产物
@@ -31,23 +32,24 @@ components.add_to_sys_path()
 import domains  # noqa: E402
 from sync_payloads import read_record, records  # noqa: E402
 
-# 索引里两个顶层目录，以及各自的架构子目录前缀。注意 deps 侧叫 depsinfo_，
-# 与 bottle 侧的 pkginfo_ 不同名 —— 这两处写错就会去不存在的路径上写文件。
+# 索引里两个顶层目录。1.0 起不再按架构分目录：平台与架构编进记录名
+# （_<名>@<版本>.<os>-<arch>），所以两个架构的记录写进同一份 versions。
+# 注意 deps 侧叫 depsinfo，与 bottle 侧的 pkginfo 不同名。
 KIND_LAYOUT = {
     "bottle": ("pkg", "pkginfo"),
     "deps": ("deps", "depsinfo"),
 }
 
 
-def version_entry_path(infosource, kind, arch):
-    # <infosource>/pkg/pkginfo_arm64、<infosource>/deps/depsinfo_arm64
+def version_entry_path(infosource, kind):
+    # <infosource>/pkg/pkginfo、<infosource>/deps/depsinfo
     # 同时也是对外暴露的路径，所以清单直接写在这里。
     root, prefix = KIND_LAYOUT[kind]
-    return infosource / root / f"{prefix}_{arch}"
+    return infosource / root / prefix
 
 
 def collect(infosource, mirror):
-    # 返回 {(kind, arch): {包名: [记录文件名, ...]}}
+    # 返回 {kind: {包名: [记录文件名, ...]}}
     tree = {}
     missing = []
 
@@ -62,7 +64,7 @@ def collect(infosource, mirror):
             missing.append(f"{record}（镜像里没有 {kind}/{name}/{filename}）")
             continue
 
-        tree.setdefault((kind, arch), {}).setdefault(name, []).append(record.name[1:])
+        tree.setdefault(kind, {}).setdefault(name, []).append(record.name[1:])
 
     return tree, missing
 
@@ -89,8 +91,8 @@ def main():
     # 否则客户端会拿到一个指向已删除文件的版本号，直到下载阶段才 404。
     # 这一步也要在「镜像为空」之前做：空镜像的正确结果就是「一个都没有」，
     # 而不是保留上一次的清单。
-    for kind, arch in sorted({(kind, arch) for kind, arch, _, _, _ in records(args.infosource)}):
-        directory = version_entry_path(args.infosource, kind, arch)
+    for kind in sorted({kind for kind, _arch, _n, _v, _r in records(args.infosource)}):
+        directory = version_entry_path(args.infosource, kind)
         if not directory.is_dir():
             continue
         for stale in directory.glob("*/versions"):
@@ -101,8 +103,8 @@ def main():
         print("🌊 Nothing to list: the mirror has no payloads. Lists were cleared.")
         return 1
 
-    for (kind, arch), packages in sorted(tree.items()):
-        directory = version_entry_path(args.infosource, kind, arch)
+    for kind, packages in sorted(tree.items()):
+        directory = version_entry_path(args.infosource, kind)
         directory.mkdir(parents=True, exist_ok=True)
 
         (directory / "versions").write_text(
@@ -115,7 +117,7 @@ def main():
                 "".join(f"{entry}\n" for entry in sorted(entries)))
 
         total = sum(len(v) for v in packages.values())
-        print(f"  {kind}/{arch}: {len(packages)} 个名字, {total} 条版本")
+        print(f"  {kind}: {len(packages)} 个名字, {total} 条版本")
 
     if missing:
         print(f"\n🌊 {len(missing)} 条记录未列入（镜像里没有对应产物）：")

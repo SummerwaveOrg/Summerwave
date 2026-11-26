@@ -95,72 +95,17 @@ count_in() {
 }
 
 
-# 目录菜单的项数随架构变化：Intel 多一个 /usr/local/macwave。
-# 每行是「--dir-option= 后面的值 / 安装目录 / 配置目录 / 显示路径」；自定义项要把
-# 目录一起带上（否则 --ci 下会以「缺路径」提前退出，走不到沙箱边界）。
-case "$(uname -m)" in
-    x86_64|amd64)
-        CUSTOM_OPTION=4
-        # 菜单顺序 4.6.1 起：1=/opt、2=~/.local、3=/usr/local、4=自定义
-        SYSTEM_LEVEL_ROWS="1 /opt/macwave /opt/macwave_config /opt/macwave
-3 /usr/local/macwave /opt/macwave_config /usr/local/macwave
-4=/opt/macwave_custom /opt/macwave_custom /opt/macwave_config /opt/macwave_custom"
-        ;;
-    *)
-        CUSTOM_OPTION=3
-        SYSTEM_LEVEL_ROWS="1 /opt/macwave /opt/macwave_config /opt/macwave
-3=/opt/macwave_custom /opt/macwave_custom /opt/macwave_config /opt/macwave_custom"
-        ;;
-esac
-
-
 # ==========================================================
 # 内层：已经在沙箱里，跑场景
 # ==========================================================
 
-# 私有 venv：安装器只在「自带 Python 就位」时才建它，并在建好后 pip 装三个依赖。
-# 离线沙箱里既没有自带 Python 也没有网，所以现在走的是「回退系统解释器 + 依赖已在 →
-# 不建 venv、不跑 pip」那条路（lib/install.sh 的 SKIP_VENV）。这里不再预置 venv ——
-# 预置会让自定义目录变成「已存在且非空」，安装器会正当地拒绝安装。
-
-# 菜单第几项是「用户级目录」。4.6.1 起菜单顺序是 /opt 第一（推荐）、用户级第二，
-# 而本测试的大部分场景要的是用户级（沙箱里 /opt 也能写，但断言盯着 ~/.local）。
-USER_LEVEL_OPTION=2
-
-# 从 --dir-option 的参数推出安装根目录，好把 venv 预先放到正确的位置。
-base_dir_for_args() {
-    local arg value
-    for arg in "$@"; do
-        case "$arg" in
-            # 菜单顺序 4.6.1 起是 /opt 第一、用户级第二（推荐顺序即菜单顺序）
-            --dir-option=1) echo "$SANDBOX_DIR/opt/macwave"; return 0 ;;
-            --dir-option=2) echo "$FAKE_HOME/.local/macwave"; return 0 ;;
-            --dir-option=3)
-                # 第 3 项在 Intel 上是 /usr/local/macwave，在 Apple 芯片上是自定义项
-                if [[ "$(uname -m)" == "x86_64" || "$(uname -m)" == "amd64" ]]; then
-                    echo "$SANDBOX_DIR/usr/local/macwave"
-                fi
-                return 0 ;;
-            --dir-option=*)
-                value="${arg#--dir-option=}"
-                case "$value" in
-                    */*|=*)
-                        # 形式 1：<菜单号>=<路径>
-                        if [[ "$value" == *=* ]]; then
-                            echo "${value#*=}"
-                        else
-                            # 形式 2：直接给路径（不带菜单号）
-                            echo "$value"
-                        fi
-                        return 0 ;;
-                esac
-                return 0 ;;
-        esac
-    done
-    # 没给 --dir-option 时，--ci 走第 1 项
-    echo "$FAKE_HOME/.local/macwave"
-    return 0
-}
+# 安装根写死成 /opt/macwave。沙箱里不能写宿主的 /opt，所以用 MACWAVE_TEST
+# 把测试根映射成 /：安装树落在 <沙箱>/opt/macwave。configpaths 同时会把 HOME
+# 搬进测试根，所以「假家目录」要按同样的规则算出来。
+#
+# ${SANDBOX_DIR:-} 是为了让外层（还没搭沙箱时）也能 source 到这里而不触发 set -u。
+TEST_ROOT="${SANDBOX_DIR:-}"
+TREE="${SANDBOX_DIR:+$SANDBOX_DIR/opt/macwave}"
 
 install_run() {
     /bin/bash -c "$(cat "$OFFLINE_INSTALLER")" -- "$@" > "$OUT" 2>&1
@@ -190,123 +135,68 @@ run_without_tty() {
 
 # 清掉上一场景留下的安装痕迹
 reset_state() {
-    rm -rf "$FAKE_HOME/.local/macwave" "$FAKE_HOME/.config/macwave_config"
-    rm -rf "$FAKE_HOME/my-macwave" "$FAKE_HOME/.zshrc" "$FAKE_HOME/.bashrc" "$FAKE_HOME/.profile"
+    rm -rf "$TREE"
+    rm -rf "$FAKE_HOME/.zshrc" "$FAKE_HOME/.bashrc" "$FAKE_HOME/.profile"
     rm -f "$OUT"
 }
 
-tree_version() {
-    python3 -c "import json,sys;print(json.load(open('$1')).get('version',''))" 2>/dev/null
+state_version() {
+    sed -n "s/^MACWAVE_VERSION='\(.*\)'$/\1/p" "$TREE/var/config.sh" 2>/dev/null | head -n 1
 }
 
-tree_base_dir() {
-    python3 -c "import json,sys;print(json.load(open('$1')).get('base_dir',''))" 2>/dev/null
+state_build() {
+    sed -n "s/^MACWAVE_BUILD='\(.*\)'$/\1/p" "$TREE/var/config.sh" 2>/dev/null | head -n 1
 }
 
-# 系统级安装只断言落位：沙箱不允许写沙箱外，安装必然在这一步失败，
-# 而失败指引会把选中的 BASE_DIR / CONFIG_DIR 打出来。
-scenario_system_dirs() {
+scenario_install() {
     echo ""
-    echo "========== 1b. 系统级目录的落位（越过沙箱边界即失败） =========="
-
-    local arg dir cfg display rc
-    while read -r arg dir cfg display; do
-        [[ -z "$arg" ]] && continue
-        reset_state
-        install_run --ci "--dir-option=$arg"
-        rc=$?
-        check "--dir-option=$arg 在沙箱外应失败" "$([[ "$rc" -ne 0 ]] && echo yes || echo no)" "yes"
-        contains "  --dir-option=$arg 失败时给出指引" "$OUT" "Installation did not finish"
-        contains "  --dir-option=$arg 选中 $display" "$OUT" "$dir"
-        contains "  --dir-option=$arg 配置目录 $cfg" "$OUT" "$cfg"
-        check "  --dir-option=$arg 未留下半成品" \
-            "$([[ -e "$dir" ]] && echo yes || echo no)" "no"
-    done <<< "$SYSTEM_LEVEL_ROWS"
-}
-
-scenario_install_dirs() {
-    echo ""
-    echo "========== 1a. 用户级安装目录（端到端） =========="
+    echo "========== 1. 端到端安装（写死的 /opt/macwave） =========="
 
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
-    check "选项 1 安装成功" "$?" "0"
-    check "选项 1 安装树就位" "$([[ -d "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "yes"
-    check "选项 1 六个组件目录齐全" \
+    install_run --ci
+    check "--ci 安装成功" "$?" "0"
+    check "安装树就位" "$([[ -d "$TREE" ]] && echo yes || echo no)" "yes"
+    check "六个组件目录齐全" \
         "$(for d in cli config lib net pkg surfboard; do
-             [[ -d "$FAKE_HOME/.local/macwave/$d" ]] || exit 1
+             [[ -d "$TREE/$d" ]] || exit 1
            done; echo yes)" "yes"
-    check "选项 1 配置在 ~/.config/macwave_config" \
-        "$(tree_base_dir "$FAKE_HOME/.config/macwave_config/config.json")" "$FAKE_HOME/.local/macwave"
-    check "选项 1 入口可执行" \
-        "$([[ -x "$FAKE_HOME/.local/macwave/lib/wave" ]] && echo yes || echo no)" "yes"
-    check "选项 1 VERSION.json 版本与 latest.toml 一致" \
-        "$(tree_version "$FAKE_HOME/.config/macwave_config/VERSION.json")" \
+    check "状态文件在树内 var/config.sh" \
+        "$([[ -f "$TREE/var/config.sh" ]] && echo yes || echo no)" "yes"
+    check "状态里的版本与 latest.toml 一致" "$(state_version)" \
         "$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' \
             "$SANDBOX_DIR/mirror/selfupdate/macwavedata/latest.toml" | head -n 1)"
-    # 4.7 起安装器**不写 rc 文件**（只打印该敲的那条命令），所以断言反过来：
-    # 给出指令、且真的没动 rc。
-    contains "选项 1 给出了 PATH 指令" "$OUT" "wave shellenv"
-    check "选项 1 没有改 rc 文件" \
+    check "状态里带构建号" "$(state_build)" "000A0000"
+    check "没有 config.json（安装根不再靠配置文件）" \
+        "$(find "$TEST_ROOT" -name config.json 2>/dev/null | wc -l | tr -d ' ')" "0"
+    check "入口可执行" \
+        "$([[ -x "$TREE/lib/wave" ]] && echo yes || echo no)" "yes"
+    # 安装器**不写 rc 文件**（只打印该敲的那条命令）
+    contains "给出了 PATH 指令" "$OUT" "wave shellenv"
+    check "没有改 rc 文件" \
         "$([[ -e "$FAKE_HOME/.zshrc" ]] && echo yes || echo no)" "no"
-    # 宿主机上本来就可能有一份系统级安装（开发机常见），所以只能看沙箱里那份。
-    check "选项 1 不碰系统级配置" \
-        "$([[ -e "$SANDBOX_DIR/opt/macwave_config" ]] && echo yes || echo no)" "no"
-
-    # 家目录内的自定义目录：无需提权，走的是同一条用户级分支
-    reset_state
-    install_run --ci "--dir-option=$CUSTOM_OPTION=$FAKE_HOME/my-macwave"
-    check "家目录内自定义目录安装成功" "$?" "0"
-    check "自定义目录安装树就位" "$([[ -d "$FAKE_HOME/my-macwave" ]] && echo yes || echo no)" "yes"
-    check "自定义目录的配置落在用户级" \
-        "$(tree_base_dir "$FAKE_HOME/.config/macwave_config/config.json")" "$FAKE_HOME/my-macwave"
-
-    # --dir-option=<路径> 简写：省掉菜单号码，直接给目录（等同自定义项）
-    reset_state
-    install_run --ci "--dir-option=$FAKE_HOME/shorthand-macwave"
-    check "简写 --dir-option=<路径> 安装成功" "$?" "0"
-    check "简写安装树就位" "$([[ -d "$FAKE_HOME/shorthand-macwave" ]] && echo yes || echo no)" "yes"
-    check "简写配置落在用户级" \
-        "$(tree_base_dir "$FAKE_HOME/.config/macwave_config/config.json")" "$FAKE_HOME/shorthand-macwave"
-
-    # 路径带空格：需要用户自己加引号，其余照常
-    reset_state
-    install_run --ci "--dir-option=$FAKE_HOME/space dir"
-    check "空格路径安装成功" "$?" "0"
-    check "空格路径安装树就位" "$([[ -d "$FAKE_HOME/space dir" ]] && echo yes || echo no)" "yes"
-    check "空格路径配置落在用户级" \
-        "$(tree_base_dir "$FAKE_HOME/.config/macwave_config/config.json")" "$FAKE_HOME/space dir"
 }
 
 scenario_cli_errors() {
     echo ""
     echo "========== 2. 参数校验 =========="
 
-    reset_state
-    install_run --ci "--dir-option=$CUSTOM_OPTION"
-    check "--ci 下自定义项缺路径应报错" "$?" "1"
-
-    reset_state
-    install_run --ci --dir-option=9
-    check "--dir-option=9 越界应报错" "$?" "1"
+    # --dir-option 已经删除：位置写死，任何形式都必须被当成未知参数拒掉。
+    local form
+    for form in --dir-option=1 --dir-option=2 "--dir-option=3=/tmp/x" --dir-option=/tmp/x; do
+        reset_state
+        install_run --ci "$form"
+        check "$form 应报错（旗标已删除）" "$?" "1"
+        contains "  $form 报错点名该参数" "$OUT" "unknown option"
+    done
 
     reset_state
     install_run --bogus-flag
     check "未知参数应报错" "$?" "1"
 
     reset_state
-    install_run --ci "--dir-option=$CUSTOM_OPTION=../evil"
-    check "自定义目录拒绝路径穿越" "$?" "1"
-
-    # 给非自定义项传目录：照抄另一架构的编号时最危险的用法
-    reset_state
-    install_run --ci "--dir-option=1=/tmp/x"
-    check "非自定义项带目录应报错" "$?" "1"
-
-    reset_state
     install_run --help
     check "--help 退出码为 0" "$?" "0"
-    contains "--help 列出菜单" "$OUT" "other (enter custom directory)"
+    contains "--help 里写明安装位置写死" "$OUT" "/opt/macwave (fixed"
 }
 
 scenario_mid_failure() {
@@ -316,27 +206,27 @@ scenario_mid_failure() {
     local victim="$MIRROR_BASE/cli/help.py" rc
     mv "$victim" "$victim.off"
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     rc=$?
     check "中途失败时退出码非 0" "$([[ "$rc" -ne 0 ]] && echo yes || echo no)" "yes"
     contains "失败时说明安装未完成" "$OUT" "Installation did not finish"
-    contains "失败时给出实际路径" "$OUT" "$FAKE_HOME/.local/macwave"
+    contains "失败时给出实际路径" "$OUT" "$TREE"
     contains "失败时说明没有删除任何东西" "$OUT" "Nothing was removed"
     contains "失败时给出重试指引" "$OUT" "run the installer again"
     # 升级安装时删掉安装树会把用户原有的可用安装一起毁掉
-    check "失败时不自动删配置" \
-        "$([[ -d "$FAKE_HOME/.config/macwave_config" ]] && echo yes || echo no)" "yes"
+    check "失败时不自动删状态目录" \
+        "$([[ -d "$TREE" ]] && echo yes || echo no)" "yes"
     mv "$victim.off" "$victim"
 
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     check "修好后重跑可自愈" "$?" "0"
     check "自愈后六个组件目录齐全" \
         "$(for d in cli config lib net pkg surfboard; do
-             [[ -d "$FAKE_HOME/.local/macwave/$d" ]] || exit 1
+             [[ -d "$TREE/$d" ]] || exit 1
            done; echo yes)" "yes"
     check "自愈后 lib/wave 可执行" \
-        "$([[ -x "$FAKE_HOME/.local/macwave/lib/wave" ]] && echo yes || echo no)" "yes"
+        "$([[ -x "$TREE/lib/wave" ]] && echo yes || echo no)" "yes"
     check "正常安装不误报失败指引" "$(count_in "$OUT" "did not finish")" "0"
 }
 
@@ -346,42 +236,40 @@ scenario_uninstall_confirm() {
 
     # 5.1 无终端：必须拒绝，不能把 EOF 当成同意
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     run_without_tty "$SANDBOX_DIR/source-uninstall.sh" > "$OUT" 2>&1
     check "无终端时退出码非 0" "$([[ "$?" -ne 0 ]] && echo yes || echo no)" "yes"
     check "无终端时什么都不删" \
-        "$([[ -e "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "yes"
+        "$([[ -e "$TREE" ]] && echo yes || echo no)" "yes"
     contains "无终端时提示改用 --force" "$OUT" "--force"
 
     # 5.2 回答 n → 取消
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     uninstall_copy_fresh
     run_on_pty n "$SCRATCH/uninstall.sh" > "$OUT" 2>&1
     check "答 n 时取消卸载" \
-        "$([[ -e "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "yes"
+        "$([[ -e "$TREE" ]] && echo yes || echo no)" "yes"
     contains "答 n 时输出已取消" "$OUT" "Uninstall cancelled"
 
     # 5.3 回答 y → 删除
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     uninstall_copy_fresh
     run_on_pty y "$SCRATCH/uninstall.sh" > "$OUT" 2>&1
     check "答 y 时卸载完成" \
-        "$([[ -e "$FAKE_HOME/.local/macwave" ]] && echo no || echo yes)" "yes"
+        "$([[ -e "$TREE" ]] && echo no || echo yes)" "yes"
 
     # 5.4 --force：无需终端
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     uninstall_run --force
     check "--force 无人值守卸载成功" "$?" "0"
     check "--force 后安装树已删" \
-        "$([[ -e "$FAKE_HOME/.local/macwave" ]] && echo yes || echo no)" "no"
-    check "--force 后配置已删" \
-        "$([[ -e "$FAKE_HOME/.config/macwave_config" ]] && echo yes || echo no)" "no"
+        "$([[ -e "$TREE" ]] && echo yes || echo no)" "no"
     check "--force 后 rc 里的 PATH 已清" "$(count_in "$FAKE_HOME/.zshrc" "macwave")" "0"
 
     # 5.5 --remove-user 只为与 LinuxWave 的参数兼容，不该出错
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     uninstall_run --force --remove-user
     check "--force --remove-user 仍成功" "$?" "0"
 }
@@ -391,7 +279,7 @@ scenario_self_delete() {
     echo "========== 6. 卸载器自删（\$0 的取值） =========="
 
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     check "安装成功（自删场景前置）" "$?" "0"
     uninstall_copy_fresh
     /bin/bash "$SCRATCH/uninstall.sh" --force > "$OUT" 2>&1
@@ -399,14 +287,14 @@ scenario_self_delete() {
 
     # 用文档推荐的 /bin/bash -c 运行时 $0 是解释器自身；曾经这里会把 /bin/bash 删掉
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     uninstall_run --force
     check "以 /bin/bash -c 运行卸载成功" "$?" "0"
     check "以 /bin/bash -c 运行不误删解释器" "$([[ -x /bin/bash ]] && echo yes || echo no)" "yes"
 
     # $0 是 `--` 时（带参数的推荐写法）也不该自删或报错
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     /bin/bash -c "$(cat "$SANDBOX_DIR/source-uninstall.sh")" -- --force > "$OUT" 2>&1
     check "带参数的推荐写法卸载成功" "$?" "0"
     check "带参数的推荐写法不误删解释器" "$([[ -x /bin/bash ]] && echo yes || echo no)" "yes"
@@ -435,7 +323,7 @@ scenario_link_regression() {
     echo "========== 8. 软链接回归（复用 link_test.sh） =========="
 
     reset_state
-    install_run --ci --dir-option=$USER_LEVEL_OPTION
+    install_run --ci
     check "安装成功（软链接回归前置）" "$?" "0"
 
     if [[ ! -f "$MIRROR_BASE/scripts/link_test.sh" ]]; then
@@ -453,8 +341,7 @@ scenario_link_regression() {
 
 run_scenarios() {
     reset_state
-    scenario_install_dirs
-    scenario_system_dirs
+    scenario_install
     scenario_cli_errors
     scenario_mid_failure
     scenario_uninstall_confirm
@@ -476,7 +363,10 @@ run_scenarios() {
 if [[ -n "${SANDBOX_INNER:-}" ]]; then
     OFFLINE_INSTALLER="$SANDBOX_DIR/install-offline.sh"
     MIRROR_BASE="$SANDBOX_DIR/mirror/base"
-    FAKE_HOME="$SANDBOX_DIR/home"
+    # configpaths / install.sh 会把 HOME 搬进测试根，这里按同一条规则算，
+    # 断言才能指向安装器真正用的那个家目录。
+    export MACWAVE_TEST="$SANDBOX_DIR"
+    FAKE_HOME="$SANDBOX_DIR$SANDBOX_DIR/home"
     SCRATCH="$SANDBOX_DIR/scratch"
     OUT="$SANDBOX_DIR/output.txt"
     # 外层是 `exec sandbox-exec`，它自己的 EXIT 陷阱不会执行，所以清理要挂在这里

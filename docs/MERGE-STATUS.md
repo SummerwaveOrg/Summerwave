@@ -149,3 +149,37 @@ grep -rn 'sys.platform\|platform.system()\|os.uname' --include=*.py \
 
 沙箱测试的前提已经具备：`MACWAVE_TEST` 把任意目录当作 `/`，所以 `/opt/macwave`
 在沙箱里照样能端到端跑。
+
+### 执行结果（2026-11-26，已完成）
+
+上面那三步都做完了，而且范围比原计划更大——顺带把「配置文件」整个删掉了
+（用户决定：路径写死，不要任何配置）。
+
+**落地的东西**
+
+| 变更 | 结果 |
+| --- | --- |
+| 安装根 | 写死：`config/platforminfo.py` 的 `DEFAULT_BASE_DIR`（`/opt/macwave` / `/home/linuxwave/.linuxwave`）|
+| 唯一读取入口 | `configpaths.load_base_dir()` → `rooted(DEFAULT_BASE_DIR)` |
+| 删除 | `--dir-option`、位置菜单、`print_install_targets`、`resolve_custom_dir`、`validate_custom_dir`、`CUSTOM_OPTION` |
+| 删除 | SIP / SSV 判定（`/opt` 从不被保护）、`RESERVED_ROOTS`、提权判定里的「用户级免 sudo」分支 |
+| 删除 | `config.json` 读取链、`config_dir_candidates` / `find_config_dir`、`/opt/macwave_config` 与 `~/.config/macwave_config`、`MACWAVE_BASE_DIR` |
+| 删除 | `wave basedir --set`（含整树搬家、APFS clone、三段逐字确认）、`lib/basedir.py` 430 → 82 行 |
+| 状态 | 只剩树内 `<base>/var/config.sh`（`MACWAVE_VERSION` / `MACWAVE_BUILD` / `MACWAVE_INSTALLED_AT`）|
+| 顺带修掉 | `shellenv` 与启动器里残留的 `links/`（1.0 已并入 `bin/`）|
+| 顺带修掉 | `index_list_url(arch)` 这个「收了 arch 却不用」的死参数 |
+
+**连带决策**（原摘要里没有，这次一并做完）
+
+- 不兼容任何旧内容：`update_commands.template.sh` 里的 `mq_migrate_legacy_config`
+  与 `MACWAVE_INSTALLER_OWNS_CLEANUP` 删除。
+- 平台标签收尾：`build_versions_index.py` / `sync_payloads.records()` / `audit_deps.py`
+  全部改到 `pkg/pkginfo`、`deps/depsinfo`（不再分架构目录），记录名带 `.<os>-<arch>`。
+- `platforminfo.strip_bottle_tag()`：索引里列出的是 `_jq@1.8.2.macos-arm64`，
+  客户端选版本时要剥掉标签。
+
+**规模**：43+ 个文件，净删除约 2400 行；`install.sh` 3042 → 2519，
+`basedir.py` 430 → 82，`dir_guard_test.sh`（654 行）与 `basedir_set_test.sh`（315 行）整份删除。
+
+**验证**：34 个离线测试全绿 + `sandbox_test.sh` 52/0（真装真卸，走 `sandbox-exec`）。
+需要联网/外部数据仓库的 `format_test` / `deps_test` / `random_test` 未在本次运行。

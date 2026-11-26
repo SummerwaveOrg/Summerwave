@@ -5,7 +5,7 @@
 import sys
 import subprocess
 
-from configpaths import config_dir_candidates, find_config_dir
+from configpaths import STATE_DIR_NAME, STATE_FILE_NAME, load_base_dir
 
 
 # -------------------- 颜色定义 --------------------
@@ -54,11 +54,12 @@ def check_dependencies():
 def check_environment():
 
     # 检测当前环境
-    # - 如果 /opt/macwave_config/config.json 或 ~/.config/macwave_config/config.json
-    #   存在，说明已正式安装，正常继续。
-    # - 如果都不存在，且当前在 git 仓库里，报错并退出。
+    # - 安装根（写死的，见 config/platforminfo.py）里有 var/config.sh，说明已正式
+    #   安装，正常继续。
+    # - 没有，且当前在 git 仓库里，报错并退出。
 
-    if find_config_dir() is not None:
+    base_dir = load_base_dir()
+    if (base_dir / STATE_DIR_NAME / STATE_FILE_NAME).is_file():
         return
 
     try:
@@ -94,15 +95,15 @@ def check_environment():
     else:
         print(f"{RED_BOLD}🌊 Error: MacWave is a git clone!{RESET}")
 
-    config_paths = " or ".join(str(directory / "config.json") for directory in config_dir_candidates())
+    config_paths = str(base_dir / STATE_DIR_NAME / STATE_FILE_NAME)
 
     print("")
-    print(f"MacWave is not distributed as a shallow clone. Instead, it uses install.sh to download various files to their corresponding locations. Among other things, install.sh writes a configuration file to {config_paths}. This configuration file records a large amount of information, including the location where you downloaded MacWave, and it is called by many programs. Without it, many programs will not be able to find the directories.")
+    print(f"MacWave is not distributed as a shallow clone. Instead, it uses install.sh to download various files to {base_dir}. Among other things, install.sh writes a state file to {config_paths}, which records the installed version. Without it, many programs will not be able to find the installation.")
     print("")
     if is_shallow:
-        print("We have detected that you are using a shallow clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\" and select the directory you want to install to. You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh and select the directory you want to install to in order to fully install MacWave.")
+        print("We have detected that you are using a shallow clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
     else:
-        print("We have detected that you are using a git clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\" and select the directory you want to install to. You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh and select the directory you want to install to in order to fully install MacWave.")
+        print("We have detected that you are using a git clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/MacWaveOrg/MacWave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
     print("")
     print("If you are a collaborator of MacWave, or if you cloned the source code for a specific purpose, please do not run it locally, or at least do not run it in the Git directory.")
     print("")

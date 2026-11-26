@@ -56,8 +56,8 @@ strip_ansi() { printf '%s\n' "$1" | sed $'s/\033\\[[0-9;]*m//g'; }
 
 # -------------------- 沙箱 --------------------
 #
-# wave.py 会从配置里读 base_dir，再从那里加载 lib/ pkg/ surfboard/。
-# 这里造一份临时安装，HOME 也指到临时目录，确保不会用到本机已有的配置。
+# 安装根写死成 /opt/macwave，所以用 MACWAVE_TEST 把它映射进临时根；
+# wave.py 从这棵树里加载 lib/ pkg/ surfboard/。HOME 也指到临时目录。
 
 WORK=$(mktemp -d)
 HTTP_PID=""
@@ -68,11 +68,11 @@ cleanup() {
 trap cleanup EXIT
 
 HOME_DIR="$WORK/home"
-BASE="$WORK/base"
-mkdir -p "$HOME_DIR/.config/macwave_config" "$BASE"
-copy_components "$BASE/"
-printf '{"version": "4.1.0"}\n' > "$BASE/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config.json"
+TEST_ROOT="$WORK/root"
+BASE="$TEST_ROOT/opt/macwave"
+mkdir -p "$HOME_DIR" "$BASE/var"
+copy_components "$BASE"
+printf "MACWAVE_VERSION='4.1.0'\n" > "$BASE/var/config.sh"
 
 # -------------------- 假镜像 --------------------
 #
@@ -81,17 +81,19 @@ printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config
 
 MIRROR="$WORK/mirror"
 
-# 索引目录按架构分家。写死 arm64 的话，测试只在 Apple Silicon 上成立 ——
-# Linux runner 是 x86_64，代码会去请求 pkginfo_amd64，目录不存在，全部 404。
-# 这段映射必须与 pkg/pkginstaller.detect_arch() 保持一致。
 ARCH=$(python3 -c 'import platform; m = platform.machine().lower(); print("arm64" if m in ("arm64", "aarch64") else "amd64")')
+case "$(uname -s)" in
+    Darwin) BOTTLE_TAG="macos-$ARCH" ;;
+    *)      BOTTLE_TAG="linux-$ARCH" ;;
+esac
 
-mkdir -p "$MIRROR/pkg/pkginfo_$ARCH/tree" "$MIRROR/pkg/pkginfo_$ARCH/jq" \
-         "$MIRROR/pkg/pkginfo_$ARCH/nolist"
+# 1.0 起索引不再按架构分目录，平台与架构编在记录名里。
+mkdir -p "$MIRROR/pkg/pkginfo/tree" "$MIRROR/pkg/pkginfo/jq" \
+         "$MIRROR/pkg/pkginfo/nolist"
 # nolist：名字在清单里、但没有它的 <包名>/versions —— 用来区分「拼错」与「镜像缺数据」
-printf 'bat\njq\nnolist\ntree\nwget\n' > "$MIRROR/pkg/pkginfo_$ARCH/versions"
-printf 'tree@2.2.1\ntree@2.1.0\n' > "$MIRROR/pkg/pkginfo_$ARCH/tree/versions"
-printf 'jq@1.8.2\n' > "$MIRROR/pkg/pkginfo_$ARCH/jq/versions"
+printf 'bat\njq\nnolist\ntree\nwget\n' > "$MIRROR/pkg/pkginfo/versions"
+printf '_tree@2.2.1.%s\n_tree@2.1.0.%s\n' "$BOTTLE_TAG" "$BOTTLE_TAG" > "$MIRROR/pkg/pkginfo/tree/versions"
+printf '_jq@1.8.2.%s\n' "$BOTTLE_TAG" > "$MIRROR/pkg/pkginfo/jq/versions"
 
 PORT=$(python3 - <<'PY'
 import socket
@@ -105,7 +107,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    if curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo_$ARCH/versions"; then break; fi
+    if curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions"; then break; fi
     sleep 0.1
 done
 
@@ -113,6 +115,7 @@ done
 wave() {
     env -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN \
         HOME="$HOME_DIR" \
+        MACWAVE_TEST="$TEST_ROOT" \
         MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
         python3 "$BASE/lib/wave.py" "$@"
 }

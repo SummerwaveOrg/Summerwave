@@ -31,11 +31,10 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
         列。
 * mirror::	显示每一类数据实际获取地址，包括仍在使用内置默认值的项。
 * latest::	将本机已装的版本与索引里的最新版本比较，不下载。
-* basedir::	打印 MacWave 的安装根目录 —— 即 config.json 里的 base_dir，
-        可执行文件、链接与依赖都在这棵树下。家目录下的路径写作 ~。加
-        --raw 只输出原样的绝对路径。加 --set 会把整棵树搬到新位置并
-        改写base_dir：需要三次逐字确认，而且每个已装产物必须已经是位
-        置无关的（先跑 wave transfer --all）。
+* basedir::	打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树
+        下。这个路径是写死的（macOS 是 /opt/macwave，Linux 是
+        /home/linuxwave/.linuxwave），没有配置文件，也搬不动。家目录
+        下的路径写作 ~。加 --raw 只输出原样的绝对路径。
 * doctor::	只读体检：找出已经坏了、但平时不容易发现的地方 —— 版本目录里
         没有可执行文件、悬空的链接、装了却没链接的包、没人引用的依赖
         树、还写着绝对路径的产物。什么都不会改动，每条发现都附上该跑
@@ -457,27 +456,19 @@ Examples:
 File: wave-zh.info, Node: basedir, Next: doctor, Prev: latest, Up: Top
 
 
-打印 MacWave 的安装根目录 —— 即 config.json 里的 base_dir，可执行文件、
-链接与依赖都在这棵树下。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
-路径。加 --set 会把整棵树搬到新位置并改写base_dir：需要三次逐字确认，而
-且每个已装产物必须已经是位置无关的（先跑 wave transfer --all）。
+打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路径
+是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
+没有配置文件，也搬不动。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
+路径。
 
   --raw
       输出原样的绝对路径，不带 🌊 与颜色（给脚本用）
-
-  --set <path>
-      把整棵安装树搬到 <path> 并改写 base_dir
-
-  -n, --dry-run
-      配合 --set：只报告会拷什么、会改哪个配置文件，然后停
 
 Examples:
 
      wave basedir
      wave basedir --raw
      cd "$(wave basedir --raw)"
-     wave basedir --set ~/apps/macwave
-     wave basedir --set ~/apps/macwave --dry-run
 
 
 File: wave-zh.info, Node: doctor, Next: shellenv, Prev: basedir, Up: Top

@@ -31,8 +31,8 @@ fail() { echo -e "${RED_BOLD}🌊 FAIL: $1${RESET}"; FAILED=$((FAILED + 1)); }
 
 SANDBOX="$WORK/sandbox"
 BASE="$SANDBOX/opt/macwave"
-mkdir -p "$SANDBOX/opt/macwave_config" "$BASE"/{bin,Shore,downloads/tmp}
-printf '{"base_dir": "%s"}' "$BASE" > "$SANDBOX/opt/macwave_config/config.json"
+mkdir -p "$BASE"/{bin,Shore,downloads/tmp,var}
+printf "MACWAVE_VERSION='4.99.0'\n" > "$BASE/var/config.sh"
 for component in cli config lib net pkg surfboard; do
     ln -sfn "$REPO_DIR/$component" "$BASE/$component"
 done

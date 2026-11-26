@@ -9,7 +9,7 @@
 #   --print-usage   打用法，然后**继续**（真的安装，或继续 --dry-run）
 #
 # 而且 --help 只允许单独出现，或与 --dry-run 连用（先打用法、再走一遍流程）。
-# 与其它安装参数连用要报错：`--help --ci --dir-option=2` 读起来像「按这些参数装」，
+# 与其它安装参数连用要报错：`--help --ci` 读起来像「按这些参数装」，
 # 实际却只打帮助 —— 静默忽略比报错更容易让人以为装过了。
 #
 # 第 7 节另测「平台守卫」：非 macOS 时第一句就请用户去 LinuxWave，
@@ -140,11 +140,11 @@ else
     fail "--help --ci 没有报错（rc=${RC}）"
 fi
 
-run_install help-dir --help --dir-option=1
-if [[ "$RC" -eq 1 ]] && has "$OUT" "cannot be combined with '--dir-option=1'"; then
-    pass "--help --dir-option=1：报错并点名该参数"
+run_install help-ci --help --ci
+if [[ "$RC" -eq 1 ]] && has "$OUT" "cannot be combined with '--ci'"; then
+    pass "--help --ci：报错并点名该参数"
 else
-    fail "--help --dir-option=1 没有报错（rc=${RC}）"
+    fail "--help --ci 没有报错（rc=${RC}）"
 fi
 
 if has "$OUT" "--print-usage"; then
@@ -155,14 +155,14 @@ fi
 
 # -------------------- 5. --print-usage：打用法后继续 --------------------
 
-run_install pu-dry --print-usage --dry-run --dir-option=1
+run_install pu-dry --print-usage --dry-run
 if [[ "$RC" -eq 0 ]] && has "$OUT" "Usage:" && has "$OUT" "Dry run"; then
     pass "--print-usage --dry-run：先用法，再继续试运行"
 else
     fail "--print-usage --dry-run 的行为不对（rc=${RC}）"
 fi
 
-run_install pu-zh-raw --print-usage --zh --raw --dry-run --dir-option=1
+run_install pu-zh-raw --print-usage --zh --raw --dry-run
 if [[ "$RC" -eq 0 ]] && has "$OUT" "用法：" \
    && [[ "$(printf '%s\n' "$OUT" | grep -c '^🌊')" -eq 0 ]] \
    && [[ "$(printf '%s\n' "$OUT" | grep -c "$(printf '\033')")" -eq 0 ]]; then
@@ -209,7 +209,7 @@ mklinux() {
     RC=$?
 }
 
-mklinux --dry-run --dir-option=1
+mklinux --dry-run
 if [[ "$RC" -eq 2 ]] \
    && has "$OUT" "LinuxWave" \
    && has "$OUT" "https://linuxwave.org" \
@@ -250,7 +250,7 @@ fi
 OUT=$(MACWAVE_TEST="$WORK/linux-sandbox" \
       MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
       PATH="$STUB_BIN:$PATH" \
-      /bin/bash "$INSTALL_SH" --dry-run --dir-option=1 < /dev/null 2>&1)
+      /bin/bash "$INSTALL_SH" --dry-run < /dev/null 2>&1)
 RC=$?
 if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "not macOS"; then
     pass "MACWAVE_TEST 下不判平台（沙箱里宿主是 Linux 也照跑）"
@@ -346,7 +346,7 @@ run_bare() {
 
 write_uname Darwin
 write_sw_vers macOS
-run_bare --dry-run --dir-option=1
+run_bare --dry-run
 if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run"; then
     pass "Darwin：放行"
 else
@@ -360,7 +360,7 @@ fi
 
 for old_version in 10.13.6 10.14.6; do
     write_sw_vers macOS "$old_version"
-    run_bare --dry-run --dir-option=1
+    run_bare --dry-run
     if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "10.15" && has "$OUT" "Catalina"; then
         pass "macOS ${old_version}：拒绝，并说明需要 10.15 Catalina 或更高"
     else
@@ -370,7 +370,7 @@ done
 
 for ok_version in 10.15 10.15.7 11.2 14.4; do
     write_sw_vers macOS "$ok_version"
-    run_bare --dry-run --dir-option=1
+    run_bare --dry-run
     if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "too old"; then
         pass "macOS ${ok_version}：放行"
     else
@@ -382,7 +382,7 @@ done
 printf '#!/bin/sh\ncase "$1" in\n  -productName) echo "macOS" ;;\n  *) exit 1 ;;\nesac\n' \
     > "$STUB_BIN/sw_vers"
 chmod +x "$STUB_BIN/sw_vers"
-run_bare --dry-run --dir-option=1
+run_bare --dry-run
 if [[ "$RC" -eq 0 ]] && hasnt "$OUT" "too old"; then
     pass "读不到 macOS 版本号：不判、放行"
 else
@@ -391,7 +391,7 @@ fi
 write_sw_vers macOS
 
 write_uname FreeBSD
-run_bare --dry-run --dir-option=1
+run_bare --dry-run
 if [[ "$RC" -eq 2 ]] && has "$OUT" "not recognised" && has "$OUT" "FreeBSD"; then
     pass "未知平台：报出 uname -s 的原值并拒绝（rc=2）"
 else
@@ -400,7 +400,7 @@ fi
 
 write_uname "$(uname -s)"
 if [[ "$(uname -s)" == "Darwin" ]]; then
-    run_install darwin-host --dry-run --dir-option=1
+    run_install darwin-host --dry-run
     if [[ "$RC" -eq 0 ]] && hasnt "$OUT" "LinuxWave"; then
         pass "macOS 宿主：不出现 LinuxWave 提示"
     else

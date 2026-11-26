@@ -19,6 +19,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import quote
 
+# 安装根与运行时布局都取自客户端自己的模块，避免这里再抄一份常量。
+sys.path[:0] = [str(Path(__file__).resolve().parent.parent / name)
+                for name in ("config", "pkg")]
+from configpaths import PAYLOAD_ROOT_NAME  # noqa: E402
+from platforminfo import DEFAULT_BASE_DIR  # noqa: E402
+from receipt import read_note              # noqa: E402
+
 
 # -------------------- 颜色定义 --------------------
 
@@ -36,10 +43,9 @@ DATA_REPO = "MacWaveOrg/infosource"
 BRANCH = "HEAD"
 RAW_BASE = f"https://raw.githubusercontent.com/{DATA_REPO}/{BRANCH}"
 TREE_API = f"https://api.github.com/repos/{DATA_REPO}/git/trees/{BRANCH}?recursive=1"
-CONFIG_FILES = (
-    Path("/opt/macwave_config/config.json"),          # 系统级优先
-    Path.home() / ".config" / "macwave_config" / "config.json",
-)
+# 安装根写死（见 config/platforminfo.py）；--base-dir 可以覆盖，方便审一棵沙箱树。
+INDEX_DIRS = {"pkg": "pkginfo", "deps": "depsinfo"}
+BOTTLE_TAG_RE = re.compile(r'^(\.)(?:macos|linux)-(arm64|amd64)$')
 DATA_GROUPS = ("pkg", "deps")
 REF_PATTERN = re.compile(r'^[^@\s,]+@[^@\s,]+$')
 MACHO_MAGIC = ('cffaedfe', 'cefaedfe', 'feedfacf', 'feedface', 'cafebabe', 'bebafeca')
@@ -126,12 +132,32 @@ def macho_refs(path):
 
 
 def split_data_path(path):
-    # deps/depsinfo_arm64/gettext/_gettext@0.21.0 -> ("dep", "arm64", "gettext@0.21.0")
+    # deps/depsinfo/gettext/_gettext@0.21.0.macos-arm64 -> ("dep", "arm64", "gettext@0.21.0")
+    # 1.0 起索引不再按架构分目录，平台与架构编在记录名的后缀里。
     parts = path.split("/")
-    group = parts[0]
-    kind = "dep" if group == "deps" else "pkg"
-    arch = parts[1].split("info_", 1)[1]
-    return kind, arch, os.path.basename(path).lstrip("_")
+    kind = "dep" if parts[0] == "deps" else "pkg"
+    ref = os.path.basename(path).lstrip("_")
+    name, _, version_tag = ref.partition("@")
+    match = re.search(r'\.(?:macos|linux)-(arm64|amd64)$', version_tag)
+    arch = match.group(1) if match else ""
+    version = version_tag[: match.start()] if match else version_tag
+    return kind, arch, f"{name}@{version}"
+
+
+def record_path(kind, name, version):
+    # 索引里那条版本记录的**前缀**：真正的文件名还带 .<os>-<arch> 后缀。
+    root = "deps" if kind == "dep" else "pkg"
+    directory = INDEX_DIRS[root]
+    return f"{root}/{directory}/{name}/_{name}@{version}"
+
+
+def find_record(files, kind, name, version):
+    # 在已加载的数据里找那条版本记录；目录不再分架构，所以按前缀匹配。
+    prefix = record_path(kind, name, version) + "."
+    for path in files:
+        if path.startswith(prefix):
+            return path
+    return None
 
 
 # -------------------- 数据来源 --------------------
@@ -309,11 +335,10 @@ def audit_data(files, check_urls=False):
             refs += 1
 
             dep_name, _, dep_version = dep_ref.partition("@")
-            common_path = f"deps/depsinfo_{arch}/{dep_name}/_{dep_name}@common"
-            version_path = f"deps/depsinfo_{arch}/{dep_name}/_{dep_name}@{dep_version}"
+            common_path = f"deps/depsinfo/{dep_name}/_{dep_name}@common"
             if common_path not in common_paths:
                 problems.append(f"{label}: depsinfo 缺少 {dep_name} 的 @common")
-            if version_path not in files:
+            if find_record(files, "dep", dep_name, dep_version) is None:
                 problems.append(f"{label}: depsinfo 缺少 {dep_name}@{dep_version} 的版本文件")
 
     # 格式合法不代表能取到：实测确认每个 url 可达，避免出现“看着正常但 404”的死链
@@ -350,26 +375,28 @@ def audit_data(files, check_urls=False):
 # -------------------- edges 模式 --------------------
 
 def resolve_base_dir(base_dir):
-    if base_dir:
-        root = Path(base_dir).expanduser()
-    else:
-        root = None
-        for config_file in CONFIG_FILES:      # 系统级优先，其次用户级
-            if not config_file.exists():
-                continue
-            try:
-                root = Path(json.loads(config_file.read_text())["base_dir"])
-                break
-            except (ValueError, KeyError, OSError):
-                continue
-        if root is None:
-            return None
-
+    # 安装根写死（config/platforminfo.py），不再从 config.json 里找。
+    root = Path(base_dir).expanduser() if base_dir else Path(DEFAULT_BASE_DIR)
     return root if root.is_dir() else None
 
 
+def dependency_versions(deps_root):
+    # 1.0 起包与依赖同构地放在 Shore/<名>/<版本>/，靠 Note 的 requested 区分。
+    # 缺 Note 的按依赖算（老树 / 手装的产物），宁可多查一遍。
+    for owner_dir in sorted(deps_root.iterdir()):
+        if not owner_dir.is_dir():
+            continue
+        for version_dir in sorted(owner_dir.iterdir()):
+            if not version_dir.is_dir():
+                continue
+            note = read_note(version_dir)
+            if note is not None and note.get("requested"):
+                continue
+            yield owner_dir, version_dir
+
+
 def audit_edges(files, base_dir, arch):
-    deps_root = base_dir / "deps"
+    deps_root = base_dir / PAYLOAD_ROOT_NAME
     if not deps_root.is_dir():
         print(f"{YELLOW}🌊 No installed dependencies in {deps_root}, skipping the edge audit.{RESET}")
         return [], []
@@ -381,56 +408,46 @@ def audit_edges(files, base_dir, arch):
 
     # 库文件名 -> 提供它的依赖名
     provider = {}
-    for owner_dir in sorted(deps_root.iterdir()):
-        if not owner_dir.is_dir():
+    for owner_dir, version_dir in dependency_versions(deps_root):
+        lib_dir = version_dir / "lib"
+        if not lib_dir.is_dir():
             continue
-        for version_dir in sorted(owner_dir.iterdir()):
-            lib_dir = version_dir / "lib"
-            if not lib_dir.is_dir():
-                continue
-            for lib in lib_dir.iterdir():
-                provider.setdefault(lib.name, owner_dir.name)
+        for lib in lib_dir.iterdir():
+            provider.setdefault(lib.name, owner_dir.name)
 
     problems = []
     warnings = []
     checked = 0
 
-    for owner_dir in sorted(deps_root.iterdir()):
-        if not owner_dir.is_dir():
-            continue
+    for owner_dir, version_dir in dependency_versions(deps_root):
+        name, version = owner_dir.name, version_dir.name
+        checked += 1
 
-        for version_dir in sorted(owner_dir.iterdir()):
-            if not version_dir.is_dir():
+        # 以数据里的声明为准，数据缺失时退回已安装的 _DEPS
+        data_path = find_record(files, "dep", name, version)
+        if data_path is not None:
+            declared = {ref.partition("@")[0] for ref in get_deps(parse_fields(files[data_path]))}
+        else:
+            deps_file = version_dir / "_DEPS"
+            declared = set()
+            if deps_file.is_file():
+                declared = {line.strip().strip('"').partition("@")[0]
+                            for line in deps_file.read_text().splitlines() if line.strip()}
+            warnings.append(f"{name}@{version}: 没有对应的数据文件，用已安装的 _DEPS 代替")
+
+        referenced = set()
+        for path in list(version_dir.rglob("lib/*")) + list(version_dir.rglob("bin/*")):
+            if not path.is_file() or not is_macho(path):
                 continue
+            for ref in macho_refs(path):
+                owner = provider.get(os.path.basename(ref))
+                if owner and owner != name:
+                    referenced.add(owner)
 
-            name, _, version = version_dir.name.partition("@")
-            checked += 1
-
-            # 以数据里的声明为准，数据缺失时退回已安装的 _DEPS
-            data_path = f"deps/depsinfo_{arch}/{name}/_{name}@{version}"
-            if data_path in files:
-                declared = {ref.partition("@")[0] for ref in get_deps(parse_fields(files[data_path]))}
-            else:
-                deps_file = version_dir / "_DEPS"
-                declared = set()
-                if deps_file.is_file():
-                    declared = {line.strip().strip('"').partition("@")[0]
-                                for line in deps_file.read_text().splitlines() if line.strip()}
-                warnings.append(f"{name}@{version}: 没有对应的数据文件，用已安装的 _DEPS 代替")
-
-            referenced = set()
-            for path in list(version_dir.rglob("lib/*")) + list(version_dir.rglob("bin/*")):
-                if not path.is_file() or not is_macho(path):
-                    continue
-                for ref in macho_refs(path):
-                    owner = provider.get(os.path.basename(ref))
-                    if owner and owner != name:
-                        referenced.add(owner)
-
-            for owner in sorted(referenced - declared):
-                problems.append(f"{name}@{version} 实际引用了 {owner}，但数据里没有声明")
-            for owner in sorted(declared - referenced):
-                warnings.append(f"{name}@{version} 声明了 {owner}，但本机产物里没有引用")
+        for owner in sorted(referenced - declared):
+            problems.append(f"{name}@{version} 实际引用了 {owner}，但数据里没有声明")
+        for owner in sorted(declared - referenced):
+            warnings.append(f"{name}@{version} 声明了 {owner}，但本机产物里没有引用")
 
     print(f"🌊 Checked {checked} installed dependency(ies).")
     return problems, warnings
@@ -444,7 +461,7 @@ def main():
     parser.add_argument("mode", nargs="?", default="all", choices=["data", "edges", "all"],
                         help="data: 只查数据；edges: 只查本机依赖边；all: 两者都查（默认）")
     parser.add_argument("--data-dir", help="infosource 数据仓库检出的目录（默认：本地有就用，否则从 GitHub 拉取）")
-    parser.add_argument("--base-dir", help="MacWave 安装目录（默认按系统级 → 用户级读 config.json）")
+    parser.add_argument("--base-dir", help=f"MacWave 安装目录（默认写死的 {DEFAULT_BASE_DIR}）")
     parser.add_argument("--arch", choices=["arm64", "amd64"], help="目标架构（默认本机架构）")
     parser.add_argument("--check-urls", action="store_true",
                         help="联网确认每个 url 可访问（默认关闭；依赖网络，按需开启）")

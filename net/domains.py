@@ -132,16 +132,17 @@ def selfupdate_domain():
 
 # -------------------- 索引 --------------------
 
-def index_list_url(arch, package_name=None):
+def index_list_url(package_name=None):
     # 「列出版本 / 列出软件包」这件事目前走 GitHub 的 contents API，它属于
     # api.github.com，与索引本身的地址不是一台机器，镜像站无法等价提供。
     #
     # 所以：设了 MACWAVE_API_DOMAIN（也就是在用镜像）时，要求镜像自己提供一份清单——
-    #   <api>/pkg/pkginfo_<arch>/versions           → 一行一个包名
-    #   <api>/pkg/pkginfo_<arch>/<包名>/versions     → 一行一个版本号
+    #   <api>/pkg/pkginfo/versions           → 一行一个包名
+    #   <api>/pkg/pkginfo/<包名>/versions     → 一行一个版本号
+    # 1.0 起索引不再按架构分目录：平台与架构编进记录名（_<名>@<版本>.<os>-<arch>）。
     # 没设时仍用 GitHub API，行为与 3.x 一致。
     # 4.0 的索引协议定稿后，这里改成只读镜像那一份。
-    path = f"pkg/pkginfo_{arch}"
+    path = "pkg/pkginfo"
     if package_name:
         path = f"{path}/{package_name}"
 

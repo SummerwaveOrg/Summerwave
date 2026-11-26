@@ -42,6 +42,19 @@ run_mirror_api() {
     "${CLEAN_ENV[@]}" MACWAVE_API_DOMAIN="$url" python3 "$WAVE_BIN" mirror "$@"
 }
 
+# 安装根写死成 /opt/macwave：用 MACWAVE_TEST 把它映射进临时根，并把组件拷进去
+# （wave.py 从 BASE_DIR 加载模块，仓库里的那份在沙箱里找不到兄弟目录）。
+# shellcheck source=./components.sh
+source "$SCRIPT_DIR/components.sh"
+MIRROR_TEST_ROOT="$(mktemp -d)"
+trap 'rm -rf "$MIRROR_TEST_ROOT"' EXIT
+MIRROR_TREE="$MIRROR_TEST_ROOT/opt/macwave"
+copy_components "$MIRROR_TREE"
+mkdir -p "$MIRROR_TREE/var"
+printf "MACWAVE_VERSION='4.99.0'\n" > "$MIRROR_TREE/var/config.sh"
+export MACWAVE_TEST="$MIRROR_TEST_ROOT"
+WAVE_BIN="$MIRROR_TREE/lib/wave.py"
+
 MIRROR="https://alice:s3cr3t-pw@mirror.example.test/MacWave"
 
 echo "========== defaults are printed, nothing is blank =========="
@@ -51,10 +64,12 @@ if [[ "$OUT" == *"https://github.com/MacWaveOrg/Bottle/releases/download"* ]]; t
 else
     fail "default for bottle missing"
 fi
-if [[ "$OUT" == *"(not configured)"* ]]; then
-    pass "an unset entry shows a placeholder instead of a blank"
+# 1.0 起每个数据源都有内置默认值，所以「没设环境变量」的行显示的是默认地址，
+# 而不是占位文字 —— 断言改成「每一行都指向一个 https 地址」。
+if [[ "$(printf '%s\n' "$OUT" | grep -c 'https://')" -ge 6 ]]; then
+    pass "unset entries fall back to the built-in default (never blank)"
 else
-    fail "unset entry did not show a placeholder"
+    fail "unset entry did not fall back to a default"
 fi
 if echo "$OUT" | grep -qE '^\s+\S+\s+\S+\s*$'; then
     fail "a row printed an empty value"
@@ -116,7 +131,7 @@ echo "========== structured formats parse with a real parser =========="
 if run_mirror_api "$MIRROR/infosource" --json 2>/dev/null | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
-assert len(data["mirrors"]) == 8, len(data["mirrors"])
+assert len(data["mirrors"]) == 7, len(data["mirrors"])
 assert any(row["requires_auth"] for row in data["mirrors"])
 assert not any("s3cr3t-pw" in row["value"] for row in data["mirrors"]), "password leaked"
 ' 2>/dev/null; then pass "--json parses and stays masked"; else fail "--json invalid"; fi
@@ -125,7 +140,7 @@ if run_mirror_api "$MIRROR/infosource" --toml 2>/dev/null | python3 -c '
 import sys
 text = sys.stdin.read()
 assert "[[mirror]]" in text
-assert text.count("[[mirror]]") == 8, text.count("[[mirror]]")
+assert text.count("[[mirror]]") == 7, text.count("[[mirror]]")
 assert "s3cr3t-pw" not in text
 try:
     import tomllib
@@ -138,7 +153,7 @@ if run_mirror_api "$MIRROR/infosource" --yaml 2>/dev/null | python3 -c '
 import sys
 text = sys.stdin.read()
 assert text.startswith("mirrors:")
-assert text.count("  - name:") == 8, text.count("  - name:")
+assert text.count("  - name:") == 7, text.count("  - name:")
 assert "s3cr3t-pw" not in text
 ' 2>/dev/null; then pass "--yaml parses"; else fail "--yaml invalid"; fi
 

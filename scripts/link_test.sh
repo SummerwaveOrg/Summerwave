@@ -26,7 +26,6 @@ fi
 # base_dir，跑一次就把现有安装改一遍（2026-11-24 的教训）。
 SANDBOX_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/link_test.XXXXXX")"
 sandbox_install_tree "$SANDBOX_ROOT"
-CONFIG_FILE="$SANDBOX_CONFIG_FILE"
 BASE_DIR="$SANDBOX_BASE"
 PAYLOAD_DIR="$BASE_DIR/Shore"
 BIN_DIR="$BASE_DIR/bin"

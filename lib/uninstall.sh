@@ -34,9 +34,7 @@ if [[ -n "${MACWAVE_TEST:-}" ]]; then
     echo "🌊 Test root: $SYS_ROOT"
 fi
 
-SYSTEM_CONFIG_DIR="$SYS_ROOT/opt/macwave_config"
-USER_CONFIG_DIR="$HOME/.config/macwave_config"
-ARCH=$(uname -m)
+BASE_DIR="$SYS_ROOT/opt/macwave"
 
 # ==========================================
 # 命令行参数（批量 / 脚本化卸载）
@@ -105,38 +103,9 @@ case "$0" in
         ;;
 esac
 
-# 默认尝试删除的路径列表
-BASE_DIRS=()
-
-# 1. 如果配置文件存在，优先读取（系统级与用户级都读，两边都卸干净）
-for CONFIG_DIR in "$SYSTEM_CONFIG_DIR" "$USER_CONFIG_DIR"; do
-    if [ -f "$CONFIG_DIR/config.json" ]; then
-        # `|| true` 不能省：赋值语句的退出码就是命令替换的退出码，在 `set -e` 下
-        # 一次坏 JSON（或没有 python3）就会让整个卸载器静默退出、一个字节都不删。
-        # 路径走 argv 而不是拼进源码：目录名里的引号不会把这段 Python 弄坏。
-        READ_DIR="$(python3 -c '
-import json, sys
-try:
-    with open(sys.argv[1]) as handle:
-        print(json.load(handle).get("base_dir", "") or "")
-except Exception:
-    pass
-' "$CONFIG_DIR/config.json" 2>/dev/null || true)"
-        if [ -n "$READ_DIR" ]; then
-            BASE_DIRS+=("$READ_DIR")
-        fi
-    fi
-done
-
-# 2. 如果读取失败（或文件不存在），把所有可能的路径都加入列表
-if [ ${#BASE_DIRS[@]} -eq 0 ]; then
-    BASE_DIRS+=("$HOME/.local/macwave")
-    BASE_DIRS+=("$SYS_ROOT/opt/macwave")
-    # Intel Mac 才有 /usr/local/macwave
-    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]]; then
-        BASE_DIRS+=("$SYS_ROOT/usr/local/macwave")
-    fi
-fi
+# 要删的只有一处：写死的安装根（见 config/platforminfo.py）。
+# 没有配置文件可读，也没有别的候选目录。
+BASE_DIRS=("$BASE_DIR")
 
 if [[ "$CLI_REMOVE_USER" == "true" ]]; then
     echo "🌊 --remove-user: MacWave has no dedicated account, nothing to remove."
@@ -166,12 +135,9 @@ fi
 
 # 逐个尝试删除所有可能的路径
 #
-# 只删「看起来确实是 MacWave 安装」的目录：base_dir 来自 config.json，而用户级
-# 配置对任何以该用户身份运行的进程都可写。若不校验就拿去 `sudo rm -rf`，
-# 一条被改过的 base_dir 就能把 /usr/local 或家目录整片删掉 —— 与 install.sh
-# 已经堵上的那类问题同一个形状，这里也必须堵。
-#
-# 判据是 lib/wave.py：只有安装树有它。判不出来就不删，并说清是哪一条挡住的。
+# 只删「看起来确实是 MacWave 安装」的目录。路径虽然写死，`MACWAVE_TEST` 与
+# 环境仍可能让它指向别处，所以删之前照旧校验一遍：判据是 lib/wave.py，
+# 只有安装树有它。判不出来就不删，并说清是哪一条挡住的。
 skip_reason() {
     local dir="$1"
     if [[ -z "$dir" ]]; then
@@ -262,17 +228,6 @@ for DIR in "${BASE_DIRS[@]}"; do
     fi
 done
 
-# 删除配置目录（系统级与用户级都可能存在）
-for CONFIG_DIR in "$SYSTEM_CONFIG_DIR" "$USER_CONFIG_DIR"; do
-    if [ -d "$CONFIG_DIR" ]; then
-        if [[ "$CONFIG_DIR" == "$HOME" || "$CONFIG_DIR" == "$HOME"/* ]]; then
-            mw_remove "$CONFIG_DIR"
-        else
-            mw_remove "$CONFIG_DIR" sudo
-        fi
-    fi
-done
-
 # 清理 PATH 配置。要处理四种写法：
 #   1. 4.2.x 及更早：`# MacWave` 注释行 + 紧随其后的 export PATH
 #   2. 更早的版本：只有一行 export PATH，没有注释行
@@ -287,8 +242,7 @@ done
 # python3 了 —— 那时再靠 Python 过滤，要么整段失败、要么退回子串匹配的老路。
 # 一份实现同时管「正常」与「兜底」两种情况，不会两边漂移。
 
-# 参与匹配的目录 = 配置里读到的 + 三个默认候选。默认候选一定是我们自己的路径，
-# 加上它们，旧安装留下的行在配置已经丢失时也能被认出来。
+# 参与匹配的目录 = 写死的安装根。
 RC_DIRS=()
 mw_add_rc_dir() {
     local dir="$1" existing
@@ -299,10 +253,7 @@ mw_add_rc_dir() {
     RC_DIRS+=("$dir")
 }
 
-for _rc_dir in ${BASE_DIRS[@]+"${BASE_DIRS[@]}"} \
-                "$HOME/.local/macwave" \
-                "$SYS_ROOT/opt/macwave" \
-                "$SYS_ROOT/usr/local/macwave"; do
+for _rc_dir in ${BASE_DIRS[@]+"${BASE_DIRS[@]}"}; do
     mw_add_rc_dir "$_rc_dir"
 done
 

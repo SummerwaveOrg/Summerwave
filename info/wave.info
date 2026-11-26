@@ -47,14 +47,12 @@ nothing is compiled on the user's machine.
         by an environment variable.
 * latest::	Compare what you have with the newest version in the index;
         nothing is downloaded.
-* basedir::	Print MacWave's install root -- the base_dir in config.json,
-        which is where the binaries, the links and the dependencies
-        live. A path under your home directory is shown with ~. With
-        --raw it prints the absolute path as-is and nothing else.
-        With --set it copies the whole tree to a new location and
-        rewrites base_dir; that needs three typed confirmations, and
-        every installed artifact must already be
-        position-independent.
+* basedir::	Print MacWave's install root, which is where the binaries,
+        the links and the dependencies live. It is fixed:
+        /opt/macwave on macOS and /home/linuxwave/.linuxwave on
+        Linux, with no configuration file involved. A path under
+        your home directory is shown with ~. With --raw it prints
+        the absolute path as-is and nothing else.
 * doctor::	Look for things that are already broken but rarely noticed:
         a version directory without its executable, a dangling link,
         a package that was never linked, an orphaned dependency
@@ -520,32 +518,21 @@ Examples:
 File: wave.info, Node: basedir, Next: doctor, Prev: latest, Up: Top
 
 
-Print MacWave's install root -- the base_dir in config.json, which is
-where the binaries, the links and the dependencies live. A path under
-your home directory is shown with ~. With --raw it prints the absolute
-path as-is and nothing else. With --set it copies the whole tree to a
-new location and rewrites base_dir; that needs three typed
-confirmations, and every installed artifact must already be
-position-independent.
+Print MacWave's install root, which is where the binaries, the links and
+the dependencies live. It is fixed: /opt/macwave on macOS and
+/home/linuxwave/.linuxwave on Linux, with no configuration file
+involved. A path under your home directory is shown with ~. With --raw
+it prints the absolute path as-is and nothing else.
 
   --raw
       Print the absolute path as-is, with no emoji or colour (for
       scripts)
-
-  --set <path>
-      Move the whole install tree to <path> and update base_dir
-
-  -n, --dry-run
-      With --set: report what would be copied and which config file
-      would change, then stop
 
 Examples:
 
      wave basedir
      wave basedir --raw
      cd "$(wave basedir --raw)"
-     wave basedir --set ~/apps/macwave
-     wave basedir --set ~/apps/macwave --dry-run
 
 
 File: wave.info, Node: doctor, Next: shellenv, Prev: basedir, Up: Top

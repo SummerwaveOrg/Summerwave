@@ -42,8 +42,7 @@ fi
 # 4.0.1/TEST，真实安装树也被换成了 4.0.1。
 # AGENTS.md 里那条「会改动系统的测试必须先设 MACWAVE_TEST」说的就是这件事。
 #
-# MACWAVE_TEST 会让 configpaths 把测试根当 /：配置目录变成
-# <root>/opt/macwave_config（系统级优先），组件也从 <root>/opt/macwave 下找，
+# MACWAVE_TEST 会让 configpaths 把测试根当 /：安装根写死在 <root>/opt/macwave，
 # 所以这里先把组件**拷**进去（不是软链 —— 自更新会往这棵树里写文件，
 # 软链会把改动写回仓库）。
 # ==========================================
@@ -51,9 +50,8 @@ fi
 SU_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/selfupdate_test.XXXXXX")"
 export MACWAVE_TEST="$SU_ROOT"
 
-CONFIG_DIR="$SU_ROOT/opt/macwave_config"
 SANDBOX_BASE="$SU_ROOT/opt/macwave"
-mkdir -p "$CONFIG_DIR" "$SANDBOX_BASE"
+mkdir -p "$SANDBOX_BASE" "$SANDBOX_BASE/var"
 
 for component in $(components) man info Keys; do
     [[ -d "$REPO_DIR/$component" ]] || continue
@@ -61,11 +59,15 @@ for component in $(components) man info Keys; do
     cp -R "$REPO_DIR/$component"/. "$SANDBOX_BASE/$component"/ 2>/dev/null || true
 done
 
-printf '{"base_dir": "%s"}\n' "$SANDBOX_BASE" > "$CONFIG_DIR/config.json"
-printf '{\n  "version": "4.0.0"\n}\n' > "$CONFIG_DIR/VERSION.json"
-
-CONFIG_FILE="$CONFIG_DIR/config.json"
-VERSION_FILE="$CONFIG_DIR/VERSION.json"
+# 状态只有一份：<base>/var/config.sh。
+STATE_FILE="$SANDBOX_BASE/var/config.sh"
+write_state_version() {
+    printf "MACWAVE_VERSION='%s'\n" "$1" > "$STATE_FILE"
+}
+state_version() {
+    sed -n "s/^MACWAVE_VERSION='\(.*\)'$/\1/p" "$STATE_FILE" 2>/dev/null | head -n 1
+}
+write_state_version "4.0.0"
 
 FAILED=0
 
@@ -204,14 +206,7 @@ fi
 
 echo "========== already up to date =========="
 
-python3 - "$VERSION_FILE" << 'PYEOF'
-import json
-import sys
-
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": "9999.0", "components": {"installer": "9999.0", "parser": "9999.0"}},
-              handle, indent=2)
-PYEOF
+write_state_version "9999.0"
 
 LOG_FILE="$(mktemp)"
 RC=0
@@ -235,14 +230,7 @@ echo "========== --dry-run changes nothing =========="
 # 装的是 4.0.0、上面那份版本数据是 4.0.1：同大版本、确实有得升。
 # 协议这一段也该被「问一次」——dry run 只许说，不许问（下面喂 /dev/null，
 # 一旦它真去 input() 就会拿到 EOF 并按拒绝退出，测试随之变红）。
-python3 - "$VERSION_FILE" << 'PYEOF'
-import json
-import sys
-
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": "4.0.0", "components": {"installer": "4.0.0", "parser": "4.0.0"}},
-              handle, indent=2)
-PYEOF
+write_state_version "4.0.0"
 
 LOG_FILE="$(mktemp)"
 RC=0
@@ -261,10 +249,10 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-if [[ "$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['version'])")" == "4.0.0" ]]; then
-    echo -e "${GREEN}🌊 OK: VERSION.json untouched by --dry-run${RESET}"
+if [[ "$(state_version)" == "4.0.0" ]]; then
+    echo -e "${GREEN}🌊 OK: state untouched by --dry-run${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: --dry-run changed VERSION.json${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: --dry-run changed the state file${RESET}"
     FAILED=$((FAILED + 1))
 fi
 
@@ -276,14 +264,7 @@ rm -f "$LOG_FILE"
 
 echo "========== cross-major selfupdate is refused =========="
 
-python3 - "$VERSION_FILE" << 'PYEOF'
-import json
-import sys
-
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": "0.1", "components": {"installer": "0.1", "parser": "0.1"}},
-              handle, indent=2)
-PYEOF
+write_state_version "0.1"
 
 LOG_FILE="$(mktemp)"
 RC=0
@@ -299,10 +280,10 @@ else
 fi
 rm -f "$LOG_FILE"
 
-if [[ "$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['version'])")" == "0.1" ]]; then
-    echo -e "${GREEN}🌊 OK: VERSION.json untouched after the refusal${RESET}"
+if [[ "$(state_version)" == "0.1" ]]; then
+    echo -e "${GREEN}🌊 OK: state untouched after the refusal${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: VERSION.json changed despite the refusal${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: state changed despite the refusal${RESET}"
     FAILED=$((FAILED + 1))
 fi
 
@@ -320,18 +301,8 @@ fi
 echo "========== beta builds cannot selfupdate =========="
 
 BETA_VERSION="4.4.0-beta2"
-cp "$VERSION_FILE" "$SU_WORK/VERSION.json.bak"
-python3 - "$VERSION_FILE" "$BETA_VERSION" << 'PYEOF'
-import json
-import sys
-
-path, beta = sys.argv[1], sys.argv[2]
-with open(path) as handle:
-    data = json.load(handle)
-data["version"] = beta
-with open(path, "w") as handle:
-    json.dump(data, handle, indent=2)
-PYEOF
+cp "$STATE_FILE" "$SU_WORK/config.sh.bak"
+write_state_version "$BETA_VERSION"
 
 LOG_FILE="$(mktemp)"
 RC=0
@@ -381,14 +352,14 @@ else
 fi
 rm -f "$LOG_FILE"
 
-if [[ "$(python3 -c "import json; print(json.load(open('$VERSION_FILE'))['version'])")" == "$BETA_VERSION" ]]; then
-    echo -e "${GREEN}🌊 OK: VERSION.json untouched by both refusals${RESET}"
+if [[ "$(state_version)" == "$BETA_VERSION" ]]; then
+    echo -e "${GREEN}🌊 OK: state untouched by both refusals${RESET}"
 else
-    echo -e "${RED_BOLD}🌊 FAIL: a refusal changed VERSION.json${RESET}"
+    echo -e "${RED_BOLD}🌊 FAIL: a refusal changed the state file${RESET}"
     FAILED=$((FAILED + 1))
 fi
 
-cp "$SU_WORK/VERSION.json.bak" "$VERSION_FILE"
+cp "$SU_WORK/config.sh.bak" "$STATE_FILE"
 
 # ==========================================
 # 3.6 协议更新：装的是 4.4.0 或更早时必须问一次
@@ -648,14 +619,7 @@ if [[ -z "$TARGET" ]]; then
     echo -e "${RED_BOLD}🌊 FAIL: no target version in the local selfupdate data${RESET}"
     FAILED=$((FAILED + 1))
 else
-    python3 - "$VERSION_FILE" "$INSTALLED" << 'PYEOF'
-import json
-import sys
-
-with open(sys.argv[1], 'w') as handle:
-    json.dump({"version": sys.argv[2], "components": {"installer": sys.argv[2], "parser": sys.argv[2]}},
-              handle, indent=2)
-PYEOF
+    write_state_version "$INSTALLED"
 
     LOG_FILE="$(mktemp)"
     RC=0
@@ -671,16 +635,11 @@ PYEOF
     fi
     rm -f "$LOG_FILE"
 
-    # VERSION.json 必须变成目标版本号（这一步同时证明 selfupdate.sh 真的跑过）。
-    # 4.7 起它跟着状态一起搬进树内 `<base>/var/`，所以两个位置都要看。
-    CHECKED_VERSION_FILE="$VERSION_FILE"
-    if [[ -f "$SANDBOX_BASE/var/VERSION.json" ]]; then
-        CHECKED_VERSION_FILE="$SANDBOX_BASE/var/VERSION.json"
-    fi
-    if [[ "$(python3 -c "import json; print(json.load(open('$CHECKED_VERSION_FILE'))['version'])")" == "$TARGET" ]]; then
+    # 状态文件里的版本号必须变成目标版本（这一步同时证明 selfupdate.sh 真的跑过）。
+    if [[ "$(state_version)" == "$TARGET" ]]; then
         echo -e "${GREEN}🌊 OK: end-to-end selfupdate ($INSTALLED -> $TARGET)${RESET}"
     else
-        echo -e "${RED_BOLD}🌊 FAIL: VERSION.json was not updated to $TARGET${RESET}"
+        echo -e "${RED_BOLD}🌊 FAIL: the state file was not updated to $TARGET${RESET}"
         FAILED=$((FAILED + 1))
     fi
 fi
@@ -693,17 +652,10 @@ fi
 
 echo "========== every listed file landed =========="
 
-# 4.7 起自更新会把状态搬进树内 `var/config.sh`，并清掉外部 config.json ——
-# 所以这里要先看树内那份，再退回旧路径（测的就是「迁移之后还能找到树」）。
-BASE_DIR=""
-if [[ -f "$SANDBOX_BASE/var/config.sh" ]]; then
-    BASE_DIR=$(sed -n "s/^MACWAVE_BASE_DIR='\\(.*\\)'$/\\1/p" "$SANDBOX_BASE/var/config.sh" | head -n 1)
-fi
-if [[ -z "$BASE_DIR" ]]; then
-    BASE_DIR=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['base_dir'])")
-fi
-if [[ "$BASE_DIR" != "$SANDBOX_BASE" ]]; then
-    echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not record the install root (got '$BASE_DIR')${RESET}"
+# 安装根写死，状态文件不再记录它 —— 这里只确认自更新把状态写进了树内。
+BASE_DIR="$SANDBOX_BASE"
+if [[ ! -f "$SANDBOX_BASE/var/config.sh" ]]; then
+    echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not write the in-tree state file${RESET}"
     FAILED=$((FAILED + 1))
 fi
 if [[ -f "$SANDBOX_BASE/var/config.sh" ]]; then

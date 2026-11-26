@@ -23,6 +23,7 @@ RESET = '\033[0m'
 
 from configpaths import assert_inside, load_base_dir, require_safe_filename
 import domains
+import platforminfo
 import tls
 import silent
 
@@ -155,12 +156,12 @@ def fetch_text(url, attempts=3, timeout=None):
 
 def dep_common_url(dep_name, arch):
 
-    return f"{DEPSINFO_BASE}/depsinfo_{arch}/{dep_name}/_{dep_name}@common"
+    return f"{DEPSINFO_BASE}/depsinfo/{dep_name}/_{dep_name}@common"
 
 
 def dep_version_url(dep_name, dep_version, arch):
 
-    return f"{DEPSINFO_BASE}/depsinfo_{arch}/{dep_name}/_{dep_name}@{dep_version}"
+    return f"{DEPSINFO_BASE}/depsinfo/{dep_name}/_{dep_name}@{dep_version}.{platforminfo.bottle_tag(arch)}"
 
 
 # -------------------- 错误输出 --------------------

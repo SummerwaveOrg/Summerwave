@@ -21,6 +21,7 @@ RESET = '\033[0m'
 from configpaths import load_base_dir, payload_root, require_safe_token
 import common
 import domains
+import platforminfo
 import flags
 import steplog
 import tls
@@ -81,7 +82,7 @@ def fetch_remote_versions(pkg_name, arch, budget=None):
     # （见 domains.index_list_url）。
 
     pkg_name = require_safe_token(pkg_name, "package name")
-    api_url = domains.index_list_url(arch, pkg_name)
+    api_url = domains.index_list_url(pkg_name)
     try:
         resp = requests.get(api_url, timeout=_to(budget or _fallback()),
                             headers=github_api_headers(api_url),
@@ -93,7 +94,7 @@ def fetch_remote_versions(pkg_name, arch, budget=None):
             if fname.endswith("@common"):
                 continue
             if "@" in fname:
-                versions.append(fname.split("@")[1])
+                versions.append(platforminfo.strip_bottle_tag(fname.split("@", 1)[1]))
         return versions
     except Exception:
         return []
@@ -108,7 +109,7 @@ def fetch_remote_info(pkg_name, arch, budget=None):
     # 拉不到时返回 (None, None)，调用方据此区分「没这条记录」和「有记录但没字段」。
 
     pkg_name = require_safe_token(pkg_name, "package name")
-    common_url = f"{domains.api_domain()}/pkg/pkginfo_{arch}/{pkg_name}/_{pkg_name}@common"
+    common_url = f"{domains.api_domain()}/pkg/pkginfo/{pkg_name}/_{pkg_name}@common"
     try:
         resp = requests.get(common_url, timeout=_to(budget or _fallback()),
                             **tls.request_kwargs())
@@ -193,7 +194,7 @@ def handle_search(query, budget=None):
 
     arch = get_arch()
 
-    api_url = domains.index_list_url(arch)
+    api_url = domains.index_list_url()
 
     try:
         resp = requests.get(api_url, timeout=_to(budget or _fallback()),

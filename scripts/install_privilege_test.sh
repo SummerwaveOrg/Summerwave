@@ -3,25 +3,19 @@
 # install_privilege_test.sh
 # `install.sh` 什么时候需要提权：按**写权限**判断，不按「是不是在家目录下」。
 #
-# 为什么值得单独一个测试：这条判断错的两个方向都不会崩，只会让人莫名其妙 ——
-#   * 装到自己可写的外部卷（/Volumes/SSD/macwave），明明不需要密码却要密码；
-#   * ~/.local/macwave 被上一次 `sudo` 装成了 root 所有，安装器认为用户目录
-#     无需提权，然后一路 Permission denied，报错指不到原因。
-#
-# 同时钉住另一件事：**配置目录的位置仍按语义走**（$HOME 之外 → /opt/macwave_config，
-# $HOME 之内 → ~/.config/macwave_config）。它与「这次要不要提权」是两个概念，
-# 合成一个变量正是上面两类故障的成因。
+# 安装根写死成 /opt/macwave 之后，这条判断只剩一种形状：目标树写不了就提权。
+# 用户级安装、自定义目录、SIP/SSV 这几套分支都已经删掉 —— 它们存在的理由是
+# 「可能装到别处」，而现在没有别处。
 #
 # 全程 `--dry-run`：不下载、不提权、不建目录；版本数据指向一个必然失败的本地地址，
 # 于是不必联网。
 
 # 语言：install.sh 会按 locale / 系统首选语言自动切中文，断言因此会随开发者的
-# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖，
-# 专测语言的那几段自己显式给 LANG。
+# 系统语言漂（中文 Mac 上所有英文断言一起红）。这里钉成英文 + 清掉外层的覆盖。
 unset MACWAVE_LANG LC_ALL LC_MESSAGES
 export LANG=en_US.UTF-8
 
-# 这些用例用的是赝品镜像，里面没有 latest.toml.sig，而验签 4.7 起是强制的
+# 这些用例用的是赝品镜像，里面没有 latest.toml.sig，而验签是强制的
 # （不通过就不装）。真实验签由 signature_test.sh 单独覆盖，这里放开。
 export MACWAVE_ALLOW_UNSIGNED=1
 
@@ -74,16 +68,6 @@ dry_run() {
         /bin/bash "$INSTALL_SH" --dry-run "$@" 2>&1
 }
 
-# 菜单里「其他（自定义）」是第几项**随架构变化**：Intel 机器多一个
-# /usr/local/macwave，自定义就挪到第 4 项。写死 3 在 Apple 芯片上恰好对，
-# 到 CircleCI 的 x86_64 runner 上就会被 install.sh 拒掉
-# （"only --dir-option=4 takes a directory"），而那三条断言的失败信息
-# 完全指不到原因。这里跟着 install.sh 的算法算一遍。
-case "$(uname -m)" in
-    x86_64|amd64) CUSTOM_OPTION=4 ;;
-    *) CUSTOM_OPTION=3 ;;
-esac
-
 needs_admin() {
     case "$1" in
         *"needs administrator access"*) return 0 ;;
@@ -91,193 +75,38 @@ needs_admin() {
     esac
 }
 
-config_path() {
-    # 从「Dry run: would write <config.json> (base_dir)」里取出配置文件的路径
-    printf '%s\n' "$1" | sed -n 's/.*would write \([^ ]*config\.json\).*/\1/p' | head -n 1
-}
-
-# -------------------- 1. 用户目录：写得了，不提权 --------------------
-
-# 4.6.1 起菜单把 /opt/macwave 排在第一（系统级共享安装），用户级是第 2 项。
-USER_OPTION=2
-
-ROOT=$(new_root user)
-out=$(dry_run "$ROOT" --dir-option="$USER_OPTION")
-if needs_admin "$out"; then
-    fail "用户级目录不该要求提权"
-else
-    pass "用户级目录不提权"
-fi
-case "$(config_path "$out")" in
-    *"/.config/macwave_config/config.json") pass "用户级安装用用户配置目录" ;;
-    *) fail "用户级安装的配置目录不对：$(config_path "$out")" ;;
-esac
-
-# 第 1 项（/opt/macwave）走的是系统级语义：配置必须落 /opt/macwave_config。
-# 是否提权取决于那台机器 /opt 能不能写，所以这里只钉配置位置（与权限无关）。
-out=$(dry_run "$ROOT" --dir-option=1)
-case "$(config_path "$out")" in
-    *"/opt/macwave_config/config.json") pass "第 1 项（/opt/macwave）用系统配置目录" ;;
-    *) fail "系统级安装的配置目录不对：$(config_path "$out")" ;;
-esac
-
-# -------------------- 2. $HOME 之外、但自己可写：不提权（本次修复的重点） --------------------
+# -------------------- 1. 目标可写：不提权 --------------------
 
 ROOT=$(new_root writable)
-TARGET="$ROOT/custom/macwave"
-out=$(dry_run "$ROOT" --dir-option="$CUSTOM_OPTION=$TARGET")
+out=$(dry_run "$ROOT" --ci)
 if needs_admin "$out"; then
-    fail "自己可写的外部目录不该要求提权（旧逻辑按「不在家目录」误判）"
+    fail "可写的目标树不该要求提权"
 else
-    pass "自己可写的外部目录不提权"
+    pass "可写的目标树不提权"
 fi
-case "$(config_path "$out")" in
-    *"/opt/macwave_config/config.json") pass "系统级语义保留：配置仍进 /opt/macwave_config" ;;
-    *) fail "外部目录的配置位置不对：$(config_path "$out")" ;;
-esac
-
-# -------------------- 3. $HOME 之内、但写不了：要提权（反方向） --------------------
-
-ROOT=$(new_root unwritable-home)
-mkdir -p "$ROOT$HOME/.local/macwave"
-RO_DIRS+=("$ROOT$HOME/.local/macwave")
-chmod 555 "$ROOT$HOME/.local/macwave"
-out=$(dry_run "$ROOT" --dir-option="$USER_OPTION")
-if needs_admin "$out"; then
-    pass "家目录内但不可写 → 要求提权（旧逻辑会漏判）"
+if [[ "$out" == *"$ROOT/opt/macwave"* ]]; then
+    pass "安装根是写死的 /opt/macwave（测试根映射后）"
 else
-    fail "家目录内不可写的目标没有被判定为需要提权"
+    fail "安装根不是 /opt/macwave：$out"
 fi
-case "$(config_path "$out")" in
-    *"/.config/macwave_config/config.json") pass "提权与否不影响配置目录的语义" ;;
-    *) fail "家目录目标的配置位置不对：$(config_path "$out")" ;;
-esac
 
-# -------------------- 4. $HOME 之外、也写不了：要提权 --------------------
+# -------------------- 2. 目标写不了：要提权 --------------------
 
 ROOT=$(new_root unwritable)
 # 只把目标所在的那一层设成只读：测试根本身必须可写，否则 install.sh 连
 # 「把 HOME 搬进测试根」都做不到（那是 MACWAVE_TEST 的准备工作，与提权无关）。
-mkdir -p "$ROOT/locked"
-RO_DIRS+=("$ROOT/locked")
-chmod 555 "$ROOT/locked"
-out=$(dry_run "$ROOT" --dir-option="$CUSTOM_OPTION=$ROOT/locked/macwave")
-if needs_admin "$out"; then
-    pass "只读的外部目录要求提权"
-else
-    fail "只读的外部目录没有被判定为需要提权"
-fi
-chmod 755 "$ROOT/locked"
-
-# -------------------- 5. 目标可写、配置目录不可写：仍要提权 --------------------
-
-# 判断必须同时看两处：只测 BASE_DIR 会漏掉「配置要写 /opt/macwave_config」这一半，
-# 结果是安装到一半才在写配置时 permission denied。
-ROOT=$(new_root config-ro)
-RO_DIRS+=("$ROOT/opt")
 mkdir -p "$ROOT/opt"
+RO_DIRS+=("$ROOT/opt")
 chmod 555 "$ROOT/opt"
-out=$(dry_run "$ROOT" --dir-option="$CUSTOM_OPTION=$ROOT/custom/macwave")
+out=$(dry_run "$ROOT")
 if needs_admin "$out"; then
-    pass "目标可写但系统配置目录不可写 → 要求提权"
+    pass "只读的目标树要求提权"
 else
-    fail "配置目录不可写时没有要求提权（会在写配置那一步失败）"
+    fail "只读的目标树没有被判定为需要提权：$out"
 fi
 chmod 755 "$ROOT/opt"
 
-# -------------------- 6. SIP 保护范围 --------------------
-#
-# 两道锁，顺序不能反：先看系统卷是否密封（SSV），再看 SIP 主开关。
-# 用替身 csrutil 摆出六种组合 —— 真机上没法为了测试去关 SIP。
-
-# ==================== 以下至「CI-ONLY END」专为 CI 而加 ====================
-#
-# 这一层包装不改任何 macOS 上的行为：GitHub 的 macOS runner 照旧跑 else 里
-# 那份完整断言，一条没删、一句没改。
-#
-# 它只为 CircleCI 的 Linux 容器存在 —— 那里没有 SIP 这个概念：mw_sip_status()
-# 在非 Darwin 上直接返回 unknown，替身 csrutil 根本不会被调用。让这几条断言在
-# 容器里「红」只会暴露平台差异，而不是代码问题；但也不能因此假装「Linux 上也验
-# 过 SIP 判定」—— 一旦看到下面那行 SKIP，就说明这一节在本次运行里**没有被验证**。
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo ""
-    echo "========== SIP 保护范围 =========="
-    echo "SKIP: 非 macOS，SIP 判定不适用（mw_sip_status 返回 unknown）"
-else
-# ==================== CI-ONLY END（下面这段是 macOS 上真正跑的断言）====================
-
-echo
-echo "========== SIP 保护范围 =========="
-
-STUB_CSRUTIL="$WORK/bin/csrutil"
-mkdir -p "$WORK/bin"
-cat > "$STUB_CSRUTIL" <<'STUB'
-#!/bin/sh
-case "$1" in
-    status) echo "System Integrity Protection status: ${STUB_SIP:-enabled}." ;;
-    authenticated-root) echo "Authenticated Root status: ${STUB_SSV:-enabled}." ;;
-esac
-STUB
-chmod +x "$STUB_CSRUTIL"
-export MACWAVE_CSRUTIL="$STUB_CSRUTIL"
-
-sip_run() {
-    # sip_run <SIP 状态> <SSV 状态> <目标目录>
-    local sip="$1" ssv="$2" target="$3" root out rc
-    root=$(new_root "sip-$RANDOM$RANDOM")
-    out=$(STUB_SIP="$sip" STUB_SSV="$ssv" dry_run "$root" --dir-option="$CUSTOM_OPTION=$target")
-    rc=$?
-    printf '%s' "$out"
-    return "$rc"
-}
-
-out=$(sip_run enabled enabled /System/macwave); rc=$?
-if [[ "$rc" -ne 0 && "$out" == *"sealed system volume"* ]]; then
-    pass "SIP 正常 + 系统卷密封 → 拒绝（密封这道锁与 SIP 无关）"
-else
-    fail "SIP 正常 + 系统卷密封时没有拒绝（exit ${rc}）"
-fi
-
-out=$(sip_run disabled enabled /System/macwave); rc=$?
-if [[ "$rc" -ne 0 && "$out" == *"sealed system volume"* ]]; then
-    pass "SIP 已关闭但系统卷仍密封 → 仍拒绝（这正是会漏判的一种）"
-else
-    fail "SIP 已关闭、系统卷密封时没有拒绝（exit ${rc}）"
-fi
-
-out=$(sip_run "enabled (Custom Configuration)" disabled /System/macwave); rc=$?
-if [[ "$rc" -eq 0 && "$out" == *"SIP is reduced"* && "$out" == *"not sealed"* ]]; then
-    pass "SIP 降级 + 系统卷未密封 → 警告后继续"
-else
-    fail "SIP 降级且未密封时的行为不对（exit ${rc}）"
-fi
-
-out=$(sip_run disabled disabled /usr/bin/macwave); rc=$?
-if [[ "$rc" -eq 0 && "$out" == *"SIP is disabled"* ]]; then
-    pass "SIP 关闭 + 未密封 → 警告后继续（讲清是 sudo 真能写）"
-else
-    fail "SIP 关闭且未密封时的行为不对（exit ${rc}）"
-fi
-
-out=$(sip_run enabled enabled /usr/local/macwave); rc=$?
-if [[ "$rc" -eq 0 && "$out" != *"sealed"* && "$out" != *"SIP is"* ]]; then
-    pass "/usr/local 是明确豁免（Homebrew 在那里）"
-else
-    fail "/usr/local 被误判成受保护位置（exit ${rc}）"
-fi
-
-out=$(sip_run unknown unknown /System/macwave); rc=$?
-if [[ "$rc" -eq 0 && "$out" != *"sealed"* ]]; then
-    pass "读不到 SIP 状态时不做判断（非 macOS / 老系统不该被挡住）"
-else
-    fail "读不到状态时不该拒绝，实际 exit ${rc}"
-fi
-
-unset MACWAVE_CSRUTIL
-# 收尾的就是上面那个 CI 专用 if/else 的 else 分支。
-fi
-
-# -------------------- 7. 写探针本身 --------------------
+# -------------------- 3. 写探针本身 --------------------
 #
 # 上面的用例全走 --dry-run（承诺不写文件，因此只用 test -w）。
 # 这一节把 mw_can_write 抠出来单独跑：真的建一个空文件再删掉，并确认没留下东西。
@@ -326,7 +155,7 @@ else
 fi
 chmod 755 "$PROBE_ROOT/locked"
 
-# -------------------- 8. --skip-probe --------------------
+# -------------------- 4. --skip-probe --------------------
 
 echo
 echo "========== --skip-probe =========="

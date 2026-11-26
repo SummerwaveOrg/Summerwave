@@ -25,8 +25,8 @@ RESET = '\033[0m'
 # -------------------- 配置加载 --------------------
 
 from configpaths import (
-    VERSION_FILE,
     assert_inside,
+    installed_version,
     load_base_dir,
     payload_root,
     pkg_dir,
@@ -67,14 +67,7 @@ def github_api_headers(url):
 
 
 def get_version():
-    if VERSION_FILE.exists():
-        try:
-            with open(VERSION_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get("version", "unknown")
-        except Exception:
-            pass
-    return "unknown"
+    return installed_version() or "unknown"
 
 
 BASE_DIR = load_base_dir()
@@ -821,9 +814,9 @@ def detect_arch():
     sys.exit(1)
 
 
-def package_common_url(package_name, arch):
+def package_common_url(package_name):
 
-    return f"{domains.api_domain()}/pkg/pkginfo_{arch}/{package_name}/_{package_name}@common"
+    return f"{domains.api_domain()}/pkg/pkginfo/{package_name}/_{package_name}@common"
 
 
 def _as_request_timeout(value):
@@ -831,10 +824,10 @@ def _as_request_timeout(value):
     return value.request_timeout if isinstance(value, timeouts.Budget) else value
 
 
-def fetch_common_fields(package_name, arch, timeout=DEFAULT_TIMEOUT):
+def fetch_common_fields(package_name, timeout=DEFAULT_TIMEOUT):
     # 包名与 bin_name 不一定相同（例如 choma -> ChOma），而 bin/ 与 links/ 用的是 bin_name。
     # 所以任何要「按名字找已安装版本」的命令都必须先读这个文件。
-    url = package_common_url(package_name, arch)
+    url = package_common_url(package_name)
     steplog.detail(f"GET {domains.redact_url(url)}")
     try:
         response = requests.get(url, timeout=_as_request_timeout(timeout),
@@ -857,7 +850,7 @@ def fetch_common_fields(package_name, arch, timeout=DEFAULT_TIMEOUT):
     return parse_common_fields(response.text)
 
 
-def fetch_package_names(arch, timeout=DEFAULT_TIMEOUT):
+def fetch_package_names(timeout=DEFAULT_TIMEOUT):
     """索引里的全部包名。列不出来（网络 / 镜像没有清单）时返回 None。
 
     返回值区分的是**两类完全不同的问题**，报错要据此分开说：
@@ -865,7 +858,7 @@ def fetch_package_names(arch, timeout=DEFAULT_TIMEOUT):
       []     → 清单是空的，镜像还没生成 versions
       [...]  → 有清单，于是能判断「这个名字在不在里面」
     """
-    names_url = domains.index_list_url(arch)
+    names_url = domains.index_list_url()
     try:
         response = requests.get(names_url, timeout=_as_request_timeout(timeout),
                                 headers=github_api_headers(names_url), **tls.request_kwargs())
@@ -878,7 +871,7 @@ def fetch_package_names(arch, timeout=DEFAULT_TIMEOUT):
     return [name for name in domains.listing_names(response.text, dirs_only=True) if name]
 
 
-def _explain_missing_version_list(package_name, arch, api_url, timeout):
+def _explain_missing_version_list(package_name, api_url, timeout):
     """`<包名>/versions` 404 时分清三件事，报错只报其中一件。
 
     三种原因的话术完全不同，混成一句「读不到版本清单」会让用户去查 GitHub 和镜像 ——
@@ -890,7 +883,7 @@ def _explain_missing_version_list(package_name, arch, api_url, timeout):
 
     这一步只多发一个请求，且只在 404 时发生。
     """
-    names = fetch_package_names(arch, timeout)
+    names = fetch_package_names(timeout)
 
     if names is None:
         steplog.fail(
@@ -938,9 +931,9 @@ def _explain_missing_version_list(package_name, arch, api_url, timeout):
               "(see docs/MIRROR-SETUP.md)"])
 
 
-def fetch_max_version(package_name, arch, timeout=DEFAULT_TIMEOUT):
+def fetch_max_version(package_name, timeout=DEFAULT_TIMEOUT):
     # 版本清单：默认走 GitHub API，设了索引镜像时读镜像自己的清单（见 domains.index_list_url）
-    api_url = domains.index_list_url(arch, package_name)
+    api_url = domains.index_list_url(package_name)
     steplog.detail(f"GET {domains.redact_url(api_url)}")
     try:
         response = requests.get(api_url, timeout=_as_request_timeout(timeout),
@@ -948,7 +941,7 @@ def fetch_max_version(package_name, arch, timeout=DEFAULT_TIMEOUT):
                                 **tls.request_kwargs())
         if response.status_code != 200:
             if response.status_code == 404:
-                _explain_missing_version_list(package_name, arch, api_url, timeout)
+                _explain_missing_version_list(package_name, api_url, timeout)
             steplog.fail(
                 f"cannot read the version list for {package_name}",
                 request=api_url,
@@ -961,7 +954,7 @@ def fetch_max_version(package_name, arch, timeout=DEFAULT_TIMEOUT):
             if fname.endswith("@common"):
                 continue
             if "@" in fname:
-                versions.append(fname.split("@")[1])
+                versions.append(platforminfo.strip_bottle_tag(fname.split("@", 1)[1]))
 
         from versioncompare import get_max_version
         chosen = get_max_version(versions)
@@ -1164,7 +1157,7 @@ def _install_single_locked(input_string):
         # 必须把解析好的 Budget 传下去：不传就用 DEFAULT_TIMEOUT（30 秒），
         # 于是 --connect-timeout / --content-time / --max-time 对这条命令的
         # 第一个请求完全无效 —— 而这正是最容易卡住的那个请求。
-        ParsePkgVersion = fetch_max_version(ParsePkgName, ARCH, config["timeout"])
+        ParsePkgVersion = fetch_max_version(ParsePkgName, config["timeout"])
         silent.say("🌊 Version info fetched successfully.")
 
     # 版本号同样会进 URL 与目录名：`%`、`/`、`..` 这类一律拒绝
@@ -1173,12 +1166,12 @@ def _install_single_locked(input_string):
 
     # 4. 获取 bin_name（从 @common 文件）
     steplog.begin("read package metadata")
-    common_fields = fetch_common_fields(ParsePkgName, ARCH, config["timeout"])
+    common_fields = fetch_common_fields(ParsePkgName, config["timeout"])
     bin_name = get_field(common_fields, "bin_name")
     if not bin_name:
         steplog.fail(
             f"the @common file for {ParsePkgName} has no bin_name field",
-            request=package_common_url(ParsePkgName, ARCH),
+            request=package_common_url(ParsePkgName),
             response="200, but the expected field is missing",
             hint="this is an index data defect; please report it to the administrator")
 
@@ -1188,7 +1181,10 @@ def _install_single_locked(input_string):
 
     # 5. 获取 URL 和 SHA256（deps 也写在该版本文件里）
     steplog.begin("read version record")
-    pkg_version_url = f"{domains.api_domain()}/pkg/pkginfo_{ARCH}/{ParsePkgName}/_{ParsePkgName}@{ParsePkgVersion}"
+    pkg_version_url = (
+        f"{domains.api_domain()}/pkg/pkginfo/{ParsePkgName}/"
+        f"_{ParsePkgName}@{ParsePkgVersion}.{platforminfo.bottle_tag(ARCH)}"
+    )
     steplog.detail(f"GET {domains.redact_url(pkg_version_url)}")
     try:
         resp = requests.get(pkg_version_url, timeout=config["timeout"].request_timeout,

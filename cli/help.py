@@ -4,11 +4,10 @@ MacWave Help Module
 负责展示命令行帮助信息（简版和详细版）。
 """
 
-import json
 import re
 
 import commands as commands_module
-from configpaths import VERSION_FILE
+from configpaths import installed_version
 
 # 颜色定义
 RED = '\033[31m'
@@ -77,15 +76,8 @@ def _print_note(text, indent=2):
 
 
 def get_project_version():
-    """从 VERSION.json 获取主程序版本号"""
-    if VERSION_FILE.exists():
-        try:
-            with open(VERSION_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get("version", "unknown")
-        except Exception:
-            pass
-    return "unknown"
+    """主程序版本号：来自安装树内的 <base>/var/config.sh。"""
+    return installed_version() or "unknown"
 
 
 # 「全局旗标」这一节的唯一来源：`wave -h` 与 man/info 手册都从它生成。

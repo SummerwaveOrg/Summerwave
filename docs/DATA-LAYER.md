@@ -324,8 +324,9 @@ infosource/pkg/jq/_jq@1.8.2.macos-arm64    ← 该平台的那份 sha256 / file 
   tag 只出现在产物文件名与那条索引记录里。
 - **取不到就是取不到**：按当前 `(os, arch)` 拼记录名，没有这条记录就明说
   「这个包没有你这个平台的产物」，不要拉回来再 `exec format error`。
-- **兼容**：数据层加 `layout = 2`。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz` 产物按
-  「os 缺省 = macos」继续可读，升级不用重打。
+- **不兼容旧的**：1.0 起只认新形状。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz`
+  产物一律当作「没有这个平台的产物」——不会按「os 缺省 = macos」去猜。
+  镜像重新生成一次索引即可（`scripts/build_versions_index.py`）。
 
 为什么不按平台拆仓库：`versions` 会变成两份、迟早漂；镜像方要按平台各配一套 URL；
 平台判断会从 `config/platforminfo.py` 一处散进各个地址。代价只是仓库里两种平台的产物混放

@@ -37,6 +37,7 @@ assets() {
 # `wave manual`，缺了 man/ 与 info/ 它就找不到自己的文件。
 copy_components() {
     local dest="$1" name
+    mkdir -p "$dest"
     for name in $(components) $(assets); do
         cp -R "$COMPONENT_REPO/$name" "$dest/"
     done
@@ -62,16 +63,13 @@ export MACWAVE_COMPONENT_PATHS MACWAVE_COMPONENT_NAMES
 # 会"真装真卸"的测试用的沙箱
 # ==========================================
 #
-# 有一类测试必须跑真实的安装流程（下载、落盘、写 VERSION.json、级联删依赖），
-# 它们以前直接读 /opt/macwave_config 或 ~/.config/macwave_config 里的 base_dir，
-# 于是「跑一次测试」= 「把现有安装改一遍」。2026-11-24 就是这么把一台机器的
-# VERSION.json 写成了 4.0.1/TEST（selfupdate_test），所以这类测试必须在自己的
-# 树里跑。
+# 有一类测试必须跑真实的安装流程（下载、落盘、写状态、级联删依赖），
+# 它们会在树里写文件，所以这类测试必须在自己的树里跑。
 #
 # 用法：
 #   source "$SCRIPT_DIR/components.sh"
 #   sandbox_install_tree "$(mktemp -d)/root" 4.0.0
-#   # 之后用 $SANDBOX_BASE / $SANDBOX_CONFIG_FILE / $SANDBOX_VERSION_FILE
+#   # 之后用 $SANDBOX_BASE / $SANDBOX_STATE_FILE
 #
 # 组件是**拷**进去的，不是软链：这些测试会往树里写文件，软链会把改动写回仓库。
 sandbox_install_tree() {
@@ -80,11 +78,10 @@ sandbox_install_tree() {
     # 沙箱还写 1.0，deps_test 因此红了两条线）。
     local root="$1" version="${2:-4.99.0}" component
     SANDBOX_BASE="$root/opt/macwave"
-    SANDBOX_CONFIG_DIR="$root/opt/macwave_config"
-    mkdir -p "$SANDBOX_BASE" "$SANDBOX_CONFIG_DIR"
+    SANDBOX_STATE_DIR="$SANDBOX_BASE/var"
     # 与 install.sh 建的那几个目录对齐：link / uninstall 之类的测试会直接往
-    # bin/、links/、downloads/tmp 里放东西，缺一个就 "No such file or directory"。
-    mkdir -p "$SANDBOX_BASE"/{bin,links,pkg,surfboard,lib,downloads/tmp}
+    # bin/、Shore/、downloads/tmp 里放东西，缺一个就 "No such file or directory"。
+    mkdir -p "$SANDBOX_BASE"/{bin,Shore,pkg,surfboard,lib,net,cli,config,var,downloads/tmp}
 
     for component in $(components) $(assets); do
         [ -d "$COMPONENT_REPO/$component" ] || continue
@@ -92,11 +89,10 @@ sandbox_install_tree() {
         cp -R "$COMPONENT_REPO/$component"/. "$SANDBOX_BASE/$component"/ 2>/dev/null || true
     done
 
-    SANDBOX_CONFIG_FILE="$SANDBOX_CONFIG_DIR/config.json"
-    SANDBOX_VERSION_FILE="$SANDBOX_CONFIG_DIR/VERSION.json"
-    printf '{"base_dir": "%s"}\n' "$SANDBOX_BASE" > "$SANDBOX_CONFIG_FILE"
-    printf '{\n  "version": "%s"\n}\n' "$version" > "$SANDBOX_VERSION_FILE"
+    # 状态只有一份：<base>/var/config.sh（见 config/configpaths.py）。
+    SANDBOX_STATE_FILE="$SANDBOX_STATE_DIR/config.sh"
+    printf "MACWAVE_VERSION='%s'\n" "$version" > "$SANDBOX_STATE_FILE"
 
-    # MACWAVE_TEST 让 configpaths 把 root 当 /：配置目录、安装目录都落在里面。
+    # MACWAVE_TEST 让 configpaths 把 root 当 /：安装根写死在它下面。
     export MACWAVE_TEST="$root"
 }

@@ -5,7 +5,7 @@
 #
 #   1. 每次随机挑一个「安装目录方案」（含 33% 概率的自定义方案 ~/test dir），
 #      自己把脚本部署进去，跑完无论成败都清理干净。
-#   2. 从 infosource 的 pkginfo_<arch> 里随机抽 10~20 个软件包（必含 wget），
+#   2. 从 infosource 的 pkginfo 里随机抽 10~20 个软件包（必含 wget），
 #      下载体积超过 200MB 的包重抽；逐个 install → 校验 → uninstall。
 #   3. 指定版本号 / 不指定版本号各占一半，但两组都必须落在 [5, 15] 内，否则重抽。
 #      指定版本号的包里，1~2 个给「不存在的版本」，1~2 个给「非法版本」，其余正常。
@@ -202,86 +202,82 @@ MARKER_NAME = ".macwave-random-test"
 
 
 class Layout:
-    """一次运行使用的安装目录 + 配置目录，以及需要清理的东西。
+    """一次运行使用的测试根 + HOME，以及需要清理的东西。
+
+    安装根写死成 /opt/macwave（见 config/platforminfo.py），所以这里随机的是
+    **测试根**（MACWAVE_TEST），安装树落在 <测试根>/opt/macwave。
 
     created_* 只在 setup_environment 真正创建了对应目录时才置位；
     cleanup 只删自己创建的东西，绝不碰已存在的目录（这条曾经踩过坑）。
     """
 
-    def __init__(self, name, base_dir, home_dir, config_dir):
+    def __init__(self, name, root_dir, home_dir):
         self.name = name
-        self.base_dir = base_dir
-        self.home_dir = home_dir          # 传给子进程的 HOME（配置目录就在它下面）
-        self.config_dir = config_dir
+        self.root_dir = root_dir
+        self.base_dir = root_dir / "opt" / "macwave"
+        self.home_dir = home_dir          # 传给子进程的 HOME
         self.created_base = False
-        self.created_config = False
         self.created_home = False
 
     @property
     def env(self):
         env = dict(os.environ)
         env["HOME"] = str(self.home_dir)
+        # configpaths 把测试根当 /：安装根于是落在 <root>/opt/macwave。
+        env["MACWAVE_TEST"] = str(self.root_dir)
         return env
 
     @property
     def version_file(self):
-        return self.config_dir / "VERSION.json"
+        return self.base_dir / "var" / "config.sh"
 
     @property
     def partial_dir(self):
         return self.base_dir / "downloads" / "tmp"
 
 
-def choose_layout(rng, config_dir_override=None):
-    """随机挑一种安装目录方案；自定义方案（~/test dir）占 33%。"""
+def choose_layout(rng, root_override=None):
+    """随机挑一种测试根 + HOME 的组合（安装根本身是写死的）。
+
+    随机的不再是「装到哪」（那已经不是选项），而是「在什么环境下装」：
+    测试根的路径形状（含空格、含中文、深层嵌套）与 HOME 是否被替换。
+    """
     home = Path(os.path.expanduser("~"))
     runner_temp = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
     token = f"{rng.randrange(16**8):08x}"
 
     standard = [
-        # 1. 常规随机：候选父目录里随机挑一个，拼随机目录名
-        ("random-user-local", home / ".local" / f"macwave-{token}", home),
+        ("random-temp", Path(tempfile.gettempdir()) / f"macwave-{token}", home),
         ("random-runner-temp", runner_temp / f"macwave-{token}", home),
-        ("random-tmp", Path(tempfile.gettempdir()) / f"macwave-{token}", home),
-        # 2. 安装目录 + 配置目录都随机（换个 HOME 就换了 ~/.config/macwave_config）
-        ("random-home-and-base", home / ".macwave-{token}".replace("{token}", token),
+        ("random-home", Path(tempfile.gettempdir()) / f"macwave-{token}",
          Path(tempfile.gettempdir()) / f"mwhome-{token}"),
-        # 3. 难缠路径：带空格、带中文、深层嵌套
-        ("path-with-space", home / f"macwave test {token}", home),
-        ("path-with-unicode", home / f"macwave 测试 {token}" / "deep" / "deeper" / "base", home),
+        ("path-with-space", Path(tempfile.gettempdir()) / f"macwave test {token}", home),
+        ("path-with-unicode",
+         Path(tempfile.gettempdir()) / f"macwave 测试 {token}" / "deep" / "deeper", home),
     ]
 
-    if rng.random() < CUSTOM_DIR_PROBABILITY:
-        name, base, home_dir = "custom-test-dir", home / "test dir", home
-    else:
-        name, base, home_dir = rng.choice(standard)
+    name, root, home_dir = rng.choice(standard)
+    if root_override:
+        name, root = "custom-root", Path(root_override).expanduser()
 
-    config_dir = (Path(config_dir_override).expanduser() if config_dir_override
-                  else home_dir / ".config" / "macwave_config")
     print(f"🌊 layout: {name}")
-    print(f"🌊   base_dir   = {base}")
+    print(f"🌊   base_dir   = {root / 'opt' / 'macwave'}（写死 /opt/macwave 的测试根映射）")
     print(f"🌊   HOME       = {home_dir}")
     if home_dir != home:
-        print("🌊   （配置目录随 HOME 一起随机）")
-    return Layout(name, base, home_dir, config_dir)
+        print("🌊   （HOME 也随方案一起随机）")
+    return Layout(name, root, home_dir)
 
 
 def setup_environment(layout):
-    """把仓库脚本部署到随机安装目录，并写好 config.json / VERSION.json。
+    """把仓库脚本部署到随机测试根下的 /opt/macwave，并写好 var/config.sh。
 
     安全约束（务必要守住，否则会删掉用户自己或真实安装目录里的东西）：
-      - 已存在的配置目录一律不碰：那可能是一份真实安装，直接报错让调用方换地方。
-      - 安装目录已存在且非空、又不带本测试的标记文件时，拒绝删除。
+      - 测试根已存在且非空时一律不碰：那可能是一份真实安装，直接报错让调用方换地方。
     """
-    system_config = Path("/opt/macwave_config")
-    if system_config.exists():
+    if layout.root_dir.exists() and any(layout.root_dir.iterdir()):
         raise RuntimeError(
-            f"{system_config} 存在，系统级配置会盖住随机配置；请先移除它再跑本测试")
-
-    if layout.config_dir.exists() and any(layout.config_dir.iterdir()):
-        raise RuntimeError(
-            f"{layout.config_dir} 已存在且非空，可能是一份真实安装，拒绝覆盖。"
-            f"请用 --config-dir 指向一个空目录，或使用随机 HOME 的目录方案")
+            f"{layout.root_dir} 已存在且非空，可能是一份真实安装，拒绝覆盖。"
+            f"请用 --root 指向一个空目录，或换一个随机根")
 
     if layout.base_dir.exists():
         if any(layout.base_dir.iterdir()) and not (layout.base_dir / MARKER_NAME).exists():
@@ -294,7 +290,7 @@ def setup_environment(layout):
         layout.created_home = True
 
     shutil.rmtree(layout.base_dir, ignore_errors=True)
-    for name in ("bin", "links", *COMPONENTS, "deps", "downloads/tmp"):
+    for name in ("bin", "Shore", "var", *COMPONENTS, "downloads/tmp"):
         (layout.base_dir / name).mkdir(parents=True, exist_ok=True)
     (layout.base_dir / MARKER_NAME).write_text("created by scripts/random_test.py\n")
     layout.created_base = True
@@ -312,20 +308,15 @@ def setup_environment(layout):
     for target in executables + [layout.base_dir / "lib" / "wave"]:
         target.chmod(0o755)
 
-    layout.config_dir.mkdir(parents=True, exist_ok=True)
-    layout.created_config = True
-    (layout.config_dir / "config.json").write_text(
-        json.dumps({"base_dir": str(layout.base_dir)}, indent=2))
-    # build_number 必须一起写：探针里带了构建号，而 selfupdate 的「有没有新版」
+    # 状态只有一份：<base>/var/config.sh。
+    # build 必须一起写：探针里带了构建号，而 selfupdate 的「有没有新版」
     # 是「版本优先、版本相同再看构建号」。只写 version 时，同版本不同构建号会被
-    # 判成「有新版」，于是随机测试真的去更新安装树 —— 4.6.0 起那一步还会撞上
-    # 用户协议提问（沙箱里没人回答，直接按拒绝退出），用例就红在 exit=1 上。
+    # 判成「有新版」，于是随机测试真的去更新安装树。
     installed_version, installed_build = installed_version_for_selfupdate()
-    version_record = {"version": installed_version}
+    lines = [f"MACWAVE_VERSION='{installed_version}'"]
     if installed_build:
-        version_record["build_number"] = installed_build
-    (layout.config_dir / "VERSION.json").write_text(
-        json.dumps(version_record, indent=2))
+        lines.append(f"MACWAVE_BUILD='{installed_build}'")
+    (layout.base_dir / "var" / "config.sh").write_text("\n".join(lines) + "\n")
 
     print(f"🌊 deployed scripts into {layout.base_dir}")
 
@@ -386,9 +377,9 @@ def cleanup(layout, keep=False):
     if layout.created_base and layout.base_dir.exists():
         shutil.rmtree(layout.base_dir, ignore_errors=True)
         print(f"🌊 removed {layout.base_dir}")
-    if layout.created_config and layout.config_dir.exists():
-        shutil.rmtree(layout.config_dir, ignore_errors=True)
-        print(f"🌊 removed {layout.config_dir}")
+    if layout.created_base and layout.root_dir.exists() and not layout.base_dir.exists():
+        shutil.rmtree(layout.root_dir, ignore_errors=True)
+        print(f"🌊 removed {layout.root_dir}")
     if layout.created_home and layout.home_dir.exists():
         shutil.rmtree(layout.home_dir, ignore_errors=True)
         print(f"🌊 removed {layout.home_dir}")
@@ -420,7 +411,7 @@ def detect_arch():
 
 def load_catalog(source, arch):
     """{包名: {版本: (url, sha256, bin_name, deps)}}，从本地 infosource 检出读。"""
-    root = source / "pkg" / f"pkginfo_{arch}"
+    root = source / "pkg" / "pkginfo"
     if not root.is_dir():
         raise RuntimeError(f"{root} 不存在")
 
@@ -1823,7 +1814,7 @@ def parse_args():
     parser.add_argument("--count", type=int, help="覆盖 10~20 的包数（调试用）")
     parser.add_argument("--packages", help="指定包名（逗号分隔，调试用）")
     parser.add_argument("--infosource", help="infosource 检出目录")
-    parser.add_argument("--config-dir", help="覆盖配置目录（默认随 HOME 走）")
+    parser.add_argument("--config-dir", help="覆盖测试根（MACWAVE_TEST；安装根固定在它下面的 /opt/macwave）")
     parser.add_argument("--include-test-packages", action="store_true",
                         help="把 test_* 测试夹具也放进随机池")
     parser.add_argument("--no-size-probe", action="store_true",
@@ -1865,7 +1856,7 @@ def main():
     print(f"🌊 复现：--seed {seed}", flush=True)
 
     checks = Report()
-    layout = choose_layout(rng, config_dir_override=args.config_dir)
+    layout = choose_layout(rng, root_override=args.config_dir)
     try:
         source = locate_infosource(args.infosource)
         arch = detect_arch()

@@ -46,7 +46,7 @@ fi
 
 # 2. 少一份副本 → 必须红。造一个只含「正本 + 一个缺块的脚本」的假仓库。
 mkdir -p "$WORK/repo/scripts/shared" "$WORK/repo/lib"
-cp "$REPO_DIR/scripts/shared/legacy_config_action.sh" "$WORK/repo/scripts/shared/"
+cp "$REPO_DIR/scripts/shared/signature_verify.sh" "$WORK/repo/scripts/shared/"
 cp "$REPO_DIR/lib/install.sh" "$WORK/repo/lib/install.sh"
 printf '#!/bin/bash\necho nothing\n' > "$WORK/repo/lib/selfupdate.sh"
 cp "$REPO_DIR/scripts/update_commands.template.sh" "$WORK/repo/scripts/"
@@ -64,9 +64,8 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-# 把判据里的 == 改成 =(笔误级改动)，内容与正本就不一致了
-patched = text.replace('if [[ "$recorded" == "$base_dir" ]]; then',
-                       'if [[ "$recorded" = "$base_dir" ]]; then', 1)
+# 拿掉一个字符，内容与正本就不一致了（挑共享块里一定出现的那句）
+patched = text.replace('mw_trusted_pub() {', 'mw_trusted_pub()  {', 1)
 assert patched != text, "夹具没找到要改的那一行"
 path.write_text(patched)
 PY
@@ -78,13 +77,13 @@ fi
 
 # 4. 正本自己缺标记 → 必须红（否则比对会静默跳过整个块）
 cp "$REPO_DIR/lib/selfupdate.sh" "$WORK/repo/lib/selfupdate.sh"
-python3 - "$WORK/repo/scripts/shared/legacy_config_action.sh" <<'PY'
+python3 - "$WORK/repo/scripts/shared/signature_verify.sh" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
-patched = text.replace("# >>> SHARED: legacy-config-action", "# >>> 忘了写标记", 1)
+patched = text.replace("# >>> SHARED: signature-verify", "# >>> 忘了写标记", 1)
 assert patched != text
 path.write_text(patched)
 PY

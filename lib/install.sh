@@ -6,7 +6,7 @@
 # MacWave 🌊 Official Installer
 # This script downloads wave.py, installs dependencies, and configures PATH.
 # Usage: /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)"
-# Unattended (CI): /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci --dir-option=1
+# Unattended (CI): /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
 
 # 退出码要有语义
 # 0 = 成功
@@ -175,7 +175,6 @@ install_failure_notice() {
     echo -e "${RED_BOLD}🌊 Installation did not finish (exit $code).${RESET}" >&2
     mw_say_err "🌊 Nothing was removed. Files already downloaded may be left in:" "🌊 没有删除任何内容。已下载的文件可能留在："
     echo "     ${BASE_DIR:-<not chosen yet>}" >&2
-    echo "     ${CONFIG_DIR:-<not chosen yet>}" >&2
     mw_say_err "🌊 Fix the cause (network, permissions, disk space) and run the installer again;" "🌊 请排除原因（网络、权限、磁盘空间）后重新运行安装程序；"
     mw_say_err "🌊 a repeated install overwrites what it downloaded and is safe to rerun." "🌊 重复安装会覆盖已下载的内容，可以安全重跑。"
 }
@@ -517,139 +516,22 @@ home_to_homevar() {
 }
 
 # ==========================================
-# 辅助函数：校验自定义目录，防止路径穿越
-# ==========================================
-
-validate_custom_dir() {
-    local dir="$1"
-
-    if [[ -z "$dir" ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Empty path is not allowed.${RESET}" "${RED_BOLD}🌊 错误：路径不能为空。${RESET}"
-        return 1
-    fi
-
-    if [[ "$dir" == *".."* ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Path traversal ('..') is not allowed.${RESET}" "${RED_BOLD}🌊 错误：路径中不允许出现 '..'。${RESET}"
-        return 1
-    fi
-
-    if [[ "$dir" == *$'\n'* ]] || [[ "$dir" == *$'\r'* ]] || [[ "$dir" == *$'\t'* ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Invalid control characters in path.${RESET}" "${RED_BOLD}🌊 错误：路径中包含非法控制字符。${RESET}"
-        return 1
-    fi
-
-    if LC_ALL=C grep -q '[^a-zA-Z0-9/_.~ -]' <<< "$dir"; then
-        mw_say_err "${RED_BOLD}🌊 Error: Path contains non-ASCII or invalid characters.${RESET}" "${RED_BOLD}🌊 错误：路径包含非 ASCII 字符或非法字符。${RESET}"
-        echo -e "${RED_BOLD}🌊 Only ASCII letters, digits, '/', '-', '_', '.', '~', and spaces are allowed.${RESET}" >&2
-        return 1
-    fi
-
-    local expanded="${dir/#\~/$HOME}"
-
-    if [[ "$expanded" != /* ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Please use an absolute path (starting with / or ~).${RESET}" "${RED_BOLD}🌊 错误：请使用绝对路径（以 / 或 ~ 开头）。${RESET}"
-        return 1
-    fi
-
-    if [[ "$expanded" == *"//"* ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Path contains consecutive slashes.${RESET}" "${RED_BOLD}🌊 错误：路径中包含连续的斜杠。${RESET}"
-        return 1
-    fi
-
-    if [[ "$expanded" == "/" ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Cannot install to root directory.${RESET}" "${RED_BOLD}🌊 错误：不能安装到根目录。${RESET}"
-        return 1
-    fi
-
-    # 下面两条是这个函数最要紧的部分。
-    #
-    # 装到系统目录时安装脚本会 `sudo chown -R $CURRENT_USER: $BASE_DIR`（让之后
-    # `wave install` 不必每次提权），而拒绝协议时还会 `rm -rf "$BASE_DIR"`。
-    # 如果 BASE_DIR 是 /usr/local 这种「别的软件的家」，这两件事分别是
-    # **把整个 Homebrew 变成当前用户的** 和 **删掉它**。
-    #
-    # 这不是假想：`--dir-option=3=/usr/local` 以前能一路通过校验。
-
-    # 1) 这些目录本身绝不能被当作安装根目录。它们的子目录可以（/opt/macwave、
-    #    /usr/local/macwave），正因为如此才要按「完全相等」判，不能用前缀。
-    local _forbidden
-    for _forbidden in /bin /sbin /usr /usr/bin /usr/sbin /usr/lib /usr/libexec \
-                     /usr/local /usr/share /opt /etc /var /tmp /private \
-                     /System /Library /Applications /Users /Volumes /Network; do
-        if [[ "$expanded" == "$_forbidden" ]]; then
-            mw_say_err "${RED_BOLD}🌊 Error: '$expanded' is a system directory, not an install directory.${RESET}" \
-                    "${RED_BOLD}🌊 错误：'$expanded' 是系统目录，不能当作安装目录。${RESET}"
-            mw_say_err "🌊 Pick a directory of its own, for example ${_forbidden}/macwave" \
-                    "🌊 请用一个专属目录，例如 ${_forbidden}/macwave"
-            return 1
-        fi
-    done
-
-    # 2) 家目录本身同理。装进去会把 MacWave 的文件撒得到处都是，回滚时还会
-    #    rm -rf 整个家目录。
-    if [[ "$expanded" == "$HOME" ]]; then
-        mw_say_err "${RED_BOLD}🌊 Error: Cannot install directly into your home directory.${RESET}" \
-                "${RED_BOLD}🌊 错误：不能直接装到家目录里。${RESET}"
-        mw_say_err "🌊 Use a subdirectory such as ~/macwave" "🌊 请用一个子目录，例如 ~/macwave"
-        return 1
-    fi
-
-    # 3) 已存在且非空、又不是 MacWave 安装的目录：拒绝。
-    #    这一条覆盖上面清单之外的所有情况 —— 任何「别的软件已经在用」的目录都
-    #    落到这里。判据是 lib/wave.py：只有 MacWave 自己的安装树有它，所以重装
-    #    与升级仍然放行，占用别人的目录则被挡住。
-    if [[ -d "$expanded" && ! -f "$expanded/lib/wave.py" ]]; then
-        if [[ -n "$(ls -A "$expanded" 2>/dev/null)" ]]; then
-            mw_say_err "${RED_BOLD}🌊 Error: '$expanded' already exists and is not empty.${RESET}" \
-                    "${RED_BOLD}🌊 错误：'$expanded' 已存在且非空。${RESET}"
-            mw_say_err "🌊 Installing here would take ownership of files Summerwave did not create;" \
-                    "🌊 装在这里会把 MacWave 没创建过的文件一并接管；"
-            mw_say_err "🌊 pick a new or empty directory instead." \
-                    "🌊 请改用一个新的或空的目录。"
-            return 1
-        fi
-    fi
-
-    echo "$expanded"
-    return 0
-}
-
-# ==========================================
-# 系统架构与安装位置
+# 安装位置
 # ==========================================
 #
-# 位置的数量随架构变化：Intel 机器多提供一个 /usr/local/macwave
-# （Apple 芯片上不建议写入 /usr/local，因此只对 Intel 提供），
-# 自定义目录的编号也随之变化，所以这里统一算好。
+# 位置是写死的：macOS 只有 /opt/macwave（Linux 由 LinuxWave 装在
+# /home/linuxwave/.linuxwave）。这里不提供菜单、候选目录或自定义目录 ——
+# 一台机器一棵树，路径一变，排查问题时日志里的路径就对不上。
+#
+# 为什么是 /opt（而不是 ~/.local 之类）：
+#   - 依赖只有一份：Shore/ 动辄几百 MB，多个用户各装一份 ~/.local 就是 N 份；
+#   - 与 Homebrew（/opt/homebrew）同一套心智；
+#   - 不受 HOME 影响：搬机、改用户名、用 sudo 跑脚本都不会打偏；
+#   - 权限模型干净：root:<管理员组> 775（目录 setgid），管理员组成员装包不用
+#     sudo，其他用户只读，任何本地用户都不能替换 bin/ 里的链接。
+# 代价：安装要一次管理员密码；树是共享状态（同机多个管理员时才会互相影响）。
 
 ARCH=$(uname -m)
-
-if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]]; then
-    CUSTOM_OPTION=4
-else
-    CUSTOM_OPTION=3
-fi
-
-print_install_targets() {
-    # 不提问，只把「能装到哪、默认是哪个」摊开说清楚。
-    # 顺序即推荐程度：/opt/macwave 排第一，就是这个项目的默认。
-    #
-    # 为什么默认是它（而不是 ~/.local/macwave）：
-    #   - 依赖只有一份：Shore/ 动辄几百 MB，多个用户各装一份 ~/.local 就是 N 份；
-    #   - 与 Homebrew（/opt/homebrew）同一套心智，Intel 与 Apple Silicon 可以
-    #     写同一个路径，文档与帮助不必分两套；
-    #   - 不受 HOME 影响：搬机、改用户名、用 sudo 跑脚本都不会打偏；
-    #   - 权限模型干净：root:<管理员组> 775（目录 setgid），管理员组成员装包不用
-    #     sudo，其他用户只读，任何本地用户都不能替换 bin/ 里的链接。
-    # 代价：安装要一次管理员密码；树是共享状态（同机多个管理员时才会互相影响）。
-    # 拿不到管理员密码、或者只想给自己装的，用 --dir-option=2 装到 ~/.local/macwave。
-    echo "1. /opt/macwave   (default)"
-    echo "2. ~/.local/macwave"
-    if [[ "$CUSTOM_OPTION" == "4" ]]; then
-        echo "3. /usr/local/macwave"
-    fi
-    mw_say "$CUSTOM_OPTION. other (enter custom directory)" "$CUSTOM_OPTION. 其他（输入自定义目录）"
-}
 
 # ==========================================
 # 下载（--raw 时带井号刻度）
@@ -712,8 +594,6 @@ mw_download() {
 # ==========================================
 
 CLI_CI=false
-CLI_DIR_OPTION=""
-CLI_CUSTOM_DIR=""
 # --skip-probe：不真写那个探针文件，提权判定只用 test -w 的静态结论。
 # 见「是否需要 sudo」那一节里 mw_can_write 的说明。
 CLI_SKIP_PROBE=false
@@ -737,10 +617,10 @@ usage() {
     mw_say ""
     mw_say "Options:" "选项："
     mw_say "      --ci, --CI          No interaction at all: no confirmation, no questions.\n\
-                          Installs into /opt/macwave (the default) unless --dir-option\n\
-                          says otherwise, so it needs passwordless sudo or root." \
-           "      --ci, --CI          完全不交互：不确认、不提问。不带 --dir-option 时装到\n\
-                          默认位置 /opt/macwave，因此需要免密 sudo 或以 root 运行。"
+                          Installs into /opt/macwave, so it needs passwordless\n\
+                          sudo or root." \
+           "      --ci, --CI          完全不交互：不确认、不提问。装到 /opt/macwave，\n\
+                          因此需要免密 sudo 或以 root 运行。"
     mw_say "      --dry-run           Print what the installer would do and change\n\
                           nothing: no download, no sudo, no directory\n\
                           created, no file written. When the latest version\n\
@@ -762,18 +642,6 @@ usage() {
            "      --skip-probe        判定是否需要提权时不在目标里建那个临时探针文件，只用\n\
                           权限位判断。适合「目标必须一点痕迹都不留」的场合 ——\n\
                           判断错了只是把失败推迟到第一次真正写入。"
-    mw_say "      --dir-option=N      Skip the confirmation and install to location N\n\
-                          (1-$CUSTOM_OPTION; 1 = /opt/macwave, the default)." \
-           "      --dir-option=N      不确认，直接装到第 N 个位置（1-${CUSTOM_OPTION}；\n\
-                          1 = /opt/macwave，也就是默认）。"
-    mw_say "      --dir-option=DIR    Use DIR as the installation directory (shorthand for\n\
-                          --dir-option=$CUSTOM_OPTION=DIR)." \
-           "      --dir-option=DIR    用 DIR 作为安装目录（等价于\n\
-                          --dir-option=$CUSTOM_OPTION=DIR）。"
-    mw_say "      --dir-option=N=DIR  Pick entry N and, for the custom entry ($CUSTOM_OPTION), use DIR\n\
-                          as the installation directory." \
-           "      --dir-option=N=DIR  选第 N 项，并在自定义项（${CUSTOM_OPTION}）时用 DIR\n\
-                          作为安装目录。"
     mw_say "        --install-python-from-source\n\
                             Download the bundled CPython from its upstream URL\n\
                             (recorded in pythondata/<version>/python_url.toml)\n\
@@ -795,23 +663,17 @@ usage() {
     mw_say "      --print-usage       Show this help, then continue (install or dry run)." \
            "      --print-usage       显示本帮助后继续（真的安装，或继续试运行）。"
     mw_say ""
-    mw_say "Install target (the default is used unless --dir-option says otherwise):" \
-           "安装位置（不给 --dir-option 就用默认的）："
-    # 这份清单自己按语言输出、也不带 🌊 与颜色；这里只补缩进。
-    print_install_targets | sed 's/^/  /'
+    mw_say "Install target: /opt/macwave (fixed; there is no option to change it)." \
+           "安装位置：/opt/macwave（写死，没有别的选项）。"
     mw_say ""
     mw_say "Examples:" "示例："
-    mw_say "  install.sh --ci --dir-option=1" "  install.sh --ci --dir-option=1"
-    mw_say "  install.sh --CI --dir-option=2" "  install.sh --CI --dir-option=2"
-    mw_say "  install.sh --ci --dir-option=$CUSTOM_OPTION=/opt/my-macwave" \
-           "  install.sh --ci --dir-option=$CUSTOM_OPTION=/opt/my-macwave"
-    mw_say "  install.sh --ci --dir-option=/opt/my-macwave" \
-           "  install.sh --ci --dir-option=/opt/my-macwave"
+    mw_say "  install.sh --ci" "  install.sh --ci"
+    mw_say "  install.sh --CI --raw" "  install.sh --CI --raw"
     mw_say ""
     mw_say "Running it straight from the repository (options go after '--'):" \
            "直接从仓库运行（选项放在 '--' 之后）："
-    mw_say '  /bin/bash -c "$(curl -fsSL <url>)" -- --ci --dir-option=1' \
-           '  /bin/bash -c "$(curl -fsSL <url>)" -- --ci --dir-option=1'
+    mw_say '  /bin/bash -c "$(curl -fsSL <url>)" -- --ci' \
+           '  /bin/bash -c "$(curl -fsSL <url>)" -- --ci'
 }
 
 # 参数在这里**一次**解析完。以前要扫两遍：一遍为了让 --raw 赶在第一条输出之前
@@ -836,17 +698,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-probe|--SKIP-PROBE)
             CLI_SKIP_PROBE=true
-            ;;
-        --dir-option=*)
-            _value="${1#--dir-option=}"
-            # 只有 N=DIR（前缀是数字）才拆分；--dir-option=<路径> 里若本身带 '='，
-            # 整条按路径处理，不会被误拆。
-            if [[ "$_value" == *=* && "${_value%%=*}" =~ ^[0-9]+$ ]]; then
-                CLI_DIR_OPTION="${_value%%=*}"
-                CLI_CUSTOM_DIR="${_value#*=}"
-            else
-                CLI_DIR_OPTION="$_value"
-            fi
             ;;
         --install-python-from-source)
             INSTALL_PYTHON_FROM_SOURCE=1
@@ -917,8 +768,8 @@ fi
 #   install.sh --help                 打用法，停
 #   install.sh --help --dry-run       打用法，然后照 --dry-run 走一遍流程（不安装）
 #
-# 与其它安装参数连用一律报错：`--help --ci --dir-option=2` 读起来像是「按这些
-# 参数装」，实际却只打帮助 —— 把它拦下来，比让用户以为装过了强。
+# 与其它安装参数连用一律报错：`--help --ci` 读起来像是「按这些参数装」，
+# 实际却只打帮助 —— 把它拦下来，比让用户以为装过了强。
 # --zh / --raw 例外：它们只改呈现（语言、输出格式），不是安装参数。
 #
 # --print-usage 才是「打用法然后继续安装」的那个开关。
@@ -965,47 +816,10 @@ case "$0" in
         ;;
 esac
 
-# --dir-option=<路径> 是 --dir-option=<自定义项>=<路径> 的简写：值不是数字时，
-# 直接把该值当作自定义安装目录。
-if [[ -n "$CLI_DIR_OPTION" && ! "$CLI_DIR_OPTION" =~ ^[0-9]+$ ]]; then
-    CLI_CUSTOM_DIR="$CLI_DIR_OPTION"
-    CLI_DIR_OPTION="$CUSTOM_OPTION"
-fi
-
-if [[ -n "$CLI_DIR_OPTION" ]] && [[ "$CLI_DIR_OPTION" -lt 1 || "$CLI_DIR_OPTION" -gt "$CUSTOM_OPTION" ]]; then
-    echo -e "${RED_BOLD}🌊 Error: --dir-option must be 1-$CUSTOM_OPTION on this architecture, got '$CLI_DIR_OPTION'.${RESET}" >&2
-    exit 1
-fi
-
-if [[ -n "$CLI_CUSTOM_DIR" && "$CLI_DIR_OPTION" != "$CUSTOM_OPTION" ]]; then
-    echo -e "${RED_BOLD}🌊 Error: only --dir-option=$CUSTOM_OPTION takes a directory (this architecture has $CUSTOM_OPTION entries).${RESET}" >&2
-    exit 1
-fi
-
-if [[ "$CLI_DIR_OPTION" == "$CUSTOM_OPTION" && -z "$CLI_CUSTOM_DIR" && "$CLI_CI" == "true" ]]; then
-    echo -e "${RED_BOLD}🌊 Error: --dir-option=$CUSTOM_OPTION needs a directory in --ci mode.${RESET}" >&2
-    echo -e "${RED_BOLD}🌊 Use --dir-option=$CUSTOM_OPTION=/some/dir${RESET}" >&2
-    exit 1
-fi
-
-# 解析自定义安装目录：命令行给了就直接用，否则提示输入
-resolve_custom_dir() {
-    local custom_dir validated
-    if [[ -n "$CLI_CUSTOM_DIR" ]]; then
-        custom_dir="$CLI_CUSTOM_DIR"
-        mw_say "🌊 Installation directory: $custom_dir (from --dir-option)" "🌊 安装目录：${custom_dir}（来自 --dir-option）"
-    else
-        mw_say "${YELLOW}Please enter the installation directory:${RESET}" "${YELLOW}请输入安装目录：${RESET}"
-        read -r custom_dir < /dev/tty
-    fi
-    validated=$(validate_custom_dir "$custom_dir") || exit 1
-    BASE_DIR="$validated"
-}
-
 # -------------------- 平台守卫：MacWave 只装 macOS 软件 --------------------
 #
-# 再往下就会撞上 macOS 专属的东西：安装位置里的 /usr/local、SIP 与系统卷密封的
-# 判定、csrutil、Xcode 命令行工具检查。与其装到一半报「csrutil: command not
+# 再往下就会撞上 macOS 专属的东西：/opt 的属主、管理员组、Mach-O 重定位、
+# codesign 与 Xcode 命令行工具检查。与其装到一半报「otool: command not
 # found」，不如第一句就说清楚该去哪 —— Linux 由兄弟项目 LinuxWave 覆盖，两边的
 # 安装命令是同一个形状（releases/latest/download/install.sh）。
 #
@@ -1150,78 +964,36 @@ fi
 #
 # 变量契约（全部可选；缺哪个就退回默认值）：
 #
-#   MACWAVE_SELFUPDATE=1        我在升级一棵已有的树
-#   MACWAVE_INSTALL_DIR=<路径>  装哪棵树（不猜、不问、不发散）
+#   MACWAVE_SELFUPDATE=1        我在升级一棵已有的树（装哪棵树不传 —— 位置写死）
 #   MACWAVE_VERSION / MACWAVE_BRANCH   目标版本与分支（已存在的口子）
 #   MACWAVE_NEED_SUDO=1|0       提权结论沿用调用方的，不重新探测
 SELFUPDATE_MODE=false
 if [[ "${MACWAVE_SELFUPDATE:-}" == "1" ]]; then
     SELFUPDATE_MODE=true
-    if [[ -z "${MACWAVE_INSTALL_DIR:-}" ]]; then
-        echo -e "${RED_BOLD}🌊 Error: MACWAVE_SELFUPDATE=1 needs MACWAVE_INSTALL_DIR.${RESET}" >&2
+fi
+
+# ==========================================
+# 安装根：写死的一处（见上面「安装位置」）
+# ==========================================
+#
+# 升级模式与全新安装走同一条路：都装到 /opt/macwave。调用方（wave selfupdate）
+# 传不传 MACWAVE_INSTALL_DIR 都一样 —— 位置不是参数。
+
+DEFAULT_BASE_DIR="$SYS_ROOT/opt/macwave"
+
+if [[ "$SELFUPDATE_MODE" == "true" ]]; then
+    if [[ -n "${MACWAVE_INSTALL_DIR:-}" && "${MACWAVE_INSTALL_DIR}" != "$DEFAULT_BASE_DIR" ]]; then
+        echo -e "${RED_BOLD}🌊 Error: MACWAVE_INSTALL_DIR='${MACWAVE_INSTALL_DIR}' is not supported: the install directory is fixed at $DEFAULT_BASE_DIR.${RESET}" >&2
         exit 1
     fi
-    # 路径来自调用方（也就是用户的安装树），仍要过一遍安全校验：它会参与
-    # rm -rf 与 chown。这个函数在下面「判断是否需要 sudo」一节之后才定义，所以
-    # 这里只做最基本的规范化，真正的白名单校验在 resolve 之后进行。
-    BASE_DIR="${MACWAVE_INSTALL_DIR}"
-    while [[ "$BASE_DIR" == */ && "$BASE_DIR" != "/" ]]; do
-        BASE_DIR="${BASE_DIR%/}"
-    done
-fi
-
-# ==========================================
-# 选择安装目录（交互式 / --dir-option / --ci 默认 / 升级模式）
-# ==========================================
-
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    # 升级：目录由调用方给，不确认、不接受 --dir-option。
-    choice=""
+    BASE_DIR="$DEFAULT_BASE_DIR"
     mw_say "🌊 Updating the installation at $BASE_DIR" "🌊 正在更新 ${BASE_DIR} 这棵安装树"
-elif [[ -n "$CLI_DIR_OPTION" ]]; then
-    choice="$CLI_DIR_OPTION"
-    mw_say "🌊 Directory option: $choice (from --dir-option)" "🌊 目录选项：${choice}（来自 --dir-option）"
 elif [[ "$CLI_CI" == "true" ]]; then
-    # --ci 与交互式**装到同一个地方**：默认系统级 /opt/macwave。
-    # 以前 --ci 默认装用户级，理由是「无人值守不该要管理员密码」；但那让「同一台
-    # 机器、同一条命令、只是加了 --ci」落到两个不同的树里，排查时最容易踩。
-    # 现在统一：无人值守就必须有免密 sudo（或以 root 运行），拿不到就明确报错退出，
-    # 而不是悄悄换一个位置装。
-    choice="1"
-    mw_say "🌊 --ci: installing into /opt/macwave (the default; needs passwordless sudo or root)." \
-        "🌊 --ci：装到 /opt/macwave（默认位置；需要免密 sudo 或以 root 运行）。"
+    BASE_DIR="$DEFAULT_BASE_DIR"
+    mw_say "🌊 --ci: installing into $DEFAULT_BASE_DIR (needs passwordless sudo or root)." \
+        "🌊 --ci：装到 ${DEFAULT_BASE_DIR}（需要免密 sudo 或以 root 运行）。"
 else
-    # 不再是一道选择题：装到哪儿是产品决定，不该让人在安装前先做一次架构与权限
-    # 判断。默认就是系统级 /opt/macwave；想换地方的人用 --dir-option 明确说出来。
-    choice="1"
-    ASK_INSTALL_TARGET="true"
-fi
-
-if [[ "$SELFUPDATE_MODE" == "true" ]]; then
-    :   # BASE_DIR 已经定好了
-else
-case "$choice" in
-    1)
-        BASE_DIR="$SYS_ROOT/opt/macwave"
-        ;;
-    2)
-        BASE_DIR="$HOME/.local/macwave"
-        ;;
-    3)
-        if [[ "$CUSTOM_OPTION" == "3" ]]; then
-            resolve_custom_dir
-        else
-            BASE_DIR="$SYS_ROOT/usr/local/macwave"
-        fi
-        ;;
-    4)
-        resolve_custom_dir
-        ;;
-    *)
-        mw_say "${RED_BOLD}🌊 Invalid choice. Using the default: /opt/macwave${RESET}" "${RED_BOLD}🌊 选择无效，改用默认目录：/opt/macwave${RESET}"
-        BASE_DIR="$SYS_ROOT/opt/macwave"
-        ;;
-esac
+    BASE_DIR="$DEFAULT_BASE_DIR"
 fi
 
 DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
@@ -1234,19 +1006,12 @@ DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
 # 干净退出，不需要回滚；而回滚要删安装树、删配置、清 rc 里的 PATH —— 升级场景还
 # 可能把用户原来那棵能用的树一起毁掉。问一句便宜得多。
 #
-# 只在「什么都没被显式指定、又有终端」时问：
-#   - --ci：无人值守，不问；
-#   - --dir-option：用户已经明确指定了位置，再问一遍是啰嗦；
-#   - 没有 /dev/tty（curl | bash 的 stdin 是脚本本身）：拿不到终端就不问，
-#     按默认位置继续 —— 安装不破坏已有数据，中断在这里反而更需要 `--ci` 的形状；
-#   - --dry-run：只打印、什么都不改，没什么可确认的；
-#   - MACWAVE_TEST：沙箱/测试根，任何提问都会把自动化挂住。
 # 谁该被打断：
 #   - 升级（SELFUPDATE_MODE）：调用方是 `wave selfupdate`，人已经做了选择；
-#   - --ci：无人值守，不确认也不提问，按默认位置装（这条老规矩不变）；
+#   - --ci：无人值守，不确认也不提问，按写死的位置装；
 #   - --dry-run：只打印、什么都不改，没什么可确认的；
 #   - MACWAVE_TEST 或拿不到 /dev/tty（curl | bash 的 stdin 是脚本本身）：不问，
-#     按默认位置继续 —— 安装不破坏已有数据，在这里卡死反而更需要 `--ci` 的形状。
+#     按写死的位置继续 —— 安装不破坏已有数据，在这里卡死反而更需要 `--ci` 的形状。
 if [[ "$SELFUPDATE_MODE" == "true" ]]; then
     :
 elif [[ "$CLI_CI" == "true" ]]; then
@@ -1259,15 +1024,11 @@ elif [[ -z "${MACWAVE_TEST:-}" ]] && [[ -r /dev/tty ]]; then
     # 安装位置与用户协议**合成一次**确认：两件事都必须在动手之前说清，
     # 分成两次提问只会让人以为「后面还有一轮」。
     echo ""
-    if [[ "${ASK_INSTALL_TARGET:-}" == "true" ]]; then
-        mw_say "🌊 Summerwave will be installed to ${DISPLAY_DIR}" \
-               "🌊 Summerwave 将会安装到 ${DISPLAY_DIR}"
-        mw_say "🌊   This asks for an administrator password once." \
-               "🌊   过程中需要一次管理员密码。"
-        mw_say "🌊   Want it somewhere else? --dir-option=2 installs for this user only." \
-               "🌊   想换个地方？--dir-option=2 只装给当前用户。"
-        echo ""
-    fi
+    mw_say "🌊 Summerwave will be installed to ${DISPLAY_DIR}" \
+           "🌊 Summerwave 将会安装到 ${DISPLAY_DIR}"
+    mw_say "🌊   This asks for an administrator password once." \
+           "🌊   过程中需要一次管理员密码。"
+    echo ""
     mw_say "🌊 Using Summerwave means you accept the user agreement:" \
            "🌊 使用 Summerwave 即表示你接受用户协议："
     mw_say "🌊   ${AGREEMENT_URL}" "🌊   ${AGREEMENT_URL}"
@@ -1423,160 +1184,6 @@ mw_say "🌊 Detected architecture: $ARCH" "🌊 检测到架构：$ARCH"
 CURRENT_USER=$(whoami)
 
 # ==========================================
-# SIP（系统完整性保护）
-# ==========================================
-#
-# 提权之前先看 SIP：它决定「sudo 到底能不能写这里」，而「要不要 sudo」是下一问。
-# 顺序反了会把用户送去输密码，然后在写文件时才失败 —— 报错还只是 permission denied。
-#
-# 光看 `csrutil status` 不够，它只回答「SIP 主开关」：
-#
-#   enabled                        正常 macOS
-#   disabled                       SIP 完全关闭
-#   enabled (Custom Configuration) SIP 被降级（自定义配置，部分保护关掉）
-#
-# 后两种多见于 **OCLP（OpenCore Legacy Patcher）** 打过补丁的老 Mac：为了让新系统
-# 在旧硬件上能跑，OCLP 会关闭或削弱 SIP。**但「SIP 关了」不等于「系统盘能写」** ——
-# macOS 11 起系统卷是密封的（Signed System Volume/SSV），它是另一道独立的锁：
-# 即使 `csrutil disable`，往 /System、/usr、/bin 写文件照样失败，还必须
-# `csrutil authenticated-root disable` 再重启（OCLP 打根补丁正是两步都做）。
-#
-# 所以判定分两层，顺序不能反：
-#
-#   1. 目标在不在 SIP 保护范围（/System、/usr（/usr/local 除外）、/bin、/sbin、
-#      /Library/Apple）；
-#   2. 在范围内时，**先看 SSV**：密封着就写不进去，与 SIP 主开关无关；
-#      SSV 未密封（老系统没有这个命令）再看 SIP 主开关：
-#        enabled  → 同样写不进去，拒绝；
-#        disabled / reduced → 这次写入可行，警告后继续 —— 但「写得进去」不等于
-#        「应该装进去」：写进系统位置的东西会随一次系统更新消失，也可能直接把
-#        机器弄到起不来。这里只警告，不替用户拿主意。
-#
-# 非 macOS、或读不到 csrutil 时状态是 unknown，此时**不做**判断：不能因为
-# 「读不到」就拒绝安装，那会把正常的 Linux 与容器环境挡在门外。
-#
-# MACWAVE_CSRUTIL 只是测试钩子（把替身脚本指进来），生产路径永远是 /usr/bin/csrutil。
-mw_sip_status() {
-    local out csrutil
-    if [[ "$(uname -s)" != "Darwin" ]]; then
-        echo unknown
-        return 0
-    fi
-    csrutil="${MACWAVE_CSRUTIL:-/usr/bin/csrutil}"
-    out="$("$csrutil" status 2>/dev/null || true)"
-    case "$out" in
-        *"status: disabled"*) echo disabled ;;
-        *"Custom Configuration"*) echo reduced ;;
-        *"status: enabled"*) echo enabled ;;
-        *) echo unknown ;;
-    esac
-}
-
-mw_ssv_status() {
-    # Signed System Volume（macOS 11+）：系统卷是密封的快照，写入会被内核拒绝，
-    # 与 SIP 主开关是两个独立的锁。`csrutil authenticated-root status` 的
-    # enabled 表示密封着；老系统（10.x）没有这条命令，返回 unknown。
-    local out csrutil
-    if [[ "$(uname -s)" != "Darwin" ]]; then
-        echo unknown
-        return 0
-    fi
-    csrutil="${MACWAVE_CSRUTIL:-/usr/bin/csrutil}"
-    out="$("$csrutil" authenticated-root status 2>/dev/null || true)"
-    case "$out" in
-        *"status: enabled"*) echo enabled ;;
-        *"status: disabled"*) echo disabled ;;
-        *) echo unknown ;;
-    esac
-}
-
-mw_sip_protected() {
-    # 这个**逻辑**路径在不在 SIP 保护范围？/usr/local 是明确的例外（Homebrew 就在
-    # 那里，SIP 不保护它），其余 /usr 都在范围内。
-    #
-    # 与 config/configpaths.py 的 SYSTEM_LINK_PREFIXES 是同一批位置：那份用于
-    # 「符号链接不得跳出 base_dir」的豁免，这份用于「能不能把安装根放这里」。
-    # 两边都改时一起看 —— 否则会出现「这里允许装、产物里的链接却被判越界」。
-    case "$1" in
-        /usr/local|/usr/local/*) return 1 ;;
-        /usr|/usr/*|/bin|/bin/*|/sbin|/sbin/*|/System|/System/*|/Library/Apple|/Library/Apple/*)
-            return 0 ;;
-    esac
-    return 1
-}
-
-mw_logical_path() {
-    # 去掉测试根的映射：SIP 判断看的是「真实系统里会落在哪」，而 MACWAVE_TEST
-    # 把整棵树挂到了临时目录下，那个前缀不属于任何受保护位置。
-    local path="$1"
-    if [[ -n "$SYS_ROOT" && "$path" == "$SYS_ROOT"/* ]]; then
-        path="${path#"$SYS_ROOT"}"
-    fi
-    echo "$path"
-}
-
-SIP_STATUS="$(mw_sip_status)"
-SSV_STATUS="$(mw_ssv_status)"
-SIP_TARGET="$(mw_logical_path "$BASE_DIR")"
-if mw_sip_protected "$SIP_TARGET"; then
-    case "$SSV_STATUS" in
-        enabled)
-            # 密封的系统卷：与 SIP 主开关无关，写不进去就是写不进去。
-            # 常见于「SIP 已关闭/降级、但没关 authenticated-root」的机器 ——
-            # 那些机器的用户会在写文件那一步收到一句 permission denied，
-            # 而真正的原因是密封，不是权限。
-            mw_say_err "${RED_BOLD}🌊 Error: '$SIP_TARGET' is on the sealed system volume, so it cannot be an installation directory.${RESET}" \
-                "${RED_BOLD}🌊 错误：'$SIP_TARGET' 在密封的系统卷上，不能作为安装目录。${RESET}"
-            mw_say_err "🌊 The Signed System Volume is a separate lock from SIP: even with SIP" \
-                "🌊 系统卷密封（Signed System Volume）与 SIP 是两道独立的锁：即使 SIP 关了，"
-            mw_say_err "🌊 disabled, writing there fails until 'csrutil authenticated-root disable'" \
-                "🌊 往那里写仍会失败，要另外关掉它（csrutil authenticated-root disable）并重启。"
-            mw_say_err "🌊 is applied and the Mac reboots. That is not something an installer" \
-                "🌊 那不是安装器该替你做的事。"
-            mw_say_err "🌊 should do for you. Choose a directory outside the protected set:" \
-                "🌊 请换一个不在保护范围内的目录，例如："
-            echo -e "${YELLOW}    /usr/local/macwave   /opt/macwave   ~/.local/macwave${RESET}"
-            exit 1
-            ;;
-        *)
-            case "$SIP_STATUS" in
-                enabled)
-                    mw_say_err "${RED_BOLD}🌊 Error: '$SIP_TARGET' is inside SIP-protected scope, so it cannot be an installation directory.${RESET}" \
-                        "${RED_BOLD}🌊 错误：'$SIP_TARGET' 在 SIP 保护范围内，不能作为安装目录。${RESET}"
-                    mw_say_err "🌊 While SIP is enabled, even sudo cannot write there." \
-                        "🌊 SIP 开启时，sudo 也写不进去。"
-                    mw_say_err "🌊 Choose a directory outside the protected set, for example:" \
-                        "🌊 请换一个不在保护范围内的目录，例如："
-                    echo -e "${YELLOW}    /usr/local/macwave   /opt/macwave   ~/.local/macwave${RESET}"
-                    exit 1
-                    ;;
-                disabled|reduced)
-                    # 走到这里说明 SSV 已查明「未密封」（或老系统没有这道锁），
-                    # 于是 SIP 主开关是唯一剩下的保护 —— 而它是关着的。
-                    if [[ "$SIP_STATUS" == "disabled" ]]; then
-                        mw_say "${YELLOW}🌊 Warning: SIP is disabled and the system volume is not sealed,${RESET}" \
-                            "${YELLOW}🌊 警告：本机 SIP 已关闭，且系统卷未密封，"
-                        mw_say "${YELLOW}🌊 so sudo really can write into '$SIP_TARGET'.${RESET}" \
-                            "${YELLOW}🌊 所以 sudo 确实能写进 '$SIP_TARGET'。"
-                    else
-                        mw_say "${YELLOW}🌊 Warning: SIP is reduced (custom configuration) and the system${RESET}" \
-                            "${YELLOW}🌊 警告：本机 SIP 已降级（自定义配置），且系统卷未密封，"
-                        mw_say "${YELLOW}🌊 volume is not sealed, so sudo really can write into '$SIP_TARGET'.${RESET}" \
-                            "${YELLOW}🌊 所以 sudo 确实能写进 '$SIP_TARGET'。"
-                    fi
-                    mw_say "🌊 That is common on machines patched by OCLP. Installing there touches" \
-                        "🌊 这在 OCLP 打过补丁的机器上很常见。装到那里会改动系统自带的位置："
-                    mw_say "🌊 system territory: it may vanish after a macOS update, and it is not" \
-                        "🌊 升级 macOS 后可能被清除，而且这不是 MacWave 推荐的安装位置。"
-                    mw_say "${YELLOW}🌊 Continuing because you chose this directory explicitly.${RESET}" \
-                        "${YELLOW}🌊 因为这是你显式选择的目录，继续。${RESET}"
-                    ;;
-            esac
-            ;;
-    esac
-fi
-
-# ==========================================
 # 系统级安装的所有权
 # ==========================================
 #
@@ -1673,45 +1280,15 @@ hand_over_system_install() {
     return 0
 }
 
-# 配置目录/文件的权限：系统级安装要**组可写**。
+# 状态文件的权限：管理员组要能写。
 #
-# 为什么不是 install.sh 早先的 755/644：系统级安装会把树交给 root:<管理员组> 775，
-# 管理员组成员因此不用 sudo 就能装包；可自更新写的是配置目录里的 VERSION.json，
-# 755/644 的配置目录会让它每次都退回去要密码（2026-11-24 在 /opt 上实测）。
-# 让管理员组写配置目录不扩大权限面 —— 他们本来就能改整棵树。
-config_dir_mode() {
-    if [[ "$SYSTEM_INSTALL" == "true" ]]; then echo 2775; else echo 755; fi
+# 安装会把树交给 root:<管理员组> 775，管理员组成员因此不用 sudo 就能装包；
+# 而自更新写的是树内 <base>/var/config.sh，同一个组要是写不进去，每次升级都会
+# 退回去要密码（2026-11-24 在 /opt 上实测）。让管理员组写状态文件不扩大权限面 ——
+# 他们本来就能改整棵树。
+state_file_mode() {
+    echo 664
 }
-
-config_file_mode() {
-    if [[ "$SYSTEM_INSTALL" == "true" ]]; then echo 664; else echo 644; fi
-}
-
-# 「系统级安装」与「这次要不要提权」是**两件事**，这里分开存。
-#
-#   SYSTEM_INSTALL  语义：目标在 $HOME 之外 → 共享安装。决定配置目录放哪
-#                   （系统级用 /opt/macwave_config）、要不要把树收尾成
-#                   root:<管理员组> 775、结尾那段「其他用户可运行」的提示。
-#   NEED_SUDO       本次能不能直接写：目标树与配置目录**都**可写时不用提权。
-#
-# 合成一个变量的症状（4.4 之前就是这样）：
-#   * 装到 /Volumes/SSD/macwave 这种自己可写的外置卷，明明不需要密码却要密码；
-#   * 反过来，~/.local/macwave 被上一次 `sudo` 装成了 root 所有，安装器认为
-#     用户目录无需提权，然后一路 Permission denied，报错还指不到原因。
-#
-# 判据只有一条：**写不了才提权**。不用「是不是在家目录下」猜。
-if [[ "$BASE_DIR" == "$HOME"/* ]]; then
-    SYSTEM_INSTALL=false
-else
-    SYSTEM_INSTALL=true
-fi
-
-# 配置目录跟着语义走：读取时系统级优先，所以系统级 MacWave 总是盖过用户级的。
-if [[ "$SYSTEM_INSTALL" == "true" ]]; then
-    CONFIG_DIR="$SYS_ROOT/opt/macwave_config"
-else
-    CONFIG_DIR="$HOME/.config/macwave_config"
-fi
 
 mw_can_write() {
     # 能写这个路径吗？返回 0 可写 / 1 需要提权 / 2 写不进去但不是权限问题。
@@ -1793,9 +1370,7 @@ else
 # `|| var=$?` 而不是直接取 $?：set -e 下裸调一个返回非零的函数会当场退出。
 base_state=0
 mw_write_state "$BASE_DIR" || base_state=$?
-config_state=0
-mw_write_state "$CONFIG_DIR" || config_state=$?
-if [[ "$base_state" -eq 0 && "$config_state" -eq 0 ]]; then
+if [[ "$base_state" -eq 0 ]]; then
     NEED_SUDO=false
 else
     NEED_SUDO=true
@@ -1808,9 +1383,9 @@ fi
 IS_ROOT=false
 [[ "$(id -u)" == "0" ]] && IS_ROOT=true
 
+# /opt/macwave 永远是共享安装：收了尾（root:<管理员组> 775）别的管理员才能装包。
 NEED_HANDOVER=false
-if [[ "$SYSTEM_INSTALL" == "true" ]] \
-   && { [[ "$NEED_SUDO" == "true" ]] || [[ "$IS_ROOT" == "true" ]]; }; then
+if [[ "$NEED_SUDO" == "true" ]] || [[ "$IS_ROOT" == "true" ]]; then
     NEED_HANDOVER=true
 fi
 
@@ -2144,8 +1719,7 @@ SURFBOARD_DIR="$BASE_DIR/surfboard"
 LIB_DIR="$BASE_DIR/lib"
 NET_DIR="$BASE_DIR/net"
 CLI_DIR="$BASE_DIR/cli"
-# 程序代码目录，与下面的 CONFIG_DIR（**配置文件**目录，/opt/macwave_config）不是
-# 一回事。两个名字只差一个词，变量名必须能一眼分开。
+# 程序代码目录。与 <base>/var（状态）不是一回事，变量名必须能一眼分开。
 CONFIG_CODE_DIR="$BASE_DIR/config"
 # 文档资源：装进安装树，但不进 sys.path（见 scripts/assets.txt）
 MAN_DIR="$BASE_DIR/man"
@@ -2156,18 +1730,10 @@ KEYS_DIR="$BASE_DIR/Keys"
 DEPS_DIR="$SHORE_DIR"
 DOWNLOAD_DIR="$BASE_DIR/downloads/tmp"
 
-# CONFIG_DIR 在「判断是否需要 sudo」那一节就算好了：它跟着 SYSTEM_INSTALL 走
-# （系统级 → /opt/macwave_config，用户级 → ~/.config/macwave_config），而不是
-# 跟着「这次要不要提权」—— 后者的判据是**写权限**，与目录语义无关。
-# 4.7 起状态搬进树内：<base>/var/config.sh 记 base_dir 与版本号。
-# 外部配置目录（/opt/macwave_config 或 ~/.config/macwave_config）只在收尾时
-# 被清理一次，见「迁移：删除旧版外部配置目录」一节。
+# 状态：一棵树一份，就在树里。<base>/var/config.sh 记版本号与构建号，
+# 没有 config.json、没有外部配置目录（见 config/configpaths.py）。
 STATE_DIR="$BASE_DIR/var"
 STATE_FILE="$STATE_DIR/config.sh"
-# 下面这两个变量仍然指向**旧**位置：4.6 及更早的版本靠它们判断装没装好。
-# 4.7 两者都会写，读的时候树内优先（见 config/configpaths.py）。
-CONFIG_FILE="$CONFIG_DIR/config.json"
-VERSION_FILE="$CONFIG_DIR/VERSION.json"
 MW_OPTIONAL_RESULT=""
 
 mw_try() {
@@ -2216,60 +1782,10 @@ run_cmd mkdir -p "$INFO_DIR"
 run_cmd mkdir -p "$KEYS_DIR"
 run_cmd mkdir -p "$DEPS_DIR"
 run_cmd mkdir -p "$DOWNLOAD_DIR"
-run_cmd mkdir -p "$CONFIG_DIR"
 run_cmd mkdir -p "$STATE_DIR"
-run_cmd chmod "$(config_dir_mode)" "$CONFIG_DIR"
-if [[ "$SYSTEM_INSTALL" == "true" ]]; then
-    # sudo 建的目录属主是 root:wheel，管理员组写不进去 —— 得显式交给管理员组。
-    run_cmd chown "root:$(admin_group)" "$CONFIG_DIR"
-fi
 
-# ==========================================
-# 写入配置文件
-# ==========================================
-
-run_cmd tee "$CONFIG_FILE" > /dev/null << EOF
-{
-  "base_dir": "$BASE_DIR"
-}
-EOF
-
-# 树内状态先落一份**只有 base_dir** 的：后面「清理旧版外部配置目录」那一步
-# 只有在 var/config.sh 已经存在时才允许动手（否则等于把这棵树的位置信息删了）。
-# 版本号故意不在这里写 —— 它是「装好了」的凭据，必须等文件真的下完，
-# 理由与 VERSION.json 完全相同，见下面「写入版本凭据」一节。
-run_cmd tee "$STATE_FILE" > /dev/null << EOF
-# MacWave state file —— 由 install.sh / selfupdate.sh 生成，会被覆盖。
-# 不要手工编辑：base_dir 与版本号都在这里，改错了 wave 就找不到自己的安装树。
-# 搬树用 wave basedir --set <新路径>，升级用 wave selfupdate。
-MACWAVE_BASE_DIR='$BASE_DIR'
-EOF
-
-# VERSION.json 故意**不**在这里写。它是「装好了」的凭据，必须等文件真的下完
-# （update_commands.sh 跑完）之后才落盘 —— 2026-11-19 发 4.4.0 当天就踩了：
-# 镜像还没同步 core/4.4，下载在第一个文件上失败，而 VERSION.json 已经是 4.4.0，
-# 于是 `wave selfupdate` 看到「版本相同」就再也不修，只留下一棵半旧的树。
-# 那份凭据现在写在 update_commands 成功之后（见「写入版本凭据」一节）。
-
-# ==========================================
-# 安装期间：树暂时交给当前用户
-# ==========================================
-# 后面还有以用户身份写树的步骤（自带 Python、私有 venv），见 lend_tree_to_user。
-# 最终属主由文件末尾的 hand_over_system_install 决定。
-
-if [[ "$NEED_SUDO" == "true" ]]; then
-    lend_tree_to_user "$BASE_DIR"
-fi
-
-run_cmd chmod "$(config_dir_mode)" "$CONFIG_DIR"
-run_cmd chmod "$(config_file_mode)" "$CONFIG_FILE"
-
-if mw_dry_run; then
-    mw_plan "🌊 Dry run: would write $CONFIG_FILE (base_dir), then $VERSION_FILE (version $MACWAVE_VERSION) once every file is in place." \
-        "🌊 试运行：将写入 ${CONFIG_FILE}（base_dir），并在所有文件到位后写 ${VERSION_FILE}（版本 ${MACWAVE_VERSION}）。"
-else
-    mw_say "🌊 Configuration saved to $CONFIG_FILE" "🌊 配置已保存到 $CONFIG_FILE"
-fi
+# 状态文件（<base>/var/config.sh）不在这里写：它是「装好了」的凭据，必须等
+# 文件真的下完才落盘 —— 见下面「写入版本凭据」一节。
 
 # ==========================================
 # 检查动态库路径替换所需的工具
@@ -2322,9 +1838,6 @@ else
         export MACWAVE_WANT_HASHES=1
     fi
     export MACWAVE_NEED_SUDO MACWAVE_SILENT MACWAVE_RAW
-    # 旧配置目录的清理由本文件负责（见「清理旧版外部配置目录」），而且要等版本
-    # 凭据写完 —— 所以让 update_commands.sh 跳过它自己做的那一份。
-    export MACWAVE_INSTALLER_OWNS_CLEANUP=1
 
     if mw_dry_run; then
         mw_plan "🌊 Dry run: the update commands would run now and download the program files." \
@@ -2342,58 +1855,24 @@ fi
 # 顺序不能反：这份文件是客户端判断「装没装好、要不要再修」的唯一依据。先写它、
 # 后下载，中途失败就会留下「版本号前进、文件还是旧的」这种最难查的状态 ——
 # `wave selfupdate` 比完版本号就说已是最新，永远不会再修。
+#
+# 一棵树只有这一份状态：<base>/var/config.sh。用 .sh 而不是 JSON 的理由见
+# config/configpaths.py 里 STATE_FILE_NAME 那段注释：shell 写它是一行 heredoc。
+# MACWAVE_INSTALLED_AT 只给人看（排查「这台机器什么时候装的」），代码不读它。
 if ! mw_dry_run; then
-    run_cmd tee "$VERSION_FILE" > /dev/null << EOF
-{
-  "version": "$MACWAVE_VERSION",
-$( [[ -n "$BUILD_NUMBER" ]] && printf '  "build_number": "%s",\n' "$BUILD_NUMBER" )
-  "components": {
-    "installer": "$MACWAVE_VERSION",
-    "parser": "$MACWAVE_VERSION"
-  }
-}
-EOF
-    run_cmd chmod "$(config_file_mode)" "$VERSION_FILE"
-
-    # 树内也写一份版本凭据：4.7 客户端读的是 <base>/var/（configpaths 里
-    # find_config_dir 优先返回它）。上面那份是给 4.6 及更早的客户端看的，
-    # 少了这一份，新客户端会报「版本未知」——即使文件都装对了。
-    run_cmd tee "$STATE_DIR/VERSION.json" > /dev/null << EOF
-{
-  "version": "$MACWAVE_VERSION",
-$( [[ -n "$BUILD_NUMBER" ]] && printf '  "build_number": "%s",\n' "$BUILD_NUMBER" )
-  "components": {
-    "installer": "$MACWAVE_VERSION",
-    "parser": "$MACWAVE_VERSION"
-  }
-}
-EOF
-    run_cmd chmod "$(config_file_mode)" "$STATE_DIR/VERSION.json"
-
-    # 树内状态：这里覆盖写完整的一份（base_dir + 版本号）。base_dir 在「写入配置
-    # 文件」那一节已经写过一次 —— 那次是为了让「清理旧版外部配置目录」有依据，
-    # 这次补上版本号，才是「装好了」的凭据。用 .sh 而不是 JSON 的理由见
-    # config/configpaths.py 里 STATE_FILE_NAME 那段注释：shell 写它是一行 heredoc。
-    #
-    # MACWAVE_INSTALLED_AT 只给人看（排查「这台机器什么时候装的」），代码不读它。
     run_cmd tee "$STATE_FILE" > /dev/null << EOF
-# MacWave state file —— 由 install.sh / selfupdate.sh 生成，会被覆盖。
-# 不要手工编辑：base_dir 与版本号都在这里，改错了 wave 就找不到自己的安装树。
-# 搬树用 wave basedir --set <新路径>，升级用 wave selfupdate。
-MACWAVE_BASE_DIR='$BASE_DIR'
+# Summerwave state file —— 由 install.sh / selfupdate.sh 生成，会被覆盖。
+# 不要手工编辑：版本号在这里，升级用 wave selfupdate。
 MACWAVE_VERSION='$MACWAVE_VERSION'
 $( [[ -n "$BUILD_NUMBER" ]] && printf "MACWAVE_BUILD='%s'\n" "$BUILD_NUMBER" )
 MACWAVE_INSTALLED_AT='$(date -u +%Y-%m-%dT%H:%M:%SZ)'
 EOF
-    run_cmd chmod "$(config_file_mode)" "$STATE_FILE"
-    mw_say "🌊 State saved to $STATE_FILE" "🌊 状态已保存到 $STATE_FILE"
+    run_cmd chmod "$(state_file_mode)" "$STATE_FILE"
+    mw_say "🌊 Version saved to $STATE_FILE" "🌊 版本信息已保存到 $STATE_FILE"
 
     if [[ "$NEED_HANDOVER" == "true" ]]; then
-        hand_over_system_install "$CONFIG_DIR"
+        hand_over_system_install "$BASE_DIR"
     fi
-    # 4.6 及更早的客户端只认这个文件；留着它，「装完 4.7 又回退到 4.6」才走得通。
-    mw_say "🌊 Version saved to $VERSION_FILE" "🌊 版本信息已保存到 $VERSION_FILE"
-
 fi
 
 # ==========================================
@@ -2736,8 +2215,8 @@ entry="$lib_dir/wave.py"
 # 每次开终端都要跑（走 Python 那条路实测 160ms，这里 2ms）。
 # 输出必须与 lib/shellenv.py **逐字一致** —— scripts/shellenv_test.sh 会比对两份。
 if [ "$#" -eq 1 ] && [ "$1" = "shellenv" ]; then
-    printf 'case ":$PATH:" in\n  *":%s:"*) ;;\n  *) export PATH="%s:%s:%s${PATH:+:$PATH}" ;;\nesac\n' \
-        "$root_dir/lib" "$root_dir/bin" "$root_dir/links" "$root_dir/lib"
+    printf 'case ":$PATH:" in\n  *":%s:"*) ;;\n  *) export PATH="%s:%s${PATH:+:$PATH}" ;;\nesac\n' \
+        "$root_dir/lib" "$root_dir/bin" "$root_dir/lib"
     printf 'case ":${MANPATH:-}:" in\n  *":%s:"*) ;;\n  *) export MANPATH="%s${MANPATH:+:$MANPATH}" ;;\nesac\n' \
         "$root_dir/man" "$root_dir/man"
     exit 0
@@ -2881,7 +2360,7 @@ LIB_DIR_DISPLAY=$(home_to_tilde_arg "$LIB_DIR")
 if [[ "$SHELL_FAMILY" == "csh" ]]; then
     # csh 的双引号里 ~ 不展开，而守卫模式又必须对展开后的 $PATH 生效，只能写 $HOME
     # （它在双引号内会展开）：输出里没有绝对家目录，只是用 $HOME 代替了 ~。
-    SHELLENV_DISPLAY="if ( \"\$PATH\" !~ *\"$(home_to_homevar "$LIB_DIR")\"* ) setenv PATH \"$(home_to_homevar "$INSTALL_DIR"):$(home_to_homevar "$LINKS_DIR"):$(home_to_homevar "$LIB_DIR"):\$PATH\""
+    SHELLENV_DISPLAY="if ( \"\$PATH\" !~ *\"$(home_to_homevar "$LIB_DIR")\"* ) setenv PATH \"$(home_to_homevar "$INSTALL_DIR"):$(home_to_homevar "$LIB_DIR"):\$PATH\""
 else
     SHELLENV_DISPLAY="eval \"\$($LIB_DIR_DISPLAY/wave shellenv)\""
 fi
@@ -3013,28 +2492,23 @@ echo ""
 echo -e "${YELLOW}    source $RC_DISPLAY${RESET}"
 echo ""
 
-# 系统级安装是共享的：管理员（admin 组）直接管理，其他用户只能运行。
+# /opt/macwave 是一棵共享的树：管理员（admin 组）直接管理，其他用户只能运行。
 # PATH 那行现在由用户自己加 —— 别人不加就找不到 wave，只能靠绝对路径执行。
 # 这里说清楚，否则「其他人可运行」只对了一半。
-#
-# 判据是 SYSTEM_INSTALL（装的是一棵共享的树），不是 NEED_SUDO（这次有没有提权）：
-# 目标可写时不需要 sudo，但它依然是一棵共享的树。
-if [[ "$SYSTEM_INSTALL" == "true" ]]; then
-    mw_say "🌊 Other users on this machine can run the installed packages," \
-        "🌊 本机的其他用户可运行已装的软件包，"
-    mw_say "🌊 but each of them needs to run this once:" \
-        "🌊 但每个用户需要执行："
-    echo -e "${YELLOW}    $SHELLENV_DISPLAY${RESET}"
-    mw_say "🌊 Administrators can install and remove packages without sudo:" \
-        "🌊 管理员装包、卸包都不需要 sudo："
-    echo -e "${YELLOW}    wave install <package>${RESET}"
-    mw_say "🌊 A user who is not in the '$(admin_group)' group can still run the packages," \
-        "🌊 不在 '$(admin_group)' 组里的用户仍然能运行已装的包，"
-    mw_say "🌊 but changing them needs the full path (sudo has its own PATH):" \
-        "🌊 但改动它们要用全路径（sudo 用的是它自己的 PATH）："
-    echo -e "${YELLOW}    sudo $BASE_DIR/lib/wave install <package>${RESET}"
-    echo ""
-fi
+mw_say "🌊 Other users on this machine can run the installed packages," \
+    "🌊 本机的其他用户可运行已装的软件包，"
+mw_say "🌊 but each of them needs to run this once:" \
+    "🌊 但每个用户需要执行："
+echo -e "${YELLOW}    $SHELLENV_DISPLAY${RESET}"
+mw_say "🌊 Administrators can install and remove packages without sudo:" \
+    "🌊 管理员装包、卸包都不需要 sudo："
+echo -e "${YELLOW}    wave install <package>${RESET}"
+mw_say "🌊 A user who is not in the '$(admin_group)' group can still run the packages," \
+    "🌊 不在 '$(admin_group)' 组里的用户仍然能运行已装的包，"
+mw_say "🌊 but changing them needs the full path (sudo has its own PATH):" \
+    "🌊 但改动它们要用全路径（sudo 用的是它自己的 PATH）："
+echo -e "${YELLOW}    sudo $BASE_DIR/lib/wave install <package>${RESET}"
+echo ""
 
 if mw_dry_run; then
     mw_say "🌊 Drop --dry-run and run the installer again to install for real." \

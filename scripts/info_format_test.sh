@@ -58,21 +58,20 @@ cleanup() {
 trap cleanup EXIT
 
 HOME_DIR="$WORK/home"
-BASE="$WORK/base"
 TEST_ROOT="$WORK/root"
 
-# 用 MACWAVE_TEST 把 /opt 映射到测试根下。不这么做的话，CI 上那份预先写好的
-# /opt/macwave_config/config.json（config_dir_candidates 是系统级优先）会被读到，
-# load_base_dir() 返回别的路径，本测试装的 jq 就「不存在」，断言全挂；
-# 本地没有那个文件，所以本地一直是绿的。
+# 安装根写死成 /opt/macwave，MACWAVE_TEST 把它映射进测试根。
 export MACWAVE_TEST="$TEST_ROOT"
-mkdir -p "$TEST_ROOT/opt/macwave_config" "$HOME_DIR/.config/macwave_config" "$BASE"
+BASE="$TEST_ROOT/opt/macwave"
+mkdir -p "$HOME_DIR" "$BASE/var"
 copy_components "$BASE/"
-printf '{"version": "4.1.0"}\n' > "$BASE/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$TEST_ROOT/opt/macwave_config/config.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config.json"
+printf "MACWAVE_VERSION='4.1.0'\n" > "$BASE/var/config.sh"
 
 ARCH=$(python3 -c 'import platform; m=platform.machine().lower(); print("arm64" if m in ("arm64","aarch64") else "amd64")')
+case "$(uname -s)" in
+    Darwin) BOTTLE_TAG="macos-$ARCH" ;;
+    *)      BOTTLE_TAG="linux-$ARCH" ;;
+esac
 
 mkdir -p "$BASE/Shore/jq/1.7.1" "$BASE/bin"
 : > "$BASE/Shore/jq/1.7.1/jq"
@@ -81,11 +80,11 @@ ln -s "../Shore/jq/1.7.1/jq" "$BASE/bin/jq"
 # -------------------- 假索引 --------------------
 
 MIRROR="$WORK/mirror"
-INDEX="$MIRROR/pkg/pkginfo_$ARCH"
+INDEX="$MIRROR/pkg/pkginfo"
 mkdir -p "$INDEX/jq" "$INDEX/bare"
 printf 'jq\nbare\n' > "$INDEX/versions"
-printf 'jq@1.8.2\njq@1.7.1\njq@common\n' > "$INDEX/jq/versions"
-printf 'bare@1.0\n' > "$INDEX/bare/versions"
+printf '_jq@1.8.2.%s\n_jq@1.7.1.%s\n_jq@common\n' "$BOTTLE_TAG" "$BOTTLE_TAG" > "$INDEX/jq/versions"
+printf '_bare@1.0.%s\n' "$BOTTLE_TAG" > "$INDEX/bare/versions"
 
 # 原文写成客户端读得懂的形状，同时故意留一个客户端不解析的字段，
 # 用来证明 --raw 是原文而不是「把它认识的字段重新打一遍」
@@ -109,7 +108,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo_$ARCH/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
     sleep 0.1
 done
 

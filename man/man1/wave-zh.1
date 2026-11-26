@@ -58,10 +58,10 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
 将本机已装的版本与索引里的最新版本比较，不下载。
 .TP
 .B basedir
-打印 MacWave 的安装根目录 —— 即 config.json 里的 base_dir，可执行文件、
-链接与依赖都在这棵树下。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
-路径。加 --set 会把整棵树搬到新位置并改写base_dir：需要三次逐字确认，而
-且每个已装产物必须已经是位置无关的（先跑 wave transfer --all）。
+打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路径
+是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
+没有配置文件，也搬不动。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
+路径。
 .TP
 .B doctor
 只读体检：找出已经坏了、但平时不容易发现的地方 —— 版本目录里没有可执行文
@@ -167,11 +167,8 @@ Python 依赖的 pip 源
 把这个目录当作文件系统根（供测试用）
 .SH 相关文件
 .TP
-.B ~/.config/macwave_config/config.json
-用户级安装位置
-.TP
-.B /opt/macwave_config/config.json
-系统级安装位置（优先）
+.B <base_dir>/var/config.sh
+已安装的版本与构建号（唯一的状态）
 .TP
 .B <base_dir>/man/man1
 这些 man 页

@@ -15,6 +15,7 @@
 # 这个文件应当**一直很小**：目前只有三样东西是"平台值"而不是"能力"。
 
 import platform
+import re
 import sys
 
 IS_MAC = sys.platform == "darwin"
@@ -43,3 +44,35 @@ def describe():
     machine = platform.machine() or "unknown"
     name = "macOS" if IS_MAC else ("Linux" if IS_LINUX else platform.system())
     return f"{name} {version} ({machine})".replace("  ", " ")
+
+
+def bottle_tag(machine=None):
+    """1.0 的产物标签：`<os>-<arch>`，如 `macos-arm64` / `linux-amd64`。
+
+    词表封闭（macos|linux、arm64|amd64）。客户端与索引生成脚本共用这一份，
+    免得两边各写一遍正则；`x86_64` / `amd64` 归一成 `amd64`。
+    os 取本模块的判断，机器类型默认取 `platform.machine()`（调用方有更权威的
+    来源时可以传进来）。
+    """
+    import platform as _platform
+
+    raw = (machine or _platform.machine() or "").lower()
+    if raw in ("x86_64", "amd64", "x64"):
+        arch = "amd64"
+    elif raw in ("arm64", "aarch64"):
+        arch = "arm64"
+    else:
+        arch = raw or "unknown"
+    return f"{'macos' if IS_MAC else 'linux'}-{arch}"
+
+
+_BOTTLE_TAG_RE = re.compile(r"\.(?:macos|linux)-(?:arm64|amd64)$")
+
+
+def strip_bottle_tag(text):
+    """去掉记录名里的平台标签：`1.8.2.macos-arm64` → `1.8.2`。
+
+    索引里的版本记录叫 `_<名>@<版本>.<os>-<arch>`，而逻辑版本号不含标签；
+    读 `versions` 清单、解析命令行上的版本号时都要经过这里。
+    """
+    return _BOTTLE_TAG_RE.sub("", text)

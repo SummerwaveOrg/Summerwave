@@ -73,13 +73,11 @@ Compare what you have with the newest version in the index; nothing is
 downloaded.
 .TP
 .B basedir
-Print MacWave's install root -- the base_dir in config.json, which is
-where the binaries, the links and the dependencies live. A path under
-your home directory is shown with ~. With --raw it prints the absolute
-path as-is and nothing else. With --set it copies the whole tree to a
-new location and rewrites base_dir; that needs three typed
-confirmations, and every installed artifact must already be
-position-independent.
+Print MacWave's install root, which is where the binaries, the links and
+the dependencies live. It is fixed: /opt/macwave on macOS and
+/home/linuxwave/.linuxwave on Linux, with no configuration file
+involved. A path under your home directory is shown with ~. With --raw
+it prints the absolute path as-is and nothing else.
 .TP
 .B doctor
 Look for things that are already broken but rarely noticed: a version
@@ -191,11 +189,8 @@ pip index for the Python dependencies
 treat this directory as the filesystem root (for tests)
 .SH FILES
 .TP
-.B ~/.config/macwave_config/config.json
-user-level install location
-.TP
-.B /opt/macwave_config/config.json
-system-level install location (takes priority)
+.B <base_dir>/var/config.sh
+installed version and build (the only state)
 .TP
 .B <base_dir>/man/man1
 these man pages

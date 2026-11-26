@@ -44,12 +44,10 @@ SANDBOX_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/deps_test.XXXXXX")"
 
 trap 'rm -rf "$SANDBOX_ROOT"' EXIT
 sandbox_install_tree "$SANDBOX_ROOT"
-CONFIG_FILE="$SANDBOX_CONFIG_FILE"
 BASE_DIR="$SANDBOX_BASE"
 PAYLOAD_DIR="$BASE_DIR/Shore"
 BIN_DIR="$BASE_DIR/bin"
-BIN_DIR="$BASE_DIR/links"
-DEPS_DIR="$BASE_DIR/deps"
+PAYLOAD_DIR="$BASE_DIR/Shore"
 
 FAILED=0
 CASE_FAILED=0
@@ -60,8 +58,9 @@ PASSED=0
 # ==========================================
 
 discover_pkgs() {
-    # 扫 infosource 的 pkginfo_<arch>，输出「包名@最高版本 bin_name」，
-    # 只有声明了 deps: 的包才算「带依赖链」。test_* 是测试夹具，不进池子。
+    # 扫 infosource 的 pkginfo（1.0 起不再按架构分目录，标签在记录名里），
+    # 输出「包名@最高版本 bin_name」。只有声明了 deps: 的包才算「带依赖链」。
+    # test_* 是测试夹具，不进池子。
     python3 - "$1" <<'PY'
 import pathlib
 import platform
@@ -71,7 +70,7 @@ import sys
 root = pathlib.Path(sys.argv[1])
 machine = platform.machine().lower()
 arch = "arm64" if machine in ("arm64", "aarch64") else "amd64"
-pkg_root = root / "pkg" / f"pkginfo_{arch}"
+pkg_root = root / "pkg" / "pkginfo"
 if not pkg_root.is_dir():
     sys.exit(0)
 

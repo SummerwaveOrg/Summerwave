@@ -26,6 +26,12 @@ case "$(uname -m)" in
     arm64|aarch64) ARCH=arm64 ;;
     *) ARCH=amd64 ;;
 esac
+# 1.0 的产物标签：<os>-<arch>，写进版本记录名（与 config/platforminfo.py 的
+# bottle_tag() 一致）。
+case "$(uname -s)" in
+    Darwin) BOTTLE_TAG="macos-$ARCH" ;;
+    *)      BOTTLE_TAG="linux-$ARCH" ;;
+esac
 
 PASSED=0
 FAILED=0
@@ -49,29 +55,28 @@ ROOT="$WORK/root"
 BASE="$ROOT/opt/macwave"
 
 echo "========== 0. 本地镜像：三个包，其中 one 有两个版本 =========="
-mkdir -p "$MIRROR/infosource" "$MIRROR/bottle" "$BASE" "$ROOT/opt/macwave_config"
+mkdir -p "$MIRROR/infosource" "$MIRROR/bottle" "$BASE/var"
 copy_components "$BASE/" >/dev/null
-printf '{"version": "4.5.0"}\n' > "$ROOT/opt/macwave_config/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$ROOT/opt/macwave_config/config.json"
+printf "MACWAVE_VERSION='4.5.0'\n" > "$BASE/var/config.sh"
 
 make_pkg() {
     local name="$1" version="$2" dir
     dir="$WORK/src-$name-$version"
-    mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/pkg/pkginfo_$ARCH/$name"
+    mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/pkg/pkginfo/$name"
     printf '#!/bin/sh\necho %s %s\n' "$name" "$version" > "$dir/$name"
     chmod 755 "$dir/$name"
     tar czf "$MIRROR/bottle/$name/$name@$version.$ARCH.tar.gz" -C "$dir" "$name"
 
     local sha
     sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@$version.$ARCH.tar.gz" | cut -d' ' -f1)
-    [ -f "$MIRROR/infosource/pkg/pkginfo_$ARCH/$name/_$name@common" ] || cat > "$MIRROR/infosource/pkg/pkginfo_$ARCH/$name/_$name@common" <<EOF
+    [ -f "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" ] || cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" <<EOF
 bin_name: "$name"
 des: "multi-uninstall probe"
 hom: "https://example.invalid/"
 lic: "MIT"
 aut: "probe"
 EOF
-    cat > "$MIRROR/infosource/pkg/pkginfo_$ARCH/$name/_$name@$version" <<EOF
+    cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@$version.$BOTTLE_TAG" <<EOF
 sha256: "$sha"
 file: "${name}_${ARCH}.tar.gz"
 url: "http://127.0.0.1:$PORT/bottle/$name/$name%40$version.$ARCH.tar.gz"
@@ -91,7 +96,7 @@ make_pkg three 1.0
 SERVER_PID=$!
 sleep 1
 if curl -s -o /dev/null -w '%{http_code}' \
-        "http://127.0.0.1:$PORT/infosource/pkg/pkginfo_$ARCH/versions" | grep -q 200; then
+        "http://127.0.0.1:$PORT/infosource/pkg/pkginfo/versions" | grep -q 200; then
     pass "本地镜像起来了（${PORT}）"
 else
     fail "本地镜像没起来"

@@ -137,12 +137,10 @@ cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
 ROOT="$WORK/root"
-BASE="$WORK/macwave"
-mkdir -p "$BASE/bin" "$BASE/Shore"
-HOME_IN_ROOT="$ROOT$(printf '%s' "$HOME")"
-mkdir -p "$HOME_IN_ROOT/.config/macwave_config"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_IN_ROOT/.config/macwave_config/config.json"
-printf '{"version": "3.1.0"}\n' > "$HOME_IN_ROOT/.config/macwave_config/VERSION.json"
+# 安装根写死成 /opt/macwave；MACWAVE_TEST 把它映射进这个测试根。
+BASE="$ROOT/opt/macwave"
+mkdir -p "$BASE/bin" "$BASE/Shore" "$BASE/var"
+printf "MACWAVE_VERSION='3.1.0'\n" > "$BASE/var/config.sh"
 
 cat > "$WORK/harness.py" << PYEOF
 import os, sys

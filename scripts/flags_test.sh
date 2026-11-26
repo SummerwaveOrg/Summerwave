@@ -214,15 +214,16 @@ fi
 # wave.py 拒绝在 git 检出里运行，所以先复制一份不带 .git 的运行树
 RUN_DIR=$(mktemp -d)
 trap 'rm -rf "$RUN_DIR"' EXIT
-copy_components "$RUN_DIR/"
-# 没有配置文件会在 check_environment 阶段就退出，先写一份最小的
-mkdir -p "$RUN_DIR/root/opt/macwave_config"
-printf '{"base_dir": "%s"}\n' "$RUN_DIR" > "$RUN_DIR/root/opt/macwave_config/config.json"
+# 安装根写死成 /opt/macwave；wave.py 也从这棵树里加载模块。
+copy_components "$RUN_DIR/root/opt/macwave/"
+# 状态文件在就不会在 check_environment 阶段退出。
+mkdir -p "$RUN_DIR/root/opt/macwave/var"
+printf "MACWAVE_VERSION='4.99.0'\n" > "$RUN_DIR/root/opt/macwave/var/config.sh"
 
 # 必须在 RUN_DIR 里执行：configerror 的「git 检出」检测跑的是 `git rev-parse`，
 # 而它看的是**当前工作目录**，不是脚本所在目录。在仓库里跑就会被误判成 git clone。
 WAVE_OUT=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py update jq --unkown-flag 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py update jq --unkown-flag 2>&1 || true)
 if [[ "$WAVE_OUT" == *"Unknown flag: --unkown-flag"* ]]; then
     pass "未知命令 + 坏旗标 → 两条都报"
 else
@@ -237,7 +238,7 @@ fi
 # 旗标用对了拼写、但用错了命令时，别说成 unknown —— 那会把人送去查拼写。
 # 静默模式下只有一行，这一行必须是「只适用于哪条命令」。
 MISPLACED=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py install jq -X -sS 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py install jq -X -sS 2>&1 || true)
 if [[ "$MISPLACED" == *"-X only applies to wave upgrade"* ]]; then
     pass "静默 + 错用命令的旗标 → 指向正确的命令"
 else
@@ -251,7 +252,7 @@ fi
 
 # 真拼错的仍要报 unknown，两者不能混为一谈
 TYPO=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py install jq -q -sS 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py install jq -q -sS 2>&1 || true)
 if [[ "$TYPO" == *"unknown flag: -q"* ]]; then
     pass "真拼错的旗标仍报 unknown"
 else
@@ -260,14 +261,14 @@ fi
 
 # curl 的 -s / -S / -sS：单 -s 什么都不打（退出码是唯一信号），加 -S 才留错误
 MUTED=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py install jq -q -s 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py install jq -q -s 2>&1 || true)
 if [[ -z "$MUTED" ]]; then
     pass "单给 -s：一个字节都不输出"
 else
     fail "单给 -s 仍有输出：${MUTED:0:120}"
 fi
 MUTED_RC=0
-(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" python3 lib/wave.py install jq -q -s >/dev/null 2>&1) || MUTED_RC=$?
+(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" python3 root/opt/macwave/lib/wave.py install jq -q -s >/dev/null 2>&1) || MUTED_RC=$?
 if [[ "$MUTED_RC" -ne 0 ]]; then
     pass "单给 -s：失败仍靠退出码表达"
 else
@@ -281,7 +282,7 @@ fi
 
 # -sS 的输出是给脚本读的，一律不带 🌊；而普通模式必须保留（那是给人看的）
 NOSUCH=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py uninstall no_such_pkg -sS 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py uninstall no_such_pkg -sS 2>&1 || true)
 if [[ -n "$NOSUCH" && "$NOSUCH" != *"🌊"* ]]; then
     pass "-sS 输出不含 🌊"
 else
@@ -293,7 +294,7 @@ else
     fail "-sS 把错误文字也弄丢了（实际：${NOSUCH:0:120}）"
 fi
 PLAIN=$(cd "$RUN_DIR" && MACWAVE_TEST="$RUN_DIR/root" \
-    python3 lib/wave.py uninstall no_such_pkg 2>&1 || true)
+    python3 root/opt/macwave/lib/wave.py uninstall no_such_pkg 2>&1 || true)
 if [[ "$PLAIN" == *"🌊"* ]]; then
     pass "非静默仍保留 🌊"
 else

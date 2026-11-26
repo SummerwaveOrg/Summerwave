@@ -3,6 +3,13 @@
 Applies to MacWave 4.6 and later. Linux side: see the same subject under
 `$ORIGIN` at the end of this document.
 
+> ⚠️ **1.0 changed the "why".** Artifacts are still built with `@loader_path`
+> (so the tree can be copied, archived, or checked out anywhere), but the client
+> no longer needs to relocate anything at install time: the install root is fixed,
+> `wave transfer` is gone, and `wave basedir --set` was removed. The relocation
+> work now lives entirely in the build. The sections below describe the
+> 4.6-era client behaviour and are kept as history.
+
 ---
 
 ## 1. The problem
@@ -63,8 +70,8 @@ id — every reference is explicit — so the id is advisory.
 |---|---|---|
 | Build (CI) | `scripts/relocate_stage.sh` → `scripts/relocate_rpath.py` | rewrite references to `@loader_path/...`, ids to `@rpath/...`, ad-hoc sign, then **mark the artifact as prebuilt** |
 | Install | `surfboard/transfer.sh` | prebuilt artifacts: **nothing at all** — no rewrite, no re-sign, not even a scan. Unmarked artifacts: rewrite to relative, re-sign |
-| Migrate an old tree | `wave transfer <pkg>` / `--all` | `transfer.sh --relative`: rewrite in place, re-sign |
-| Move the tree | `wave basedir --set <path>` | copy, verify entry count, rewrite `config.json`; refuses unless everything is already relative |
+| Migrate an old tree | — | removed in 1.0: `wave transfer` is gone, and `apply_migrations` only moves the old directories into `Shore/` |
+| Move the tree | — | impossible: the install root is fixed at `/opt/macwave`, and `wave basedir --set` was removed |
 
 ### 3.1 How the client knows an artifact is prebuilt
 

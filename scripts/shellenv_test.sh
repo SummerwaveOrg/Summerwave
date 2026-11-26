@@ -42,19 +42,20 @@ fail() { echo -e "  ${RED_BOLD}❌ $1${RESET}"; FAILED=$((FAILED + 1)); }
 # shellcheck source=./components.sh
 source "$SCRIPT_DIR/components.sh"
 
-WORK=$(mktemp -d)
+# 物理路径：configpaths 会 resolve() 测试根，/var → /private/var 的差异
+# 会让两份输出对不上。
+WORK="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$WORK"' EXIT
 
 TEST_ROOT="$WORK/root"
 HOME_DIR="$WORK/home"
-BASE="$WORK/base"
 
+# 安装根写死成 /opt/macwave，MACWAVE_TEST 把它映射进测试根。
 export MACWAVE_TEST="$TEST_ROOT"
-mkdir -p "$TEST_ROOT/opt/macwave_config" "$HOME_DIR/.config/macwave_config" "$BASE"
+BASE="$TEST_ROOT/opt/macwave"
+mkdir -p "$HOME_DIR" "$BASE/var"
 copy_components "$BASE/"
-printf '{"version": "4.3.0"}\n' > "$BASE/VERSION.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$TEST_ROOT/opt/macwave_config/config.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config.json"
+printf "MACWAVE_VERSION='4.3.0'\n" > "$BASE/var/config.sh"
 
 # ==========================================
 # 从 install.sh 抽出启动器正文，渲染成一个真的启动器
@@ -105,8 +106,8 @@ else
     pass "没有 🌊 之类的装饰"
 fi
 
-if [[ "$FROM_LAUNCHER" == *"$BASE/bin"* && "$FROM_LAUNCHER" == *"$BASE/links"* && "$FROM_LAUNCHER" == *"$BASE/lib"* ]]; then
-    pass "三个目录都在（bin / links / lib）"
+if [[ "$FROM_LAUNCHER" == *"$BASE/bin"* && "$FROM_LAUNCHER" == *"$BASE/lib"* ]]; then
+    pass "两个目录都在（bin / lib）"
 else
     fail "缺少目录：$FROM_LAUNCHER"
 fi

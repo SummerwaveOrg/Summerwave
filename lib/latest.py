@@ -57,7 +57,7 @@ def headers(url):
 
 def fetch_names(arch, timeout):
     """索引里的全部包名，一行一个。列不出来时返回 None，调用方退回「按已装的名字直接查」。"""
-    url = domains.index_list_url(arch)
+    url = domains.index_list_url()
     try:
         response = requests.get(url, timeout=timeout.request_timeout,
                                 headers=headers(url), **tls.request_kwargs())
@@ -72,7 +72,7 @@ def fetch_names(arch, timeout):
 
 def fetch_versions(package_name, arch, timeout):
     """返回 (版本号列表, 错误说明)。404 时版本列表为空、错误说明为 HTTP 404。"""
-    url = domains.index_list_url(arch, package_name)
+    url = domains.index_list_url(package_name)
     steplog.detail(f"GET {domains.redact_url(url)}")
     try:
         response = requests.get(url, timeout=timeout.request_timeout,

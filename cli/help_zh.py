@@ -89,15 +89,12 @@ COMMANDS_ZH = {
         },
     },
     "basedir": {
-        "desc": "打印 MacWave 的安装根目录 —— 即 config.json 里的 base_dir，"
-                "可执行文件、链接与依赖都在这棵树下。家目录下的路径写作 ~。"
-                "加 --raw 只输出原样的绝对路径。加 --set 会把整棵树搬到新位置并改写"
-                "base_dir：需要三次逐字确认，而且每个已装产物必须已经是位置无关的"
-                "（先跑 wave transfer --all）。",
+        "desc": "打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。"
+                "这个路径是写死的（macOS 是 /opt/macwave，Linux 是"
+                " /home/linuxwave/.linuxwave），没有配置文件，也搬不动。"
+                "家目录下的路径写作 ~。加 --raw 只输出原样的绝对路径。",
         "flags": {
             "--raw": "输出原样的绝对路径，不带 🌊 与颜色（给脚本用）",
-            "--set <path>": "把整棵安装树搬到 <path> 并改写 base_dir",
-            "-n, --dry-run": "配合 --set：只报告会拷什么、会改哪个配置文件，然后停",
         },
     },
     "shellenv": {

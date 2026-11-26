@@ -1,5 +1,10 @@
 # 🌊 MacWave 项目结构
 
+> ⚠️ **本文档大部分写于 4.x，1.0（Summerwave 合并线）已经改动了几处结构与约定。**
+> 已按 1.0 更新的是：安装位置（写死 `/opt/macwave`，无菜单/无 `--dir-option`）、
+> 状态文件（只剩树内 `<base>/var/config.sh`）、运行时布局（`Shore/<名>/<版本>/`）。
+> 其余章节（发布流程、数据源细节）仍按 4.x 叙述，等 1.0 的夜间整理统一复核。
+
 面向 macOS / Linux 软件开发者的包管理器，主要托管 iOS/iPadOS 相关软件包。
 技术栈：Python + Shell。
 
@@ -18,7 +23,7 @@ pkg/          安装与查询核心
 surfboard/    依赖处理
 scripts/      回归测试脚本
 .github/      CI
-.templates/   目录与文件的模板样例（bin/、pkg/、macwave_config/）
+.templates/   目录与文件的模板样例（bin/、pkg/）
 .Pseudocode/  早期伪代码，仅作参考
 docs/STYLE.md 代码风格约定
 README.md     用户文档
@@ -35,7 +40,7 @@ MacWave 的配置只有这一处：**用哪些环境变量、默认值是什么�
 | 文件 | 作用 |
 | --- | --- |
 | `envvar.py` | **环境变量名单、默认值与说明的唯一来源**：`DOMAINS`（七个 `MACWAVE_*_DOMAIN`，各带默认值与一句话说明）、`PIP_INDEX` / `PIP_DEFAULT`、`TEST_ROOT` / `TEST_ROOT_EXPORT`，以及 `name()` / `default()` / `description()` / `raw()`。只有数据：协议校验与拼 URL 在 `net/domains.py`。两份 shell 脚本里的同名默认值（它们是 `curl \| bash`，没法 source）由 `scripts/check_domain_defaults.py` 与本表逐项比对 |
-| `configpaths.py` | **配置目录解析**（`find_config_dir` / `load_base_dir` / `CONFIG_FILE` / `VERSION_FILE`）：系统级 `/opt/macwave_config` 优先，其次用户级 `~/.config/macwave_config`；系统级配置损坏或缺 `base_dir` 时也回落用户级。其余模块都从这里取配置，不再各自写死路径 |
+| `configpaths.py` | **安装根与运行时布局的唯一来源**：`load_base_dir()` 直接返回 `rooted(DEFAULT_BASE_DIR)`（1.0 起安装根写死，没有配置文件、没有候选目录），另有 `payload_root()` / `bin_dir()` / `pkg_dir()` / `dep_dir()` 拼运行时路径。测试根（`MACWAVE_TEST`）是唯一旁路 |
 | `configerror.py` | 启动前的环境自检：只要两处配置目录里有一处装了 MacWave 就放行；都没装且在 git 仓库里时，报错并提示用 `lib/install.sh` 正式安装 |
 
 ### lib/ —— 入口与帮助
@@ -44,7 +49,7 @@ MacWave 的配置只有这一处：**用哪些环境变量、默认值是什么�
 | --- | --- |
 | `wave.py` | 主入口。读配置目录（`config.json`）的 `base_dir`，把 `lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；用 `COMMANDS` 字典把 `install / uninstall / list / search / info / version / selfupdate / link / unlink / linkquery` 分发到对应模块，`ARGUMENTS` 处理 `-h/--help/-V/--version`；命令分发**之前**先拦下 `wave <命令> -h|--help`，交给 `help.print_command_help` 打印该命令自己的用法（否则各 handler 的白名单不认 `--help`：`install` 报错、`list` 静默忽略、`selfupdate` 会真的开始自更新） |
 | `help.py` | 帮助与版本文本：`print_custom_help`（`-h` / `--help` 的用法，命令与旗标列表与 README 的 Command Reference 对齐）、`print_version`、`print_error_help`（未知命令时先报错再打帮助）；另有 `COMMAND_HELP` 表与 `print_command_help`（`wave <命令> --help` 的子命令用法，旗标只列该 handler 白名单里真正接受的，不承诺做不到的事） |
-| `install.sh` | 官方安装脚本：选安装目录、`sudo` 提权、建运行时目录（`bin` / `links` / `deps` / `pkg` / `surfboard` / `lib` / `downloads/tmp`，3.1 起还有 `python` 与 `venv`）、写 `config.json` / `VERSION.json`（**系统目录→`/opt/macwave_config`，用户目录→`~/.config/macwave_config`**）、**用户级安装时把 2.5 之前的旧系统级配置 `/opt/macwave_config` 迁走**（否则它会因系统级优先而盖住新配置）、**取 `macwavedata/<版本>/update_commands.sh` 并执行它来拉取全部程序文件**（4.4 起不再有 `files_info`：清单是生成出来的脚本，自己知道该下哪些文件、放哪里、怎么迁移）、**自带便携 Python**（3.1 起：读 `configdata/pythondata/latest_python` 下载并校验 sha256，解到 `python/<版本>/`，`current` 指向它），用它建 `venv/` 并在其中安装依赖（requests / packaging / rich）；下载失败则回退系统 `python3` 并提示、把 `bin/` + `links/` + `lib/` 写入 PATH（升级时替换旧版只含 `bin`/`lib` 的行）、清理旧版平铺 `bin/` 文件、检查 Xcode 命令行工具（`otool` / `install_name_tool` / `codesign`）、`set -eE` 加 ERR 陷阱（中途失败时打印「安装未完成」、已下载内容可能残留的路径与重跑指引，**刻意不自动删除**）、用户协议与安装位置**在动手之前一次问清**（直接回车视为同意；4.7 起不再写 `AGREEMENT.json`，也没有「同意后再回滚」这条路径 —— 答 n 时磁盘上还什么都没改）：**非 macOS 一律不装**：`mw_platform` 先看
+| `install.sh` | 官方安装脚本：安装根写死 `/opt/macwave`、`sudo` 提权、建运行时目录（`Shore` / `bin` / `pkg` / `surfboard` / `lib` / `net` / `cli` / `config` / `man` / `info` / `Keys` / `var` / `downloads/tmp`，还有 `python` 与 `venv`）、写状态文件 `<base>/var/config.sh`、**取 `macwavedata/<版本>/update_commands.sh` 并执行它来拉取全部程序文件**（4.4 起不再有 `files_info`：清单是生成出来的脚本，自己知道该下哪些文件、放哪里、怎么迁移）、**自带便携 Python**（3.1 起：读 `configdata/pythondata/latest_python` 下载并校验 sha256，解到 `python/<版本>/`，`current` 指向它），用它建 `venv/` 并在其中安装依赖（requests / packaging / rich）；下载失败则回退系统 `python3` 并提示、把 `bin/` + `lib/` 写入 PATH（升级时替换旧版只含 `bin`/`lib` 的行）、清理旧版平铺 `bin/` 文件、检查 Xcode 命令行工具（`otool` / `install_name_tool` / `codesign`）、`set -eE` 加 ERR 陷阱（中途失败时打印「安装未完成」、已下载内容可能残留的路径与重跑指引，**刻意不自动删除**）、用户协议**在动手之前问一次**（安装位置已写死，不再需要选择）（直接回车视为同意；4.7 起不再写 `AGREEMENT.json`，也没有「同意后再回滚」这条路径 —— 答 n 时磁盘上还什么都没改）：**非 macOS 一律不装**：`mw_platform` 先看
 `uname -s`，只有 `macos` / `linux` / `unknown` 三种，非 macOS 一律拒绝并指路（Linux 去
 LinuxWave，认不出的报出 `uname -s` 原值），都以退出码 2 收场。**iOS / iPadOS / Android /
 ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户自己保证**（判据要一种种单独维护，
@@ -105,28 +110,35 @@ ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户
 
 ## 三、安装后的运行时目录
 
-`BASE_DIR` 取自生效的 `config.json` 的 `base_dir`（系统级 `/opt/macwave_config` 优先，其次用户级 `~/.config/macwave_config`；**4.6.1 起交互式默认装 `/opt/macwave`**，`--ci` 仍默认 `~/.local/macwave` —— 无人值守时不向用户要管理员密码）。
+`BASE_DIR` 是**写死**的，来自 `config/platforminfo.py` 的 `DEFAULT_BASE_DIR`：
+macOS 是 `/opt/macwave`，Linux 是 `/home/linuxwave/.linuxwave`。
+没有菜单、没有候选目录、没有 `--dir-option`，也没有配置文件可读 —— 一台机器一棵树。
 
-配置目录的归属由安装位置决定：装到 **`$HOME` 之外**（`/opt/macwave`、`/usr/local/macwave`、外置卷上的自定义路径）→ `/opt/macwave_config`；装到 `$HOME` 之内（`~/.local/macwave`、家目录下的自定义路径）→ `~/.config/macwave_config`。两处都存在时程序一律先用系统级。
+状态只有一份，就在树里：`<base>/var/config.sh`（`MACWAVE_VERSION` / `MACWAVE_BUILD` /
+`MACWAVE_INSTALLED_AT`）。它由 `install.sh` 与 `selfupdate.sh` 在**所有文件到位之后**写，
+是「装好了」的唯一凭据。
 
-**要不要提权与这件事无关**：`install.sh` 用「写权限」判断（目标树与配置目录都 `-w` 就不提权），不再看「是不是在家目录下」。于是装到 `/Volumes/SSD/macwave` 这种自己可写的外部卷不需要密码，而 `~/.local/macwave` 若被上一次 `sudo` 装成了 root 所有，反而会正确地要求提权。
+**要不要提权**：`install.sh` 用「写权限」判断 —— 目标树 `-w` 就不提权。
+判断分两步：先 `test -w`，再往目标目录（或最近的已存在祖先）里建一个**空文件探针**
+并立刻删掉。探针只有两种失败要区分开：`Permission denied` 才当作「需要提权」，
+其它（磁盘满、路径不存在）直接报错退出。`--skip-probe` 只跳过探针、保留权限位判断；
+`--dry-run` 承诺不写文件，因此只用静态判断。
 
-判断分两步：先 `test -w`，再往目标目录（或最近的已存在祖先）里建一个**空文件探针**并立刻删掉 —— 权限位写着可写、实际写不进去的情况确实存在（ACL、只读挂载、`squashfs` 之类的镜像）。探针只有两种失败要区分开：`Permission denied` 才当作「需要提权」，其它（磁盘满、路径不存在）直接报错退出，别把环境问题伪装成一个 `sudo` 提示。`--skip-probe` 只跳过探针、保留权限位判断；`--dry-run` 承诺不写文件，因此只用静态判断。
-
-**SIP / SSV 是独立的一道判断**，排在写权限之前：目标落在 SIP 保护范围（`/usr` 里除 `/usr/local`、`/bin`、`/sbin`、`/System`、`/Library/Apple`）时，先看系统卷是否密封（`csrutil authenticated-root status`），密封则直接拒绝 —— 那是内核层拒绝，`sudo` 也写不进去；未密封再看 SIP 主开关，`disabled` / `enabled (Custom Configuration)` 只警告后继续（OCLP 等补丁工具下常见，见 `install.sh` 里的注释）。读不到状态（非 macOS、老系统）时不做判断，不能因为「读不到」就把正常环境挡在门外。
-
-**迁移**：2.5 之前不分系统级/用户级，配置一律写在 `/opt/macwave_config`。所以用户级安装时，`install.sh` 会读 `/opt/macwave_config/VERSION.json`，只要版本低于 `2.5`（读不到也视为旧版）就把它删掉，配置重新落到 `~/.config/macwave_config`；`2.5` 及以后的系统级配置不动。
+不需要 SIP / SSV 判定：`/opt` 从来不在 SIP 保护范围内。
+（4.x 那套判断存在的前提是「可能装到 `/usr`、`/System`」，这个前提已经消失。）
 
 ```
-BASE_DIR/bin/{可执行文件名}@{版本}/            软件包：二进制 + _DEPS
-BASE_DIR/deps/{引用名}/{引用名}@{版本}/        依赖：整棵解压目录 + _DEPS + .depped_* 标记
-BASE_DIR/links/{名字}@{版本}                   软链接，此目录已加入 PATH
+BASE_DIR/Shore/<名>/<版本>/                   解开的软件包与依赖（同构）
+BASE_DIR/Shore/<名>/<版本>/Note               收据（JSON；requested 区分包/依赖）
+BASE_DIR/bin/<命令> -> ../Shore/<名>/<版本>/…  PATH 里唯一要加的目录，只放无版本号链接
 BASE_DIR/downloads/tmp/                       下载临时目录（*.partial 表示未下载完）
 BASE_DIR/{lib,pkg,surfboard,cli,config,net}/  程序文件自身
-BASE_DIR/Keys/*.asc                           发布签名的公钥（验签用；随清单下发）
-/opt/macwave_config/{config.json,VERSION.json}          系统级安装的配置（优先）
-~/.config/macwave_config/{config.json,VERSION.json}     用户级安装的配置
+BASE_DIR/{man,info,Keys}/                     手册、info、验签公钥
+BASE_DIR/var/config.sh                        已安装的版本与构建号（唯一的状态）
 ```
+
+4.x 的 `bin/<名>@<版本>/`、`deps/…`、`links/` 已经不存在；1.0 的 `apply_migrations`
+只做一件事：把这些旧目录搬进 `Shore/`。
 
 ## 四、数据源（`MacWaveOrg/infosource` 仓库）
 

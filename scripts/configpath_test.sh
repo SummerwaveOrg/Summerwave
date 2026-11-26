@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # configpath_test.sh
-# 配置目录解析回归（离线，不碰网络、不碰真实的 /opt 与 ${HOME}）：
-#   系统级 /opt/macwave_config 优先 → 只有用户级时才回落 ~/.config/macwave_config
-#   系统级配置损坏或缺 base_dir 时也要能回落到用户级
-# 做法是把 configpaths 的两个目录常量替换成临时目录，直接测实现本身。
+# 安装根解析回归（离线，不碰网络、不碰真实的 /opt 与 ${HOME}）：
+#   安装根是写死的（config/platforminfo.py 的 DEFAULT_BASE_DIR），
+#   没有配置文件、没有候选目录、也没有环境变量覆盖；
+#   MACWAVE_TEST 只做一件事：把这个绝对路径映射进测试根。
+#   版本号只从树内 <base>/var/config.sh 读。
 
 set -e
 
@@ -34,7 +35,7 @@ fail() {
     FAILED=$((FAILED + 1))
 }
 
-echo "========== config dir resolution =========="
+echo "========== install root resolution =========="
 
 TMP_ROOT="$(mktemp -d)"
 cleanup() {
@@ -42,68 +43,58 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if python3 - "$CONFIGPATHS_PY" "$TMP_ROOT" << 'PYEOF'
+if MACWAVE_TEST="$TMP_ROOT" python3 - "$CONFIGPATHS_PY" << 'PYEOF'
 import importlib.util
 import sys
 from pathlib import Path
 
-# configpaths 现在会 import 同目录的 envvar，所以它所在目录要在 sys.path 上 ——
-# 生产环境里这一步由 lib/wave.py 做（它把 config/ 加进 sys.path），测试直接按
-# 文件加载模块，得自己补上。
+# configpaths 会 import 同目录的 envvar / platforminfo，所以它所在目录要在
+# sys.path 上 —— 生产环境里这一步由 lib/wave.py 做。
 sys.path.insert(0, str(Path(sys.argv[1]).parent))
 
 spec = importlib.util.spec_from_file_location('configpaths_module', sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-root = Path(sys.argv[2])
-module.SYSTEM_CONFIG_DIR = root / "system"
-module.USER_CONFIG_DIR = root / "user"
-assert module.config_dir_candidates() == [root / "system", root / "user"]
+import platforminfo
 
-system_config = root / "system" / "config.json"
-user_config = root / "user" / "config.json"
-(root / "system").mkdir(parents=True)
-(root / "user").mkdir(parents=True)
+# 1) 写死的路径；MACWAVE_TEST 只把它映射进测试根
+root = module.TEST_ROOT
+assert root is not None
+expected = root / platforminfo.DEFAULT_BASE_DIR.lstrip("/")
+assert module.load_base_dir() == expected, (module.load_base_dir(), expected)
 
-# 1) 两边都没装
-assert module.find_config_dir() is None
+# 2) 候选目录与配置文件读取这一整套都不存在了
+for gone in ("SYSTEM_CONFIG_DIR", "USER_CONFIG_DIR", "config_dir_candidates",
+             "find_config_dir", "CONFIG_FILE_NAME", "VERSION_FILE"):
+    assert not hasattr(module, gone), gone
 
-# 2) 只有用户级
-user_config.write_text('{"base_dir": "/tmp/user-install"}')
-assert module.find_config_dir() == root / "user"
-assert module.load_base_dir() == Path("/tmp/user-install")
+# 3) 配置文件出现在任何地方都不会改变安装根
+(root / "opt" / "macwave_config").mkdir(parents=True)
+(root / "opt" / "macwave_config" / "config.json").write_text('{"base_dir": "/tmp/elsewhere"}')
+assert module.load_base_dir() == expected
 
-# 3) 系统级出现后优先
-system_config.write_text('{"base_dir": "/tmp/system-install"}')
-assert module.find_config_dir() == root / "system"
-assert module.load_base_dir() == Path("/tmp/system-install")
+# 4) 状态目录：var/config.sh 在就是它，不在就没有
+base = expected
+assert module.internal_state_dir() is None
+(base / "var").mkdir(parents=True)
+(base / "var" / "config.sh").write_text(
+    "# comment\nMACWAVE_VERSION='1.2.3'\nMACWAVE_BUILD='9ABC'\n")
+assert module.internal_state_dir() == base / "var"
+assert module.installed_version() == "1.2.3"
+assert module.installed_build() == "9ABC"
 
-# 4) 系统级配置损坏时回落用户级
-system_config.write_text('not json')
-assert module.find_config_dir() == root / "user"
-assert module.load_base_dir() == Path("/tmp/user-install")
+# 5) 状态文件里没有版本号时是 None，不当成 "unknown"
+(base / "var" / "config.sh").write_text("MACWAVE_INSTALLED_AT='2026-01-01T00:00:00Z'\n")
+assert module.installed_version() is None
+assert module.installed_build() is None
 
-# 5) 系统级缺少 base_dir 时回落用户级
-system_config.write_text('{"foo": 1}')
-assert module.find_config_dir() == root / "user"
-assert module.load_base_dir() == Path("/tmp/user-install")
-
-# 6) 两边都没有有效配置时报错退出
-system_config.unlink()
-user_config.unlink()
-try:
-    module.load_base_dir()
-    raise AssertionError("load_base_dir should have exited")
-except SystemExit as error:
-    assert error.code == 1, error.code
-
-print('🌊 Config dir resolution OK')
+print('🌊 install root is fixed and state is read from var/config.sh')
 PYEOF
 then
-    pass "system-level config wins, user-level fallback works"
+    pass "固定安装根 / 测试根映射 / 状态读取"
 else
-    fail "config dir resolution"
+    fail "install root resolution"
 fi
 
 echo ""

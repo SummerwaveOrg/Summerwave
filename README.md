@@ -56,9 +56,9 @@ Installer options go after `--`, which ends bash's own options:
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
 ```
 
-The installer goes to `/opt/macwave` and says so before it touches anything: it
-asks once, and answering `n` leaves the disk exactly as it was. (`--dir-option=2`
-installs for the current user only, under `~/.local/macwave`, with no password.)
+The installer always goes to `/opt/macwave` — that location is fixed, there is no
+option to change it. It says so before it touches anything: it asks once, and
+answering `n` leaves the disk exactly as it was.
 
 `--zh` and `--en` force the installer's language; without them it follows
 `LC_ALL` / `LANG` and the macOS preferred language, so a Chinese machine is
@@ -87,19 +87,15 @@ Options go after `--`, which ends bash's own options:
 
 ```bash
 # script already on disk
-/bin/bash install.sh --ci --dir-option=1
+/bin/bash install.sh --ci
 
 # straight from the repository
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" \
-  -- --ci --dir-option=2
+/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
 ```
 
-`--ci` (same as `--CI`) answers the directory menu and the agreement automatically. It
-needs passwordless sudo, or root, when the chosen directory requires privilege.
-`--dir-option=N` picks menu entry `N` (1-4 on Intel, 1-3 on Apple silicon); for the
-custom entry, append the path after `=`, as in `--dir-option=4=/opt/my-macwave`, or just
-pass the path on its own, as in `--dir-option=~/my-macwave`. Run `install.sh --help` for
-the list.
+`--ci` (same as `--CI`) answers the agreement automatically and installs into
+`/opt/macwave`, so it needs passwordless sudo or root. Run `install.sh --help` for
+the full list of options.
 
 > **Mind where the options go.** Writing
 > `/bin/bash -c "$(curl ...)" --ci` makes `--ci` the script name (`$0`), so
@@ -113,18 +109,14 @@ which otherwise needs a terminal (so use `--force` in CI):
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)" -- --force
 ```
 
-## 🌊 Download Directory
-Installed binaries are stored in (options):    
-```
-1. ~/.local/macwave
-2. /opt/macwave
-3. /usr/local/macwave (Only Intel Mac)
-4. Custom
-```
-Config file is stored in (a system-level install always takes priority):
-```
-1. /opt/macwave_config          system-level install (needs sudo)
-2. ~/.config/macwave_config     user-level install (no sudo)
+## 🌊 Install Directory
+There is exactly one: `/opt/macwave`. It is not configurable — the location is a
+product decision, not a preference, and having one of them is what keeps every
+path in logs, errors and docs unambiguous.
+
+Everything the installation knows about itself lives inside that tree:
+```bash
+/opt/macwave/var/config.sh      installed version and build (the only state)
 ```
 ## 🌊 Using a Mirror (4.0 and later)
 Every address MacWave contacts is configurable, so switching mirrors is a set of environment variables rather than a command. To check which address is in effect, run `wave mirror` — it prints every source, whether it came from the environment or the built-in default, with passwords masked.
@@ -301,7 +293,7 @@ Commands:
   linkquery   Show which version an unversioned link points to
   mirror      Show which address each kind of data is fetched from
   latest      Show which packages have a newer version available
-  basedir     Print MacWave's install root (the base_dir in config.json)
+  basedir     Print MacWave's install root (fixed at /opt/macwave)
   doctor      Check the install tree for problems (read-only)
   shellenv    Print the shell code that puts MacWave on your PATH
   manual      Show the full manual (same text as man and info)
@@ -561,8 +553,8 @@ policy are written up in
 
 This repository is source, not an installation. Running `wave` from inside the
 clone, or adding the clone's directories to `PATH`, fails on purpose: MacWave
-needs the configuration file that `install.sh` writes, and that file records the
-installation directory and the layout of everything beside it.
+needs the state file that `install.sh` writes (at the fixed install root), and that
+file records which version is installed.
 
 A full clone reports:
 

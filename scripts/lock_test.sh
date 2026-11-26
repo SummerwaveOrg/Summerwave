@@ -8,7 +8,8 @@
 # "另一个命令装出来的东西不对"，而报错指向的却是别的地方。锁一旦退化成"永远能拿到"，
 # 这条防线就没有了，而且不会有别的测试发现。
 #
-# 全程离线：只用到 basedir / transfer --all 这类不联网的命令。
+# 全程离线：探针命令是 `wave install`，它在下载之前就先拿锁（网络必然失败，
+# 但不影响「有没有拿到锁」这件事）。
 
 set -u
 set +e
@@ -33,8 +34,8 @@ fail() { echo -e "${RED_BOLD}🌊 FAIL: $1${RESET}"; FAILED=$((FAILED + 1)); }
 
 SANDBOX="$WORK/sandbox"
 BASE="$SANDBOX/opt/macwave"
-mkdir -p "$SANDBOX/opt/macwave_config" "$BASE/bin" "$BASE/deps"
-printf '{"base_dir": "%s"}' "$BASE" > "$SANDBOX/opt/macwave_config/config.json"
+mkdir -p "$BASE"/{bin,Shore,var}
+printf "MACWAVE_VERSION='4.99.0'\n" > "$BASE/var/config.sh"
 for component in cli config lib net pkg surfboard; do
     ln -sfn "$REPO_DIR/$component" "$BASE/$component"
 done
@@ -46,18 +47,24 @@ wave() {
     RC=$?
 }
 
+# 探针：`wave install` 在发第一个网络请求之前就拿锁，所以离线也能测锁的行为。
+# 它最终会因为连不上索引而失败 —— 这里关心的只是「锁拿没拿到」。
+lock_free() {
+    [[ "$OUT" != *"another wave is running"* ]]
+}
+
 echo "========== 1. 没有别的 wave 时照常工作，退出后不留锁 =========="
 
-wave transfer --all
-[[ "$RC" -eq 0 ]] && pass "没有竞争时命令正常完成" \
+wave install lock_probe@1.0
+lock_free && pass "没有竞争时可以拿到锁" \
     || fail "正常路径失败（rc=${RC}）：$(printf '%.200s' "$OUT")"
 [[ -f "$LOCK_FILE" ]] && pass "锁文件已创建（${LOCK_FILE}）" \
     || fail "锁文件没有创建"
 
 # 锁文件留着没问题（下一次会覆盖内容），但**内容里的 pid 必须是"没人持锁也能看到"
 # 的那种状态**；真正的判据是下一次还能拿到锁。
-wave transfer --all
-[[ "$RC" -eq 0 ]] && pass "上一次退出后锁已释放（可以再次获取）" \
+wave install lock_probe@1.0
+lock_free && pass "上一次退出后锁已释放（可以再次获取）" \
     || fail "锁没有释放（rc=${RC}）：$(printf '%.200s' "$OUT")"
 
 echo "========== 2. 别人持有锁时立即失败，并说明是谁 =========="
@@ -86,7 +93,7 @@ grep -q "install jq" "$LOCK_FILE" 2> /dev/null \
     && pass "持有者已拿到锁并写下自己的动作" \
     || fail "持有者没能拿到锁（$(cat "$LOCK_FILE" 2> /dev/null)）"
 
-wave transfer --all
+wave install lock_probe@1.0
 [[ "$RC" -ne 0 ]] && pass "竞争时命令失败" || fail "竞争时仍然成功（rc=${RC}）"
 [[ "$OUT" == *"another wave is running"* ]] \
     && pass "报错说清了是「另一个 wave」" || fail "报错没有说明原因：$(printf '%.200s' "$OUT")"
@@ -118,8 +125,8 @@ done
 kill -9 "$HOLDER" 2> /dev/null
 wait "$HOLDER" 2> /dev/null
 sleep 0.3
-wave transfer --all
-[[ "$RC" -eq 0 ]] && pass "持有者被 kill -9 后锁可立即重新获取（flock 由内核释放）" \
+wave install lock_probe@1.0
+lock_free && pass "持有者被 kill -9 后锁可立即重新获取（flock 由内核释放）" \
     || fail "kill -9 之后仍然拿不到锁（rc=${RC}）：$(printf '%.200s' "$OUT")"
 
 echo "========== 4. 同一进程内可重入（不自己锁死） =========="
@@ -143,9 +150,9 @@ RC=$?
 
 echo "========== 5. 该上锁的命令都上了 =========="
 
+# basedir 不再改树（路径写死、不能搬），transferrer 已删除 —— 两者都不该再上锁。
 for spec in "pkg/pkginstaller.py:install" "pkg/uninstaller.py:uninstall" \
-            "pkg/upgrader.py:upgrade" "pkg/transferrer.py:transfer" \
-            "lib/basedir.py:basedir" "lib/selfupdate.py:selfupdate"; do
+            "pkg/upgrader.py:upgrade" "lib/selfupdate.py:selfupdate"; do
     file="${spec%%:*}"
     label="${spec##*:}"
     if grep -q "tree_lock" "$REPO_DIR/$file"; then

@@ -51,9 +51,8 @@ python3 lib/wave.py install btop
 
 | 平时 | 测试模式下 |
 | --- | --- |
-| `/opt/macwave_config` | `~/.test/macwave/opt/macwave_config` |
+| `/opt/macwave`（写死的安装根） | `~/.test/macwave/opt/macwave` |
 | `$HOME` | `~/.test/macwave/Users/<你>` |
-| `~/.config/macwave_config` | `~/.test/macwave/Users/<你>/.config/macwave_config` |
 
 要点：
 
@@ -65,8 +64,8 @@ python3 lib/wave.py install btop
 - 被 Python 调用的那些 shell（`depsmanager.sh`、`transfer.sh`、`pkgunzip.sh`）不用改：
   它们的路径来自 `BASE_DIR`，且继承重定向后的 `HOME`。
 
-⚠️ **没设这个变量时不要在开发机跑随机回归** —— 早期版本真的把开发机上的
-`~/.config/macwave_config/` 清掉过。
+⚠️ **没设这个变量时不要在开发机跑随机回归** —— 那样会直接对真实的
+`/opt/macwave` 动手。
 
 ---
 
@@ -329,23 +328,18 @@ mktemp "${TMPDIR:-/tmp}/macwave-write-probe.XXXXXX"
 **教训**：凡是「本地绿、CI 红」而且红得莫名其妙的，先怀疑**外部命令的参数差异**，
 再怀疑自己的断言 —— 断言往往没错，是它压根没跑到。
 
-### 12. 菜单项编号随架构变化，测试里写死数字会假绿
+### 12. 「断言输出里没有某个词」的测试会假绿
 
 **现象**：`install_privilege_test.sh` 在 Apple 芯片上全绿，在 x86_64 的 runner 上三条红，
 其中「自己可写的外部目录不提权」还是**假绿** —— 它只检查输出里没有
 `needs administrator access`，而进程在校验参数时就退出了，当然没有。
 
-**根因**：目录菜单的自定义项是第几项**随架构变化**（Intel 多一个 `/usr/local/macwave`，
-自定义就从第 3 项挪到第 4 项）。测试里写死 `--dir-option=3=DIR`，在 x86_64 上意思是
-「选 `/usr/local/macwave`，并给它一个目录」，`install.sh` 直接拒掉：
+**当时的根因**是目录菜单的编号随架构变化（Intel 多一个 `/usr/local/macwave`），
+测试里写死的 `--dir-option=3=DIR` 在 x86_64 上被直接拒掉。**菜单现在已经删掉**
+（安装根写死 `/opt/macwave`），这一类根因不会再出现，但教训留着：
 
-```
-🌊 Error: only --dir-option=4 takes a directory (this architecture has 4 entries).
-```
-
-**修法**：测试像 `install.sh` 那样按 `uname -m` 算 `CUSTOM_OPTION` 再用它拼参数。
-**教训**：断言「输出里没有某个词」时，必须同时断言「输出里**有**某个词」——
-否则进程早退也能算通过。
+**断言「输出里没有某个词」时，必须同时断言「输出里没有报错 / 有某个正向的词」**
+—— 否则进程早退也能算通过。现在这些用例都改成同时检查退出码。
 
 ### 13. 其它零碎但很费时间的
 

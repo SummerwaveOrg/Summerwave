@@ -74,8 +74,7 @@ PROSE = {
             ("MACWAVE_TEST", "treat this directory as the filesystem root (for tests)"),
         ],
         "files_rows": [
-            ("~/.config/macwave_config/config.json", "user-level install location"),
-            ("/opt/macwave_config/config.json", "system-level install location (takes priority)"),
+            ("<base_dir>/var/config.sh", "installed version and build (the only state)"),
             ("<base_dir>/man/man1", "these man pages"),
             ("<base_dir>/info", "the info manual (wave.info, wave-zh.info)"),
         ],
@@ -109,8 +108,7 @@ PROSE = {
             ("MACWAVE_TEST", "把这个目录当作文件系统根（供测试用）"),
         ],
         "files_rows": [
-            ("~/.config/macwave_config/config.json", "用户级安装位置"),
-            ("/opt/macwave_config/config.json", "系统级安装位置（优先）"),
+            ("<base_dir>/var/config.sh", "已安装的版本与构建号（唯一的状态）"),
             ("<base_dir>/man/man1", "这些 man 页"),
             ("<base_dir>/info", "info 手册（wave.info、wave-zh.info）"),
         ],

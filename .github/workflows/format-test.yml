@@ -147,13 +147,6 @@ jobs:
         run: |
           /bin/bash scripts/shell_lint.sh
 
-      # 安装目录白名单：/usr/local、/opt、$HOME 等绝不能被当作 BASE_DIR。
-      # 装到系统目录时脚本会 chown -R，拒绝协议时还会 rm -rf —— 指错目录的后果
-      # 是接管或删掉别的软件。纯函数测试，离线。
-      - name: Check installation directory guard
-        run: |
-          /bin/bash scripts/dir_guard_test.sh
-
       # 传输层契约：每个请求点都带策略（AST 检查，不是 grep）。
       - name: Check transport-layer contracts
         run: |
@@ -169,16 +162,6 @@ jobs:
       - name: Check min_os handling
         run: |
           /bin/bash scripts/minos_test.sh
-
-      # 重定位：产物改成 @loader_path 之后，安装期不再改字节；旧的仍要能迁移。
-      - name: Check Mach-O relocation
-        run: |
-          /bin/bash scripts/transfer_test.sh
-
-      # basedir --set：会复制整棵树并改写 config.json，三段确认用 pty 驱动。
-      - name: Check basedir --set
-        run: |
-          /bin/bash scripts/basedir_set_test.sh
 
       # 安装树的互斥锁：两个 wave 同时改树会把 bin/、links/、.depped_* 写坏。
       - name: Check install tree locking

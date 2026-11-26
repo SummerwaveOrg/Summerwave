@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 
 # configpaths.py
-# 解析 MacWave 的配置目录。
+# 安装根与运行时布局。
 #
-# 安装目录决定配置写在哪：
-#   - 系统级（/opt/macwave、/usr/local/macwave 等需要 sudo 的目录）
-#     → /opt/macwave_config
-#   - 用户级（~/.local/macwave 等无需 sudo 的目录）
-#     → ~/.config/macwave_config
+# 安装根是**写死**的，没有配置文件、没有候选目录、也没有优先级：macOS 是
+# /opt/macwave，Linux 是 /home/linuxwave/.linuxwave（见 config/platforminfo.py）。
+# 以前那条「/opt/macwave_config 优先于 ~/.config/macwave_config」的读取链整个
+# 删掉了 —— 一台机器只该有一棵树，装在哪里是产品决定，不是用户配置。
 #
-# 读取时系统级优先：只要 /opt/macwave_config/config.json 存在就用它，
-# 否则才回落到 ~/.config/macwave_config —— 也就是优先跑系统级的 MacWave。
+# 唯一的例外是测试根：MACWAVE_TEST 把某个目录当成 /，rooted() 负责把写死的
+# 绝对路径映射进去。
 
-import json
 import os
 import sys
 import unicodedata
@@ -21,6 +19,7 @@ from pathlib import Path
 # 环境变量的名字只有一处（config/envvar.py）。本文件是它的同层邻居，
 # 也是「测试根」这条路径上唯一的读取者。
 import envvar
+import platforminfo
 
 
 # -------------------- 颜色定义 --------------------
@@ -80,33 +79,11 @@ def rooted(path):
 # 这里不再提供 proxy_value_from / apply_proxy_from_command_line —— 留着它们就等于
 # 留了第二条解析路径。
 
-# -------------------- 配置目录候选 --------------------
-
-CONFIG_FILE_NAME = "config.json"
-VERSION_FILE_NAME = "VERSION.json"
-
-SYSTEM_CONFIG_DIR = rooted("/opt/macwave_config")
-USER_CONFIG_DIR = Path.home() / ".config" / "macwave_config"
-
-
-def config_dir_candidates():
-    # 系统级优先，其次用户级。4.7 起只是**兼容路径**：新装与升级都会把状态搬进
-    # 安装树自己的 var/，这里留着是为了让 4.6 及更早的安装还能被读到。
-    return [SYSTEM_CONFIG_DIR, USER_CONFIG_DIR]
-
-
-# -------------------- 安装树自带的状态（4.7 起） --------------------
+# -------------------- 安装树自带的状态 --------------------
 #
-# 为什么不再用外部配置目录：
-#
-#   1. **base_dir 本来就是多余的**。这个文件就在 <base>/config/ 下，安装根由它
-#      自己的位置决定 —— 比「去两个固定目录里找一个写着路径的 JSON」可靠得多，
-#      而且不会再出现「系统级与用户级各有一份、谁优先」的问题。
-#   2. **版本号也放得进树里**。它描述的就是这棵树；放在树外，同一台机器有两份
-#      安装时只能靠「系统级优先」猜。
-#   3. **自更新不用再为一个 JSON 申请提权**。树是 root:<管理员组> 775、目录带
-#      setgid，写 <base>/var/ 与写 <base>/lib/ 是同一件事，不需要额外的 2775
-#      配置目录。
+# State lives in the tree: <base>/var/config.sh. 没有外部配置目录，也没有
+# 「系统级优先」—— 安装根本身写死在 config/platforminfo.py，不需要再去两个
+# 固定目录里找一个写着路径的 JSON。
 #
 # 形态用 `.sh` 而不是 JSON：install.sh / selfupdate.sh 是 shell 脚本，写它就一行
 # heredoc（不必调 Python、也不必担心 JSON 转义）；Python 侧解析 `KEY='value'` 也
@@ -114,13 +91,11 @@ def config_dir_candidates():
 #
 # 内容（都带引号，值里有空格/斜杠也不用转义）：
 #
-#   MACWAVE_BASE_DIR='/opt/macwave'
 #   MACWAVE_VERSION='4.7.0'
 #   MACWAVE_BUILD='328B1519'
 #   MACWAVE_INSTALLED_AT='2026-11-26T08:00:00Z'
 STATE_DIR_NAME = "var"
 STATE_FILE_NAME = "config.sh"
-LEGACY_STATE_NOTE = "config.json"
 
 
 # -------------------- 运行时布局 --------------------
@@ -178,14 +153,14 @@ def self_install_root():
 
 
 def internal_state_dir():
-    # 树内状态目录；<base>/var/config.sh 不存在时返回 None（老安装或开发目录）。
+    # 树内状态目录；<base>/var/config.sh 不存在时返回 None（开发目录）。
     #
-    # MACWAVE_TEST 下 rooted() 不需要介入：测试会把组件拷进沙箱的
-    # <sandbox>/opt/macwave/，self_install_root() 自然指向那里。
-    base = self_install_root()
-    state_dir = base / STATE_DIR_NAME
-    if (state_dir / STATE_FILE_NAME).is_file():
-        return state_dir
+    # 先看写死的安装根，再看代码自身的位置：正常安装里两者是同一棵树；而直接从
+    # 仓库/解开的目录里跑（测试、selfupdate 的临时副本）时，只有后者存在。
+    for base in (load_base_dir(), self_install_root()):
+        state_dir = base / STATE_DIR_NAME
+        if (state_dir / STATE_FILE_NAME).is_file():
+            return state_dir
     return None
 
 
@@ -211,67 +186,31 @@ def read_state_values(state_file):
     return values
 
 
-def internal_base_dir():
-    # 树内声明的安装根。刻意**不用**它自己的位置、而是读文件里的值：
-    # 树被整体搬走后，`wave basedir --set` 会同时改写这个字段 —— 那时位置已经
-    # 指向新地方了，两者本该一致；不一致时以文件里写的为准，便于人工修复。
+# -------------------- 安装根 --------------------
+
+def load_base_dir():
+    # 写死的安装根（config/platforminfo.py），测试根下由 rooted() 映射。
+    # 没有环境变量覆盖、没有配置文件、没有候选目录 —— 一台机器只有一棵树。
+    return rooted(platforminfo.DEFAULT_BASE_DIR)
+
+
+def installed_version():
+    # 这棵树的版本号，来自 <base>/var/config.sh。没装好、或状态文件缺这一项时
+    # 返回 None（调用方显示 unknown），不要猜。
     state_dir = internal_state_dir()
     if state_dir is None:
         return None
-    value = read_state_values(state_dir / STATE_FILE_NAME).get("MACWAVE_BASE_DIR", "")
-    if not value:
-        return None
-    return Path(value)
+    value = read_state_values(state_dir / STATE_FILE_NAME).get("MACWAVE_VERSION", "")
+    return value or None
 
 
-# -------------------- 配置读取 --------------------
-
-def _read_base_dir(config_file):
-    # 读得到合法 base_dir 就返回 Path，否则返回 None
-    try:
-        with open(config_file, 'r') as handle:
-            base_dir = json.load(handle).get("base_dir")
-        return Path(base_dir) if base_dir else None
-    except Exception:
-        return None
-
-
-def find_config_dir():
-    # 「状态文件在哪」。4.7 起优先返回树内 <base>/var（VERSION.json 也搬了进去），
-    # 找不到才回落到 4.6 及更早的外部配置目录。
+def installed_build():
+    # 构建号（`323R1250` 这种）。RC 渠道靠它区分同一版本的第几次构建。
     state_dir = internal_state_dir()
-    if state_dir is not None:
-        return state_dir
-
-    for directory in config_dir_candidates():
-        if _read_base_dir(directory / CONFIG_FILE_NAME) is not None:
-            return directory
-    return None
-
-
-def load_base_dir():
-    # 读取安装根，顺序即优先级：
-    #   1. MACWAVE_BASE_DIR —— 启动器用它告诉 Python「我在哪」，也便于测试注入
-    #   2. 树内 <base>/var/config.sh
-    #   3. 4.6 及更早的外部配置文件（/opt/macwave_config 或 ~/.config/macwave_config）
-    override = os.environ.get("MACWAVE_BASE_DIR", "")
-    if override:
-        return Path(override)
-
-    base_dir = internal_base_dir()
-    if base_dir is not None:
-        return base_dir
-
-    for directory in config_dir_candidates():
-        base_dir = _read_base_dir(directory / CONFIG_FILE_NAME)
-        if base_dir is not None:
-            return base_dir
-
-    print(f"{RED_BOLD}🌊 Error: Configuration file not found or invalid.{RESET}")
-    print(f"{RED_BOLD}🌊 Expected {('<install root>/' + STATE_DIR_NAME + '/' + STATE_FILE_NAME)} "
-          f"next to this installation, or a legacy config.json.{RESET}")
-    print(f"{RED_BOLD}🌊 Please run the install script again to reinstall MacWave.{RESET}")
-    sys.exit(1)
+    if state_dir is None:
+        return None
+    value = read_state_values(state_dir / STATE_FILE_NAME).get("MACWAVE_BUILD", "")
+    return value or None
 
 
 def to_tilde(path):
@@ -503,11 +442,10 @@ def assert_links_inside(root, what):
     sys.exit(1)
 
 
-# -------------------- 当前生效的配置 --------------------
+# -------------------- 当前生效的状态目录 --------------------
 
-CONFIG_DIR = find_config_dir() or SYSTEM_CONFIG_DIR
-CONFIG_FILE = CONFIG_DIR / CONFIG_FILE_NAME
-VERSION_FILE = CONFIG_DIR / VERSION_FILE_NAME
+STATE_DIR = internal_state_dir() or (self_install_root() / STATE_DIR_NAME)
+STATE_FILE = STATE_DIR / STATE_FILE_NAME
 
 
 if __name__ == "__main__":

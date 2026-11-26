@@ -55,7 +55,7 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --zh
 ```
 
-安装器默认装到 `/opt/macwave`，而且会先告诉你、只问一次 —— 答 `n` 就干净退出，磁盘上什么都没改。（`--dir-option=2` 只装给当前用户，位置在 `~/.local/macwave`，全程不需要密码。）
+安装器一律装到 `/opt/macwave` —— 这个位置是写死的，没有别的选项。它会先告诉你、只问一次 —— 答 `n` 就干净退出，磁盘上什么都没改。
 
 `--zh` 与 `--en` 强制指定输出语言；不给的话安装器按 `LC_ALL` / `LANG` 与 macOS 的系统首选语言自己判断，中文机器上默认就是中文。`--ci` 什么都不问，装的位置与平时一样是 `/opt/macwave`（因此需要免密 sudo 或以 root 运行）。
 `--dry-run` 完整走一遍安装流程、打印每一步会做什么，但不下载、不索取密码、
@@ -83,17 +83,14 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 
 ```bash
 # 脚本已在本地
-/bin/bash install.sh --ci --dir-option=1
+/bin/bash install.sh --ci
 
 # 直接从仓库执行
-/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" \
-  -- --ci --dir-option=2
+/bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/install.sh)" -- --ci
 ```
 
-`--ci`（也可写 `--CI`）不确认也不提问：不带 `--dir-option` 时装到默认的 `/opt/macwave`，所以需要免密 sudo 或以 root 运行
-或以 root 运行。`--dir-option=N` 不确认直接选定第 `N` 个位置（Intel 机器为 1-4，Apple 芯片为
-1-3）；自定义项要附上路径，写成 `--dir-option=4=/opt/my-macwave`，或直接写 `--dir-option=~/my-macwave`。
-完整参数列表可运行 `install.sh --help` 查看。
+`--ci`（也可写 `--CI`）不确认也不提问，直接装到 `/opt/macwave`，所以需要免密 sudo
+或以 root 运行。完整参数列表可运行 `install.sh --help` 查看。
 
 > **注意参数的位置。** 写成
 > `/bin/bash -c "$(curl ...)" --ci` 会让 `--ci` 变成脚本名（`$0`），从而被静默丢弃；
@@ -106,18 +103,13 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 /bin/bash -c "$(curl -fsSL https://github.com/MacWaveOrg/MacWave/releases/latest/download/uninstall.sh)" -- --force
 ```
 
-## 🌊 下载目录
-已安装的二进制文件存储于（可选）：    
-```
-1. ~/.local/macwave
-2. /opt/macwave
-3. /usr/local/macwave（仅 Intel Mac）
-4. 自定义
-```
-配置文件存储于（系统级安装始终优先）：
-```
-1. /opt/macwave_config          系统级安装（需要 sudo）
-2. ~/.config/macwave_config     用户级安装（无需 sudo）
+## 🌊 安装目录
+只有一处：`/opt/macwave`。它不可更改 —— 装在哪里是产品决定，不是偏好，
+而「只有一个位置」正是日志、报错与文档里的路径不会互相矛盾的原因。
+
+安装树对自己知道的一切都在树里：
+```bash
+/opt/macwave/var/config.sh      已安装的版本与构建号（唯一的状态）
 ```
 ## 🌊 使用镜像站（4.0 起）
 MacWave 用到的每个地址都能替换，所以换镜像是一组环境变量而不是命令。要查当前生效的是哪个地址，用 `wave mirror` —— 它会列出每一项的来源（环境变量还是内置默认值）与地址，密码默认脱敏。
@@ -292,7 +284,7 @@ Commands:
   linkquery   Show which version an unversioned link points to
   mirror      Show which address each kind of data is fetched from
   latest      Show which packages have a newer version available
-  basedir     Print MacWave's install root (the base_dir in config.json)
+  basedir     Print MacWave's install root (fixed at /opt/macwave)
   doctor      Check the install tree for problems (read-only)
   shellenv    Print the shell code that puts MacWave on your PATH
   manual      Show the full manual (same text as man and info)
@@ -545,8 +537,8 @@ git switch -c 4.2 4.1
 ### 不要从仓库里直接运行
 
 本仓库是源码，不是安装结果。在仓库目录里运行 `wave`，或把仓库中的目录加入 `PATH`，
-都会**按设计**失败：MacWave 依赖 `install.sh` 写出的配置文件，而该文件记录了安装目录
-以及其旁各部分的布局。
+都会**按设计**失败：MacWave 依赖 `install.sh` 写出的状态文件（在写死的安装根下），
+而该文件记录了装的是哪个版本。
 
 完整的 clone 会报：
 

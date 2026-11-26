@@ -35,8 +35,12 @@ trap cleanup EXIT
 
 SITE="$WORK/srv"
 HOME_DIR="$WORK/home"
-mkdir -p "$SITE/rcdata" "$SITE/macwavedata" "$HOME_DIR/.config/macwave_config"
-printf '{"base_dir": "%s"}\n' "$WORK/base" > "$HOME_DIR/.config/macwave_config/config.json"
+# 安装根写死成 /opt/macwave：MACWAVE_TEST 把它映射进测试根，组件也拷进那棵树。
+TEST_ROOT="$WORK/root"
+TREE="$TEST_ROOT/opt/macwave"
+mkdir -p "$SITE/rcdata" "$SITE/macwavedata" "$HOME_DIR" "$TREE/var"
+copy_components "$TREE"
+printf "MACWAVE_VERSION='4.4.1-rc'\n" > "$TREE/var/config.sh"
 
 USER_SITE=$(python3 -c 'import site; print(site.getusersitepackages())' 2>/dev/null)
 PYTHONPATH="$(component_paths)"
@@ -69,16 +73,17 @@ probe() {
 
 # 本机装的是什么
 installed() {
-    printf '{"version": "%s", "build_number": "%s"}\n' "$1" "$2" \
-        > "$HOME_DIR/.config/macwave_config/VERSION.json"
+    printf "MACWAVE_VERSION='%s'\nMACWAVE_BUILD='%s'\n" "$1" "$2" \
+        > "$TREE/var/config.sh"
 }
 
 wave() {
     env -u MACWAVE_API_DOMAIN -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN \
         -u MACWAVE_CORE_DOMAIN -u MACWAVE_PYTHON_DOMAIN \
         HOME="$HOME_DIR" \
+        MACWAVE_TEST="$TEST_ROOT" \
         MACWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:$PORT" \
-        python3 "$REPO_DIR/lib/wave.py" selfupdate --dry-run 2>&1
+        python3 "$TREE/lib/wave.py" selfupdate --dry-run 2>&1
 }
 
 echo "========== 1. RC 客户端只读 RC 探针 =========="

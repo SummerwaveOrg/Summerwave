@@ -30,7 +30,8 @@ UNSAFE = set('"$`\\\n\r')
 
 
 def render(base_dir: Path) -> str:
-    dirs = [base_dir / "bin", base_dir / "links", base_dir / "lib"]
+    # 1.0 起 links/ 并进了 bin/：PATH 里只需要 bin（链接）与 lib（启动器）。
+    dirs = [base_dir / "bin", base_dir / "lib"]
 
     for path in dirs:
         bad = UNSAFE & set(str(path))

@@ -59,22 +59,14 @@ cleanup() {
 trap cleanup EXIT
 
 HOME_DIR="$WORK/home"
-BASE="$WORK/base"
 TEST_ROOT="$WORK/root"
 
-# 用 MACWAVE_TEST 把 /opt 映射到测试根下。
-#
-# 不这么做的后果（CI 上真实发生过）：config_dir_candidates() 是**系统级优先**，
-# 而 CI 的 workflow 为了跑别的测试预先写过 /opt/macwave_config/config.json，
-# 于是 load_base_dir() 读到那一份、返回 /tmp/macwave-test，本测试安装的包
-# 一个都认不出来，12 项断言全挂 —— 而本地没有那个文件，所以本地一直是绿的。
+# 安装根写死成 /opt/macwave，MACWAVE_TEST 把它映射进测试根。
 export MACWAVE_TEST="$TEST_ROOT"
-mkdir -p "$TEST_ROOT/opt/macwave_config" "$HOME_DIR/.config/macwave_config" "$BASE"
+BASE="$TEST_ROOT/opt/macwave"
+mkdir -p "$HOME_DIR" "$BASE/var"
 copy_components "$BASE/"
-printf '{"version": "4.1.0"}\n' > "$BASE/VERSION.json"
-# 两处都写：系统级是首选，用户级兜底
-printf '{"base_dir": "%s"}\n' "$BASE" > "$TEST_ROOT/opt/macwave_config/config.json"
-printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config.json"
+printf "MACWAVE_VERSION='4.1.0'\n" > "$BASE/var/config.sh"
 
 ARCH=$(python3 -c 'import platform; m=platform.machine().lower(); print("arm64" if m in ("arm64","aarch64") else "amd64")')
 
@@ -94,7 +86,7 @@ ln -s "../Shore/tree/2.2.1/tree" "$BASE/bin/tree"
 # 和「有名字但没出清单」这两种完全不同的故障。
 
 MIRROR="$WORK/mirror"
-INDEX="$MIRROR/pkg/pkginfo_$ARCH"
+INDEX="$MIRROR/pkg/pkginfo"
 mkdir -p "$INDEX"/{jq,bat,tree}
 printf 'bat\njq\ntree\nwget\n' > "$INDEX/versions"
 printf 'jq@1.8.2\njq@1.7.1\njq@common\n' > "$INDEX/jq/versions"
@@ -110,7 +102,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo_$ARCH/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
     sleep 0.1
 done
 
@@ -195,15 +187,14 @@ ok "--all 指向下一步命令"   "$out" "wave upgrade <name>"
 out=$(wave latest -a)
 ok "-a 是 --all 的短形式" "$out" "1 of 3 package(s) have an update"
 
-mkdir -p "$WORK/empty/base" "$WORK/empty/home/.config/macwave_config"
-copy_components "$WORK/empty/base/"
 # 这个用例要一个「什么都没装」的根，必须与主沙箱分开：MACWAVE_TEST 是全局导出的，
-# 沿用主沙箱的测试根就会读到主沙箱那份 config.json，三条包记录全被认成已安装。
-mkdir -p "$WORK/empty/root/opt/macwave_config"
-printf '{"base_dir": "%s"}\n' "$WORK/empty/base" > "$WORK/empty/root/opt/macwave_config/config.json"
+# 沿用主沙箱的测试根就会读到主沙箱那棵树，三条包记录全被认成已安装。
+mkdir -p "$WORK/empty/home" "$WORK/empty/root/opt/macwave/var"
+copy_components "$WORK/empty/root/opt/macwave/"
+printf "MACWAVE_VERSION='4.1.0'\n" > "$WORK/empty/root/opt/macwave/var/config.sh"
 out=$(env HOME="$WORK/empty/home" MACWAVE_TEST="$WORK/empty/root" \
       MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
-      PYTHONPATH="$USER_SITE" python3 "$WORK/empty/base/lib/wave.py" latest --all 2>&1)
+      PYTHONPATH="$USER_SITE" python3 "$WORK/empty/root/opt/macwave/lib/wave.py" latest --all 2>&1)
 ok "--all 在没装任何包时说清楚" "$out" "No packages installed yet"
 
 echo

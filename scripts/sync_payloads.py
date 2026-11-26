@@ -40,8 +40,10 @@ SHA_RE = re.compile(r'^sha256:\s*"([0-9a-f]{64})"\s*$', re.M)
 URL_RE = re.compile(r'^url:\s*"([^"]+)"\s*$', re.M)
 FILE_RE = re.compile(r'^file:\s*"([^"]+)"\s*$', re.M)
 
-# 目录名 → 架构：pkginfo_arm64 / depsinfo_amd64
-ARCH_RE = re.compile(r'^(?:pkginfo|depsinfo)_(arm64|amd64)$')
+# 索引目录不再按架构分：pkg/pkginfo、deps/depsinfo。
+# 平台与架构编在记录名里：_<名>@<版本>.<os>-<arch>。
+INDEX_DIR_RE = re.compile(r'^(?:pkginfo|depsinfo)$')
+BOTTLE_TAG_RE = re.compile(r'\.(?:macos|linux)-(arm64|amd64)$')
 
 
 def records(infosource):
@@ -51,18 +53,19 @@ def records(infosource):
         if not root.is_dir():
             continue
         for directory in sorted(root.iterdir()):
-            match = ARCH_RE.match(directory.name)
-            if not match:
+            if not INDEX_DIR_RE.match(directory.name):
                 continue
-            arch = match.group(1)
             for record in sorted(directory.glob("*/_*@*")):
                 if record.name.endswith("@common"):
                     continue
-                # _<名字>@<版本>
+                # _<名字>@<版本>.<os>-<arch>
                 stem = record.name[1:]
-                name, _, version = stem.partition("@")
-                if not name or not version:
+                name, _, version_tag = stem.partition("@")
+                match = BOTTLE_TAG_RE.search(version_tag)
+                if not name or not version_tag or not match:
                     continue
+                arch = match.group(1)
+                version = BOTTLE_TAG_RE.sub("", version_tag)
                 yield kind, arch, name, version, record
 
 

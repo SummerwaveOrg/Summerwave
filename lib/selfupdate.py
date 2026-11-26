@@ -2,7 +2,6 @@
 
 # selfupdate.py
 
-import json
 import os
 import re
 import subprocess
@@ -22,7 +21,7 @@ RESET = '\033[0m'
 
 # -------------------- 常量 --------------------
 
-from configpaths import (VERSION_FILE_NAME, config_dir_candidates, find_config_dir,
+from configpaths import (installed_build, installed_version, internal_state_dir,
                          load_base_dir)
 import domains
 import versioncompare
@@ -223,11 +222,6 @@ def refuse_on_prerelease(current):
 # 没有闸门、没有 AGREEMENT.json、没有「已同意过」这种状态。
 AGREEMENT_URL = "https://macwave.org/#agreement"
 
-# 本次升级算出来的安装根（见 version_file() 的说明）。模块级变量而不是参数：
-# installed_version() 有三个调用点，其中两个在子进程跑完之后。
-_known_base_dir = None
-
-
 def print_agreement_notice():
     """升级前说一句协议地址。只说一次，不提问、不写文件。"""
     print(f"🌊 User agreement: {AGREEMENT_URL}")
@@ -300,51 +294,14 @@ def report_dry_run(current, latest, data, options, overall_timeout,
     print(f"{GREEN}🌊 Nothing was downloaded and nothing was changed.{RESET}")
 
 
-def version_file():
-    # 配置目录可能在上一次升级里被迁移（见 update_commands.sh 里的迁移步骤），
-    # 所以每次都重新解析一遍，不要用模块级常量。
-    #
-    # 4.7 起版本凭据在树内 `<base>/var/VERSION.json`。升级刚做完那一刻，旧的外部
-    # 配置已经被清掉，而 find_config_dir() 靠「代码自身位置」找不到树 —— 开发目录
-    # 里跑（测试就是这么做的）或代码与树不同源时都会这样。所以先用本次升级
-    # 已经算出来的安装根，再退回原来的查找。
-    if _known_base_dir is not None:
-        candidate = _known_base_dir / "var" / VERSION_FILE_NAME
-        if candidate.exists():
-            return candidate
-    config_dir = find_config_dir()
-    if config_dir is not None:
-        return config_dir / VERSION_FILE_NAME
-    return config_dir_candidates()[0] / VERSION_FILE_NAME
-
-
-def installed_version():
-    path = version_file()
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text()).get("version")
-    except (ValueError, OSError):
-        return None
-
-
-def installed_build():
-    """本机的构建号（`323R1250` 这种）。4.4 之前的安装里没有这个字段，返回 None。"""
-    path = version_file()
-    if not path.exists():
-        return None
-    try:
-        record = json.loads(path.read_text())
-        return record.get("build_number") or record.get("build")
-    except (ValueError, OSError):
-        return None
 
 
 # -------------------- 主流程 --------------------
 
 def handle_selfupdate(input_string=""):
-    if find_config_dir() is None:
-        print(f"{RED_BOLD}🌊 Error: MacWave is not installed. Run lib/install.sh first.{RESET}")
+    if internal_state_dir() is None:
+        print(f"{RED_BOLD}🌊 Error: MacWave is not installed at "
+              f"{load_base_dir()}. Run lib/install.sh first.{RESET}")
         sys.exit(1)
 
     # 自更新会替换安装树里的程序文件：与装包/卸载互斥，否则两边同时写 pkg/ 与 lib/。
@@ -457,13 +414,10 @@ def _handle_selfupdate_locked(input_string=""):
 
     # 分支与目标版本通过环境变量传给 selfupdate.sh，避免脚本自己去猜。
     # --max-time 也这样传：原样传文本，让脚本自己解析（它才是真正发请求的那一层）。
+    #
+    # 安装根不传：它是写死的（config/platforminfo.py），脚本自己就知道，
+    # 不必再靠环境变量捎带 —— 脚本会被复制到临时目录执行，传一个值反而多一处漂移。
     environment = dict(os.environ)
-    # 编排脚本会被复制到临时目录再执行（它要覆盖自己），所以**不能**靠自身路径
-    # 找安装根 —— 必须由这里告诉它。4.7 起状态在树内 <base>/var/，这一项就是
-    # 那份状态所在的地方。
-    global _known_base_dir
-    _known_base_dir = load_base_dir()
-    environment["MACWAVE_BASE_DIR"] = str(_known_base_dir)
     environment["MACWAVE_UPDATE_VERSION"] = latest
     # 编排脚本还要自己取一份 latest.toml（验签与哈希都对着那份），所以渠道也得传，
     # 否则它会去读正式版探针，验的是另一份数据。
@@ -500,7 +454,7 @@ def _handle_selfupdate_locked(input_string=""):
         sys.exit(1)
 
     # 下载由 update_commands.sh 完成，它可能在某些路径上吞掉非零退出码，
-    # 所以这里以 VERSION.json 的实际内容为准，避免误报成功
+    # 所以这里以树内状态（var/config.sh）的实际内容为准，避免误报成功
     final = installed_version()
     final_build = installed_build()
     reached = bool(final) and version_key(final) >= version_key(latest) and (
