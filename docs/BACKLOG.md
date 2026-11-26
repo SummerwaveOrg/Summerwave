@@ -5,6 +5,58 @@
 
 ---
 
+## 1.0
+
+### 数据侧切换：索引搬家 + 产物改名（已备好工具，未执行）
+
+**现状。** 1.0 的代码只认新布局（`pkg/pkginfo/<包>/_<包>@<版本>.<os>-<arch>`、
+产物名 `jq@1.8.2.macos-arm64.tar.gz`），但真实的 `infosource` 还是
+`pkg/pkginfo_arm64/` + `jq@1.8.2.arm64.tar.gz`。于是 `wave install <任何包>` 报「没有这个包」——
+不是 bug，是数据还没搬。
+
+**已经有的。** `scripts/migrate_index_layout.py`（带离线回归
+`scripts/migrate_index_layout_test.sh`）：dry run 出计划、`--apply` 只搬记录、产物改名单独
+生成 gh 脚本。真实数据上实测：830 条记录、145 份重复 `@common`、682 个产物待改名。
+
+**剩下的。**
+1. 解决 1 处真冲突（`test_001` 两个架构的 `@common` 内容不同 —— 留哪份是人的决定）
+2. 跑 682 个产物的改名（下载 → 新名上传 → 默认保留旧名，避免打断 4.x）
+3. `build_versions_index.py` 重生成镜像的 `versions` 清单
+4. 端到端装一次验证
+
+完整步骤见 `~/MD/Summerwave/1.0-切换操作手册-数据侧.md`。
+
+### `Selfupdate` 缺 `prerelease/` 探针（卡在签名口令）
+
+**现状。** 1.0 的 `preview` 渠道读 `Selfupdate/prerelease/latest.toml`，仓库里只有
+`macwavedata/` 与 `rcdata/`（后者的头部还在解释 `channel_for`，那个函数已经删了）。
+验签是强制的（`.sig` 缺失或不对 → 拒绝安装），而私钥带口令，脚本代签不了。
+
+**要做的。** 建 `prerelease/latest.toml` + 用 `~/MD/密钥/private/macwave-rsa.key` 签一份
+`latest.toml.sig`；`rcdata/` 要么删掉，要么在 README 里注明只服务 4.x 客户端。
+
+### `selfupdate = "blocked"` 还没有真实样本
+
+两处执行点（`lib/selfupdate.py` / `lib/selfupdate.sh`）都实现了，但只用赝品探针测过。
+需要在一份**签名齐全**的 `prerelease/latest.toml` 上验：退出码 0、一个字节都不改、打印原因。
+与上一条同一个卡点。
+
+### 镜像拓扑在文档里自相矛盾（需要拍板）
+
+`docs/MIRROR-SETUP.md` 说 `LinuxWave/` 只是预留、本文任何一步都不需要建它；
+`docs/MIRROR-ONBOARDING.md` 在逐条描述一个已经有 69 个产物的 LinuxWave 镜像。
+合并成 Summerwave 之后是单层 `Summerwave/` 还是继续 `MacWave/` + `LinuxWave/`，
+会影响所有 `MACWAVE_*_DOMAIN` 的默认值与镜像 rsync 路径。**未定，不要擅自改。**
+
+### `platform/linux/` 的终态（需要拍板）
+
+`224` 个文件与 `LinuxWaveOrg/LinuxWave@4d59d42` 逐字节一致（2026-11-26 用 tree hash 复核过）。
+它是「先把东西搬进来、再按模块消化」的过渡目录，但消化到什么程度没定：
+Linux 的 `surfboard/depsmanager.sh` 与 macOS 那份是两套实现，合成一套是大工程。
+在那之前它是只读的：`shell_lint` / `structure_test` 都不该把它当自己的代码对待。
+
+---
+
 ## 4.4.1
 
 ### 进度条占一行刷新，用户按过回车才另起一行

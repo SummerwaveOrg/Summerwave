@@ -83,7 +83,7 @@ MacWave 的做法：
 ```
 selfupdate/<产品>data/latest.toml     version = "4.1.0" 等
 infosource/pkg/pkginfo/versions                 一行一个包名
-infosource/pkg/pkginfo/<包名>/versions           一行一条记录名
+infosource/pkg/pkginfo/<包名>/versions           一行一条 jq@1.8.2.macos-arm64
 ```
 
 因为「指针」是手写的、而真正决定装哪一版的是**版本目录**，两者一旦不同步，
@@ -134,7 +134,8 @@ deps: "<依赖>"                      # 可选，多行
 
 ```
 pkg/pkginfo/versions                     一行一个包名
-pkg/pkginfo/<包名>/versions               一行一条记录文件名
+pkg/pkginfo/<包名>/versions               一行一条 jq@1.8.2.macos-arm64
+                                         （记录名去掉前导下划线）
 ```
 
 **只列镜像里真实存在的产物**。索引里有记录但产物没同步时，若仍写进清单，

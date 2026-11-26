@@ -80,7 +80,8 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
     pkg/                        注意：ref 段（HEAD）在域名里，不在这里
         pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>   一条记录一个文件
         pkginfo/versions                           一行一个包名（镜像生成）
-        pkginfo/<包名>/versions                     一行一条记录名（镜像生成）
+        pkginfo/<包名>/versions                     一行一条 jq@1.8.2.macos-arm64
+                                                   （记录名去掉前导下划线，镜像生成）
 ```
 
 记录是 `field: "value"` 的平铺文本。4.0 起新增 `file` 字段（上游那份文件的名字）：
@@ -310,9 +311,10 @@ MACWAVE_SELFUPDATE_DOMAIN=... MACWAVE_PYTHON_DOMAIN=... MACWAVE_CORE_DOMAIN=... 
 ```
 Bottle/jq/jq@1.8.2.macos-arm64.tar.gz
 Bottle/jq/jq@1.8.2.linux-amd64.tar.gz
-infosource/pkg/jq/versions                 ← 版本清单一份，不分平台
-infosource/pkg/jq/_jq@common               ← 跨平台字段（bin_name、简介、主页）
-infosource/pkg/jq/_jq@1.8.2.macos-arm64    ← 该平台的那份 sha256 / file / 依赖 / install 形态
+infosource/pkg/pkginfo/versions                 ← 版本清单一份，不分平台
+infosource/pkg/pkginfo/jq/versions              ← 一行一条 jq@1.8.2.macos-arm64
+infosource/pkg/pkginfo/jq/_jq@common            ← 跨平台字段（bin_name、简介、主页）
+infosource/pkg/pkginfo/jq/_jq@1.8.2.macos-arm64 ← 该平台的那份 sha256 / file / 依赖 / install 形态
 ```
 
 - **词表封闭**：os ∈ {`macos`, `linux`}，arch ∈ {`arm64`, `amd64`}（`x86_64` 在入口归一化成
