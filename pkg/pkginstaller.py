@@ -1381,13 +1381,36 @@ def _install_single_locked(input_string):
         transfer_installed_artifacts(target_dir)
 
     # 12. 把不带版本号的软链接指到刚装好的版本（--no-link 可跳过）
+    linked = False
     if not (set(flags_module.NO_LINK) & set(input_string.split())):
         try:
             from linker import link_package
             if link_package(bin_name, ParsePkgVersion):
+                linked = True
                 silent.say(f"🌊 Linked {bin_name} -> {bin_name}@{ParsePkgVersion}")
         except Exception as error:
             print(f"{YELLOW}🌊 Warning: could not create the unversioned link ({error}).{RESET}")
+
+    # 13. 写收据（Note）。**只写不读**：.is_a_tree 与 .depped_* 仍然照旧，
+    #     等 Note 能被 uninstaller / linker / doctor 读之后再删它们。
+    #     放在最后一步，是因为它是「这个条目装好了」的凭据。
+    import receipt
+    receipt.write_note(
+        target_dir,
+        name=bin_name, version=ParsePkgVersion, arch=ARCH,
+        requested=True, linked=linked,
+        tree=(install_mode == "tree"),
+        deps=dep_refs,
+        commands=(receipt.tree_commands(target_dir) if install_mode == "tree" else [bin_name]),
+        link_note=None if linked else "not linked (--no-link or link failure)",
+        bottle={
+            "file": original_filename,
+            "sha256": ParsePkgSHA256,
+            "url": payload.get("url", ""),
+            "relocated": "loader_path" if prebuilt else "",
+            "install": install_mode,
+        },
+    )
 
 
 if __name__ == "__main__":

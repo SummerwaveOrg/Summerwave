@@ -483,6 +483,27 @@ def ensure_dependency(dep_ref, arch, config, input_string, depender, visited=Non
     if (get_field(version_fields, "relocated") or "").strip() != "loader_path":
         _NEWLY_INSTALLED.append(target_dir)
 
+    # 写收据（Note）。**只写不读**：_DEPS 与 .depped_* 仍然照旧。
+    # requested=False 表示"它是被带进来的"；linked 与 commands 从落盘的 bin/ 判断
+    # （依赖的可执行文件由 depsmanager.sh 链进 links/<名>@<版本>）。
+    import receipt
+    commands = receipt.tree_commands(target_dir)
+    receipt.write_note(
+        target_dir,
+        name=dep_name, version=dep_version, arch=arch,
+        requested=False, linked=bool(commands),
+        tree=(get_field(version_fields, "install") or "").strip() == "tree",
+        deps=dep_refs, commands=commands,
+        link_note=None if commands else "library-only dependency (no bin/ in the payload)",
+        bottle={
+            "file": get_field(version_fields, "file") or "",
+            "sha256": dep_sha256,
+            "url": get_field(version_fields, "url") or "",
+            "relocated": get_field(version_fields, "relocated") or "",
+            "install": get_field(version_fields, "install") or "binary",
+        },
+    )
+
 
 def install_dependencies(dep_refs, arch, config, input_string, depender, visited=None):
 
