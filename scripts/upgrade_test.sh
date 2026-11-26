@@ -138,7 +138,7 @@ trap cleanup EXIT
 
 ROOT="$WORK/root"
 BASE="$WORK/macwave"
-mkdir -p "$BASE/bin" "$BASE/links"
+mkdir -p "$BASE/bin" "$BASE/Shore"
 HOME_IN_ROOT="$ROOT$(printf '%s' "$HOME")"
 mkdir -p "$HOME_IN_ROOT/.config/macwave_config"
 printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_IN_ROOT/.config/macwave_config/config.json"
@@ -158,13 +158,13 @@ BASE = load_base_dir()
 
 def fake_install(command):
     name, version = [word for word in command.split() if "@" in word][0].split("@")
-    target = BASE / "bin" / f"{name}@{version}"
+    target = BASE / "Shore" / name / version
     target.mkdir(parents=True, exist_ok=True)
     (target / name).write_text("#!/bin/sh\n")
-    link = BASE / "links" / name
+    link = BASE / "bin" / name
     if link.is_symlink():
         link.unlink()
-    link.symlink_to(f"../bin/{name}@{version}/{name}")
+    link.symlink_to(f"../Shore/{name}/{version}/{name}")
     print(f"[stub install] {command}")
 
 
@@ -190,12 +190,12 @@ PYEOF
 run_case() {
     local description="$1" installed="$2" arguments="$3" stdin_data="$4" expected="$5"
 
-    rm -rf "${BASE:?}/bin" "${BASE:?}/links"
-    mkdir -p "$BASE/bin" "$BASE/links"
+    rm -rf "${BASE:?}/bin" "${BASE:?}/Shore"
+    mkdir -p "$BASE/bin" "$BASE/Shore"
     local version
     for version in $installed; do
-        mkdir -p "$BASE/bin/jq@$version"
-        printf '#!/bin/sh\n' > "$BASE/bin/jq@$version/jq"
+        mkdir -p "$BASE/Shore/jq/$version"
+        printf '#!/bin/sh\n' > "$BASE/Shore/jq/$version/jq"
     done
 
     local output
@@ -203,7 +203,7 @@ run_case() {
         python3 "$WORK/harness.py" $arguments 2>&1)" || true
 
     local actual
-    actual="$(cd "$BASE/bin" && ls -1 2>/dev/null | sort | tr '\n' ' ' | sed 's/ $//')"
+    actual="$(cd "$BASE/Shore" && ls -1 2>/dev/null | while read -r n; do for v in "$n"/*; do [[ -d "$v" ]] && printf '%s@%s ' "$n" "${v##*/}"; done; done | sed 's/ $//')"
     check "$description" "$actual" "$expected"
 
     if [[ "$actual" != "$expected" ]]; then
@@ -231,20 +231,20 @@ echo "========== 批量升级（--all） =========="
 # run_all <描述> "<pkg@ver ...>" "<参数>" "<期望留下的 bin 目录>"
 run_all() {
     local description="$1" installed="$2" arguments="$3" expected="$4"
-    rm -rf "${BASE:?}/bin" "${BASE:?}/links"
-    mkdir -p "$BASE/bin" "$BASE/links"
+    rm -rf "${BASE:?}/bin" "${BASE:?}/Shore"
+    mkdir -p "$BASE/bin" "$BASE/Shore"
     local item name version
     for item in $installed; do
         name="${item%@*}"; version="${item#*@}"
-        mkdir -p "$BASE/bin/$name@$version"
-        printf '#!/bin/sh\n' > "$BASE/bin/$name@$version/$name"
+        mkdir -p "$BASE/Shore/$name/$version"
+        printf '#!/bin/sh\n' > "$BASE/Shore/$name/$version/$name"
     done
 
     LAST_OUTPUT="$(printf '' | STUB_LATEST=1.7.1 MACWAVE_TEST="$ROOT" \
         python3 "$WORK/harness.py" $arguments 2>&1)" || true
 
     local actual
-    actual="$(cd "$BASE/bin" && ls -1 2>/dev/null | sort | tr '\n' ' ' | sed 's/ $//')"
+    actual="$(cd "$BASE/Shore" && ls -1 2>/dev/null | while read -r n; do for v in "$n"/*; do [[ -d "$v" ]] && printf '%s@%s ' "$n" "${v##*/}"; done; done | sed 's/ $//')"
     check "$description" "$actual" "$expected"
     if [[ "$actual" != "$expected" ]]; then
         printf '%s\n' "$LAST_OUTPUT" | sed 's/^/    /'
@@ -273,10 +273,10 @@ else
 fi
 
 # 一个包失败不能拖累其余的：curl 在索引里不存在时，jq 仍要被升级
-rm -rf "${BASE:?}/bin" "${BASE:?}/links"; mkdir -p "$BASE/bin" "$BASE/links"
-mkdir -p "$BASE/bin/jq@1.6" "$BASE/bin/zzz@1.0"
-printf '#!/bin/sh\n' > "$BASE/bin/jq@1.6/jq"
-printf '#!/bin/sh\n' > "$BASE/bin/zzz@1.0/zzz"
+rm -rf "${BASE:?}/bin" "${BASE:?}/Shore"; mkdir -p "$BASE/bin" "$BASE/Shore"
+mkdir -p "$BASE/Shore/jq/1.6" "$BASE/Shore/zzz/1.0"
+printf '#!/bin/sh\n' > "$BASE/Shore/jq/1.6/jq"
+printf '#!/bin/sh\n' > "$BASE/Shore/zzz/1.0/zzz"
 cat > "$WORK/fail_one.py" <<'PYEOF2'
 import os, sys
 os.environ["MACWAVE_TEST"] = os.environ["TEST_ROOT"]
@@ -286,7 +286,7 @@ import upgrader, pkginstaller, latest
 
 def fake_install(command):
     name, version = [w for w in command.split() if "@" in w][0].split("@")
-    target = (pkginstaller.BASE_DIR / "bin" / f"{name}@{version}")
+    target = (pkginstaller.BASE_DIR / "Shore" / name / version)
     target.mkdir(parents=True, exist_ok=True)
     (target / name).write_text("#!/bin/sh\n")
 
@@ -312,7 +312,7 @@ PYEOF2
 TEST_ROOT="$ROOT" MACWAVE_COMPONENT_PATHS="$(component_paths)" \
     python3 "$WORK/fail_one.py" > "$WORK/fail_one.log" 2>&1 && FAIL_ONE_RC=0 || FAIL_ONE_RC=$?
 check "一个包失败，其余的照常升级" \
-    "$(cd "$BASE/bin" && ls -1 | sort | tr '\n' ' ' | sed 's/ $//')" "jq@1.6 jq@1.7.1 zzz@1.0"
+    "$(cd "$BASE/Shore" && ls -1 2>/dev/null | while read -r n; do for v in "$n"/*; do [[ -d "$v" ]] && printf '%s@%s ' "$n" "${v##*/}"; done; done | sed 's/ $//')" "jq@1.6 jq@1.7.1 zzz@1.0"
 if [[ "$FAIL_ONE_RC" -ne 0 ]]; then
     pass "有包失败时退出码非零"
 else
@@ -361,11 +361,11 @@ else
 fi
 
 # 索引落后于本机时不能降级
-rm -rf "${BASE:?}/bin" "${BASE:?}/links"; mkdir -p "$BASE/bin" "$BASE/links"
-mkdir -p "$BASE/bin/jq@1.9"; printf '#!/bin/sh\n' > "$BASE/bin/jq@1.9/jq"
+rm -rf "${BASE:?}/Shore" "${BASE:?}/bin"; mkdir -p "$BASE/Shore" "$BASE/bin"
+mkdir -p "$BASE/Shore/jq/1.9"; printf '#!/bin/sh\n' > "$BASE/Shore/jq/1.9/jq"
 printf '' | STUB_LATEST=1.7.1 MACWAVE_TEST="$ROOT" \
     python3 "$WORK/harness.py" jq --rov > "$WORK/behind.log" 2>&1 || true
-check "索引落后于本机：不降级" "$(cd "$BASE/bin" && ls -1 | tr '\n' ' ' | sed 's/ $//')" "jq@1.9"
+check "索引落后于本机：不降级" "$(cd "$BASE/Shore" && ls -1 2>/dev/null | while read -r n; do for v in "$n"/*; do [[ -d "$v" ]] && printf '%s@%s ' "$n" "${v##*/}"; done; done | sed 's/ $//')" "jq@1.9"
 if grep -q 'nothing was downloaded' "$WORK/behind.log"; then
     pass "索引落后时提示「什么都没下载」"
 else
@@ -374,11 +374,11 @@ else
 fi
 
 # 升级后不带版本号的链接必须指向新版本
-rm -rf "${BASE:?}/bin" "${BASE:?}/links"; mkdir -p "$BASE/bin" "$BASE/links"
-mkdir -p "$BASE/bin/jq@1.6"; printf '#!/bin/sh\n' > "$BASE/bin/jq@1.6/jq"
+rm -rf "${BASE:?}/Shore" "${BASE:?}/bin"; mkdir -p "$BASE/Shore" "$BASE/bin"
+mkdir -p "$BASE/Shore/jq/1.6"; printf '#!/bin/sh\n' > "$BASE/Shore/jq/1.6/jq"
 printf '' | STUB_LATEST=1.7.1 MACWAVE_TEST="$ROOT" \
     python3 "$WORK/harness.py" jq > /dev/null 2>&1 || true
-check "链接指向刚升级到的版本" "$(readlink "$BASE/links/jq" 2>/dev/null)" "../bin/jq@1.7.1/jq"
+check "链接指向刚升级到的版本" "$(readlink "$BASE/bin/jq" 2>/dev/null)" "../Shore/jq/1.7.1/jq"
 
 echo ""
 echo "=========================================="

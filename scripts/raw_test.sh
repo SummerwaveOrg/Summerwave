@@ -156,7 +156,7 @@ ok   "默认输出带 🌊（这正是 --raw 要去掉的东西）" "$out" "🌊
 not_ok "默认输出里没有井号进度条"               "$out" "#"
 
 # 装完了一个版本，后面 --raw 想重新走一遍下载，得先把版本目录删掉
-rm -rf "$BASE/bin/${NAME}@1.0"
+rm -rf "$BASE/Shore/${NAME}/1.0"
 
 # -------------------- 2. --raw：无 emoji、无颜色、井号进度条 --------------------
 
@@ -188,12 +188,12 @@ ok "进度条走到 100%" "$out" "#################### 100%"
 not_ok "进度条不带百分比以外的装饰" "$out" "━━"
 
 # 安装本身照旧：文件、链接、版本目录都得在
-if [[ -x "$BASE/bin/${NAME}@1.0/$NAME" ]]; then
+if [[ -x "$BASE/Shore/${NAME}/1.0/$NAME" ]]; then
     pass "--raw 装出来的可执行文件在位"
 else
     fail "--raw 装完没有可执行文件"
 fi
-if [[ -L "$BASE/links/$NAME" ]]; then
+if [[ -L "$BASE/bin/$NAME" ]]; then
     pass "--raw 装完建了不带版本号的链接"
 else
     fail "--raw 装完没有链接"
