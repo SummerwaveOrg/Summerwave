@@ -26,9 +26,11 @@
 # 产物默认从镜像站取（与客户端同一组环境变量）。
 
 import argparse
+import bz2
 import gzip
 import hashlib
 import os
+import lzma
 import shutil
 import subprocess
 import sys
@@ -204,7 +206,7 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
 
 def extract(path, dest):
     name = path.name
-    # `.tgz` 与 `.tbz2` 是同一种东西的短写法，但 `tarfile` 只按内容认格式、不看后缀，
+    # `.tgz` / `.tbz2` / `.txz` 是同一种东西的短写法，而 `tarfile` 按内容认格式、不看后缀，
     # 所以这里必须把后缀也列全：漏掉 `.tgz` 的后果是**整个压缩包被原样拷进 stage**，
     # 重打出来的产物里躺着一个压缩包（cloudflared 就是这样），而 relocate 看不见它、
     # 闸门也不报错 —— 装到用户机上才发现是个空壳。
@@ -216,13 +218,6 @@ def extract(path, dest):
     if name.endswith(".zip"):
         with zipfile.ZipFile(path) as archive:
             archive.extractall(dest)
-        return
-    # 单文��� gzip（`ffmpeg-darwin-arm64.gz`）没有成员名：解出来的名字只能从文件名推。
-    # 用 `.gz` 去掉后缀当目标名，与上游发布习惯一致。
-    if name.endswith(".gz") and not name.endswith((".tar.gz", ".tgz")):
-        dest.mkdir(parents=True, exist_ok=True)
-        with gzip.open(path, "rb") as src, open(dest / name[:-3], "wb") as out:
-            shutil.copyfileobj(src, out)
         return
     if name.endswith(".conda"):
         # .conda = zip 里装着 pkg-*.tar.zst（Python 3.14+ 的 compression.zstd 能解）
@@ -241,25 +236,18 @@ def extract(path, dest):
             if rc != 0:
                 sys.exit(f"🌊 Error: cannot extract {member.name} (needs bsdtar with zstd)")
         return
-    shutil.copy2(path, dest / path.name)
-
-
-# -------------------- 前缀改写（conda 的 has_prefix） --------------------
-#
-# conda 产物里的路径不是「漏了」，而是**故意留了一个占位前缀**，等安装时替换：
-#
-#   info/has_prefix 每行 `<占位符> <text|binary|script> <相对路径>`
-#
-# 以前由 conda 自己替换。我们不跑 conda，于是 lib/pkgconfig/*.pc 的 prefix、
-# bin/icu-config 里的 ICU 路径、编译进二进制里的资源目录全都指向**上游构建机**
-# （/Users/ktietz/Code/oss/ci_pkgs/...）—— 用户机上一条都不存在。
-#
-# 1.0 的安装根是写死的，所以这里可以**把最终路径直接烘进去**：
-#   text   ：整文件替换占位符
-#   script ：只替换第一行（shebang）
-#   binary ：同长度替换 —— 占位符 255 字节，用前缀 + NUL 补齐，C 字符串在 NUL 处结束
-# 改字节完全没问题：重编本来就会变 sha256，算出来回填即可。正确性优先。
-
+    # 单文件压缩（`ffmpeg-darwin-arm64.gz`、CI 夹具 `test_bin.bz2`）：**没有成员名**，
+    # 解出来的名字只能从文件名推 —— 去掉压缩后缀就是目标名，与上游发布习惯一致。
+    single = next((s for s in (".gz", ".xz", ".bz2")
+                   if name.endswith(s) and not name.endswith(
+                       (".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2"))), None)
+    if single:
+        dest.mkdir(parents=True, exist_ok=True)
+        opener = {".gz": gzip.open, ".xz": lzma.open, ".bz2": bz2.open}[single]
+        with opener(path, "rb") as src, open(dest / name[: -len(single)], "wb") as out:
+            shutil.copyfileobj(src, out)
+        return
+    shutil.copy2(path, dest / name)
 
 def parse_has_prefix(path):
     entries = []
