@@ -103,6 +103,70 @@ grep -q 'os.path.exists(target)' "$REPO_DIR/scripts/relocate_rpath.py" \
     && pass "判据里有存在性检查（不是只看前缀）" || fail "判据又退回「只看前缀」了"
 
 echo ""
+echo "========== 同名 dylib 与 universal 可执行文件的两处误判 =========="
+
+# 1. `otool -D` 对**没有 LC_ID_DYLIB 的 universal 可执行文件**只打头部
+#    （`<路径> (architecture <arch>):`），旧实现取第二行 → 把文件名当成 id，
+#    于是计划里多出一条 -id 改写，--check 又按这个假 id 拒绝打包
+#    （ollama / llama-server / llama-quantize 就是这么卡住的）。
+# 2. `@rpath/libmlx.dylib` 这类「同名多份」的引用，旧实现一律报 ambiguous，
+#    但 ollama 的 v3/v4 两个后端本来就该各找各的。
+
+if command -v clang >/dev/null 2>&1; then
+    mkdir -p "$WORK/uni"
+    printf 'int main(void){return 0;}\n' > "$WORK/uni/m.c"
+    clang -arch arm64 -arch x86_64 -o "$WORK/uni/exe" "$WORK/uni/m.c" 2>/dev/null
+    clang -arch arm64 -o "$WORK/uni/thin" "$WORK/uni/m.c" 2>/dev/null
+    clang -arch arm64 -dynamiclib -install_name @rpath/libfoo.dylib \
+        -o "$WORK/uni/libfoo.dylib" "$WORK/uni/m.c" 2>/dev/null
+
+    ID_OUT="$("$PYTHON" - "$REPO_DIR" "$WORK/uni" <<'PYEOF'
+import sys
+repo, base = sys.argv[1], sys.argv[2]
+import importlib.util
+spec = importlib.util.spec_from_file_location("reloc", f"{repo}/scripts/relocate_rpath.py")
+reloc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reloc)
+print("universal_exe_id:", repr(reloc.dylib_id(f"{base}/exe")))
+print("thin_exe_id:", repr(reloc.dylib_id(f"{base}/thin")))
+print("dylib_id:", repr(reloc.dylib_id(f"{base}/libfoo.dylib")))
+PYEOF
+)"
+    check "universal 可执行文件没有 id" \
+        "$(printf '%s\n' "$ID_OUT" | grep '^universal_exe_id:' | sed "s/^universal_exe_id: //")" "''"
+    check "thin 可执行文件也没有 id" \
+        "$(printf '%s\n' "$ID_OUT" | grep '^thin_exe_id:' | sed "s/^thin_exe_id: //")" "''"
+    check "dylib 的 id 照常读出" \
+        "$(printf '%s\n' "$ID_OUT" | grep '^dylib_id:' | grep -c '@rpath/libfoo.dylib')" "1"
+
+    # 同名两份：引用者在 v3 目录里，应该挑 v3 的那份
+    mkdir -p "$WORK/dup/Shore/x/1.0/v3" "$WORK/dup/Shore/x/1.0/v4"
+    cp "$WORK/uni/libfoo.dylib" "$WORK/dup/Shore/x/1.0/v3/libdup.dylib"
+    cp "$WORK/uni/libfoo.dylib" "$WORK/dup/Shore/x/1.0/v4/libdup.dylib"
+    cp "$WORK/uni/libfoo.dylib" "$WORK/dup/Shore/x/1.0/v3/libcaller.dylib"
+    DUP_OUT="$("$PYTHON" - "$REPO_DIR" "$WORK/dup" <<'PYEOF'
+import sys, os
+repo, root = sys.argv[1], sys.argv[2]
+import importlib.util
+spec = importlib.util.spec_from_file_location("reloc", f"{repo}/scripts/relocate_rpath.py")
+reloc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reloc)
+index = reloc.build_index(root)
+picked, err = reloc.pick_candidate(index["libdup.dylib"],
+                                   os.path.join(root, "Shore/x/1.0/v3/libcaller.dylib"), root)
+print("picked:", os.path.relpath(picked, root) if picked else "None")
+print("error:", bool(err))
+PYEOF
+)"
+    check "同名 dylib 按引用者所在目录裁决" \
+        "$(printf '%s\n' "$DUP_OUT" | grep '^picked:' | awk '{print $2}')" \
+        "Shore/x/1.0/v3/libdup.dylib"
+    check "没有误报歧义" "$(printf '%s\n' "$DUP_OUT" | grep '^error:' | awk '{print $2}')" "False"
+else
+    echo "🌊 SKIP: 没有 clang，跳过编译类断言"
+fi
+
+echo ""
 echo "=========================================="
 echo "🌊 Passed: $PASSED"
 echo -e "🌊 Failed: ${RED_BOLD}$FAILED${RESET}"

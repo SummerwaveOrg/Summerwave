@@ -174,8 +174,17 @@ def dylib_id(path):
     code, out = run(["otool", "-D", path])
     if code != 0:
         return ""
-    lines = out.splitlines()
-    return lines[1].strip() if len(lines) > 1 else ""
+    # otool -D 的头部是 `<路径> (architecture <arch>):`，universal 文件每个架构一行。
+    # 没有 LC_ID_DYLIB 时它**只打头部**，于是「取第二行」会把文件名本身当成 id ——
+    # universal 的 ollama / llama-server 就是这样被误判成「有绝对 id」，然后
+    # install_name_tool -id 去改一个不存在的 id，--check 又按那个假 id 拒绝打包。
+    # 头部一律以冒号结尾，跳过它们之后剩下的才是真 id。
+    for line in out.splitlines():
+        value = line.strip()
+        if not value or value.endswith(":"):
+            continue
+        return value
+    return ""
 
 
 def references(path):
@@ -247,8 +256,35 @@ def build_index(root):
     return index
 
 
+def rpath_dirs(file_path):
+    """文件自己的 LC_RPATH 展开成目录列表（只算 @loader_path 与绝对路径）。
+
+    @executable_path 取决于谁加载它，静态判定会误判，这里刻意不收。
+    """
+    found = []
+    for rpath in rpaths(file_path):
+        if rpath.startswith("@loader_path/"):
+            found.append(os.path.normpath(os.path.join(
+                os.path.dirname(file_path), rpath[len("@loader_path/"):])))
+        elif rpath.startswith("/"):
+            found.append(os.path.normpath(rpath))
+    return found
+
+
 def pick_candidate(candidates, file_path, root):
-    """同名多份时的裁决：优先和引用者同一个包；仍有歧义就报错。"""
+    """同名多份时的裁决，顺序与 dyld 的搜索顺序一致，逐级收紧：
+
+    1. 只有一个候选 —— 就是它；
+    2. 和引用者同一个包（一个包里同名两次几乎不可能，留作兜底）；
+    3. 和引用者**同一个目录** —— `@rpath/libmlx.dylib` 配 `LC_RPATH=@loader_path` 的情形；
+    4. 落在引用者某条 LC_RPATH 指向的目录里；
+    5. 仍有歧义才报错。
+
+    为什么不能「同名就报错」：ollama 把 MLX 后端按版本分目录放
+    （`mlx_metal_v3/libmlx.dylib`、`mlx_metal_v4/libmlx.dylib`），两个后端各自引用
+    同名的 `libmlx.dylib`。只按 basename 找必然歧义，但那两个引用**本来就该各找各的**——
+    报错会让这一整类包（ollama / xclogparser / mint）永远打不出来。
+    """
     if len(candidates) == 1:
         return candidates[0], None
 
@@ -256,6 +292,18 @@ def pick_candidate(candidates, file_path, root):
     same = [c for c in candidates if package_root(c, root) == mine]
     if len(same) == 1:
         return same[0], None
+    pool = same or candidates
+
+    referrer_dir = os.path.normpath(os.path.dirname(file_path))
+    same_dir = [c for c in pool if os.path.normpath(os.path.dirname(c)) == referrer_dir]
+    if len(same_dir) == 1:
+        return same_dir[0], None
+
+    dirs = rpath_dirs(file_path)
+    if dirs:
+        via_rpath = [c for c in pool if os.path.normpath(os.path.dirname(c)) in dirs]
+        if len(via_rpath) == 1:
+            return via_rpath[0], None
 
     listed = "\n".join("    " + os.path.relpath(c, root) for c in candidates)
     return None, f"{os.path.relpath(file_path, root)}: ambiguous dependency name, candidates:\n{listed}"
@@ -287,6 +335,13 @@ def plan(root, index):
                 if not conda_libiconv:
                     continue
             elif is_position_independent(ref, path):
+                continue
+            elif (ref.startswith("@rpath/libswift")
+                  and os.path.basename(ref) not in index):
+                # macOS 12 起 Swift 运行库随系统走（在 dyld 共享缓存里），
+                # 所以 `@rpath/libswift_Concurrency.dylib` 这类引用**不需要**包内提供，
+                # dyld 自己会从缓存里解析。只有「树里确实没人提供它」时才放行 ——
+                # 真有包自带 libswift*.dylib 时，仍然按正常规则改写成 @loader_path。
                 continue
             if ref == current_id:
                 continue
