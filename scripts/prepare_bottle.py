@@ -188,7 +188,7 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
                 print(f"🌊 cached  {out.name}")
                 return out, filename
             out.unlink()
-        print(f"🌊 fetching {url[:120]}")
+        print(f"🌊 fetching {url[:120]}", flush=True)
         if subprocess.run(["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode:
             continue
         if hashlib.sha256(out.read_bytes()).hexdigest() == expect:
@@ -225,6 +225,41 @@ def extract(path, dest):
                 sys.exit(f"🌊 Error: cannot extract {member.name} (needs bsdtar with zstd)")
         return
     shutil.copy2(path, dest / path.name)
+
+
+# 解压 staging 之后、打包之前，产物里绝不能出现「本次解压用的临时路径」——
+# 那个目录在打包结束就被删掉，产物里一旦写进它，用户机上就是一条死路
+# （典型症状：跑起来才 "Library not loaded"，或者 .pc / wrapper 指向不存在的目录）。
+# 判据是**我们自己这一轮的 work/stage 路径**，不是所有临时路径：conda 产物里本来就
+# 烙着上游构建机的 /private/var/folders/.../croot/...，那是历史包袱，不是缺陷。
+AUDIT_CHUNK = 1 << 20
+
+
+def audit_archive(out_file, roots):
+    """返回写进了「本轮临时路径」的成员名列表；空列表表示干净。"""
+    needles = [os.fsencode(str(root)) for root in roots if root]
+    if not needles:
+        return []
+    overlap = max(len(n) for n in needles) - 1
+    found = []
+    with tarfile.open(out_file) as archive:
+        for member in archive:
+            if not member.isfile():
+                continue
+            stream = archive.extractfile(member)
+            if stream is None:
+                continue
+            tail = b""
+            while True:
+                chunk = stream.read(AUDIT_CHUNK)
+                if not chunk:
+                    break
+                window = tail + chunk
+                if any(needle in window for needle in needles):
+                    found.append(member.name)
+                    break
+                tail = window[-overlap:] if overlap else b""
+    return found
 
 
 def repack(version_dir, out_file):
@@ -284,6 +319,13 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
         out_file = out_dir / repacked_name(name, version, arch)
         digest = repack(target, out_file)
 
+        leaks = audit_archive(out_file, (stage, work))
+        if leaks:
+            out_file.unlink(missing_ok=True)
+            sys.exit("🌊 Error: the archive baked in this run's temporary path "
+                     f"({work}); it would be dead on the user's machine.\n"
+                     "   offending members: " + ", ".join(leaks[:5]))
+
         print()
         print("🌊 Done. Write these into the record (and upload the archive):")
         print(f"   file:  \"{out_file.name}\"")
@@ -317,7 +359,7 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
     if limit:
         todo = todo[:limit]
 
-    print(f"🌊 {len(todo)} payload(s) to rebuild (source: {source})")
+    print(f"🌊 {len(todo)} payload(s) to rebuild (source: {source})", flush=True)
     done = skipped = 0
     failures = []
     if tsv and not Path(tsv).exists():
@@ -328,13 +370,13 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
         if skip_existing and expected.is_file():
             skipped += 1
             continue
-        print(f"\n=== [{index}/{len(todo)}] {name}@{version} ({kind}, {arch}) ===")
+        print(f"\n=== [{index}/{len(todo)}] {name}@{version} ({kind}, {arch}) ===", flush=True)
         try:
             result = prepare(infosource, kind, name, version, arch, out_dir,
                              keep=False, source=source, cache=cache)
         except SystemExit as error:            # prepare() 用 sys.exit 报错
             failures.append((f"{name}@{version}.{arch}", str(error)))
-            print(f"🌊 FAILED: {error}")
+            print(f"🌊 FAILED: {error}", flush=True)
             continue
         done += 1
         if tsv:
@@ -343,7 +385,7 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
                                         result["arch"], result["file"], result["sha256"]]) + "\n")
 
     print()
-    print(f"🌊 rebuilt {done}, skipped {skipped}, failed {len(failures)}")
+    print(f"🌊 rebuilt {done}, skipped {skipped}, failed {len(failures)}", flush=True)
     for label, reason in failures[:20]:
         print(f"   ✗ {label}: {reason.splitlines()[0] if reason else 'unknown'}")
     if len(failures) > 20:

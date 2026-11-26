@@ -329,6 +329,28 @@ infosource/pkg/pkginfo/jq/_jq@1.8.2.macos-arm64 ← 该平台的那份 sha256 / 
 - **不兼容旧的**：1.0 起只认新形状。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz`
   产物一律当作「没有这个平台的产物」——不会按「os 缺省 = macos」去猜。
   镜像重新生成一次索引即可（`scripts/build_versions_index.py`）。
+- **产物里不许出现打包机的临时路径**（硬规则，见下）。
+
+### 产物不得引用临时路径（硬规则）
+
+打包时会把产物解到 `mktemp -d` 给的目录里再重打（`scripts/prepare_bottle.py`）。
+**那个目录在打包结束就被删掉**，所以产物里一旦写进它，用户机上就是一条死路：
+
+| 写进产物的东西 | 用户看到的症状 |
+| --- | --- |
+| Mach-O 引用 / `LC_RPATH` | `dyld: Library not loaded`，而且只在运行到那条命令时炸 |
+| `#!/abs/path` 的 wrapper 脚本 | `bad interpreter: No such file or directory` |
+| `.pc` / `.cmake` / `has_prefix` 里的前缀 | 编译期找不到库，报错指向一个从来不存在的目录 |
+
+**闸门**：`prepare_bottle.py` 打完包会重读一遍归档，逐成员搜本轮 `work` / `stage`
+的路径；命中就删掉产物并拒绝继续（`audit_archive()`）。所以这条规则不靠人记得。
+
+**不算违规的**：上游构建机烙在静态库与调试信息里的路径（conda 产物里普遍有
+`/private/var/folders/…/croot/<包>_<时间戳>/work/…`）。那是上游的字节，改它等于改
+`sha256`，与「字节原样搬运」冲突 —— 判据只看**我们自己这一轮的路径**。
+
+同样地，`@loader_path/…` 里的相对路径是相对**运行时布局**算的，与 staging 目录无关
+（staging 根 ≙ 安装根），所以它天然活得过打包。
 
 为什么不按平台拆仓库：`versions` 会变成两份、迟早漂；镜像方要按平台各配一套 URL；
 平台判断会从 `config/platforminfo.py` 一处散进各个地址。代价只是仓库里两种平台的产物混放

@@ -450,7 +450,7 @@ gh release list -R <owner>/<repo> --limit 40 --json tagName,publishedAt,isPrerel
 只能自己编译。`aria2` 就是：1.35.0 之后只剩 Windows 与源码，1.36/1.37 一个 macOS 资产都没有。
 
 自建包没有上游把关，坏包一旦进了索引，用户装完跑不起来 —— 代价是我们的公信力。
-所以「能不能上线」不靠人记得，靠下面四道闸门。
+所以「能不能上线」不靠人记得，靠下面五道闸门。
 
 ### 产物放两处，各管一件事
 
@@ -519,7 +519,7 @@ min_os: "12.0"
 `/opt/macwave/Shore/git/…` 就对不上。收法是产物里带一个两行的 wrapper：
 设好 `GIT_EXEC_PATH` / `GIT_TEMPLATE_DIR` 后 `exec` 真正的 `libexec/git-core/git`。
 
-### 四道闸门（顺序不能换）
+### 五道闸门（顺序不能换）
 
 **① 构建脚本必须可复现。** 固定上游 tag，不跟 `main`；两个架构分别编（不要
 universal —— 索引里每个架构各一条记录）；编完 `codesign --force --sign -`。
@@ -544,7 +544,13 @@ universal —— 索引里每个架构各一条记录）；编完 `codesign --fo
 `install_name_tool` 会改写依赖、`codesign` 会重签，装完的 sha256 **必然**与 Release
 里的不同。所以 `--expect-sha` 只对上传前的原始产物用。
 
-**④ 索引最后写。** 客户端只有从 `pkginfo/` 看到记录才会去装；记录不写，谁也不知道它
+**④ 产物里不许有临时路径。** 打包必然要解到临时目录（`mktemp -d`），而那个目录
+打包完就没了。产物里一旦写进它（Mach-O 引用、`#!/…` wrapper、`.pc` 文件里的前缀），
+用户机上就是「跑起来才炸」。`scripts/prepare_bottle.py` 打完包会重读归档搜本轮
+`work` / `stage` 路径，命中就删产物并拒绝继续 —— 不要因为「我看着没问题」去绕过它。
+判据与「什么不算违规」见 [`DATA-LAYER.md`](./DATA-LAYER.md) 的「产物不得引用临时路径」。
+
+**⑤ 索引最后写。** 客户端只有从 `pkginfo/` 看到记录才会去装；记录不写，谁也不知道它
 存在。所以顺序是：产物 → Ports + Bottle → 沙箱实测 → 索引 → 镜像同步 → 三处清单。
 
 ### tree 包必须声明 `min_client_version`

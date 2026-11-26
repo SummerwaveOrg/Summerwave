@@ -46,6 +46,25 @@ gh api repos/MacWaveOrg/MacWave/contents/lib/wave.py \
   用 `gh api` 绕过去等于没测。
 - **`git` / `gh` 拉代码不受影响**，只有「用 curl 抓单个 raw 文件」这条路会挂。
 
+## 打包：产物不得引用临时路径
+
+**打包过程一定会解到临时目录（`mktemp -d`），那个目录在打包结束就被删掉。
+产物里一旦写进它，用户机上就是一条死路。**
+
+三种写法最容易漏：Mach-O 的 `LC_LOAD_DYLIB` / `LC_RPATH`、`#!/abs/path` 的 wrapper
+脚本、`.pc` / `.cmake` / conda `has_prefix` 里的前缀。症状都是「装得上、跑起来才炸」，
+而报错指向一个从来没存在过的目录。
+
+- 闸门：`scripts/prepare_bottle.py` 打完包会重读归档逐成员搜本轮 `work` / `stage`
+  路径，命中就删产物并拒绝继续（`audit_archive()`）。不要绕过它。
+- 相对引用（`@loader_path/…`）是相对**运行时布局**算的，staging 根 ≙ 安装根，
+  所以它天然活得过打包 —— 该用它的地方不要写绝对路径。
+- **不算违规**：上游烙在静态库 / 调试信息里的构建机路径（conda 产物里普遍有
+  `/private/var/folders/…/croot/…`）。判据只看我们自己这一轮的路径。
+
+详细判据见 [`docs/DATA-LAYER.md`](./docs/DATA-LAYER.md) 的「产物不得引用临时路径」，
+上线流程里的位置见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md) 第 ④ 道闸门。
+
 ## 安全：符号链接不得跳出 base_dir
 
 **若一个软件包（payload）里含有符号链接，必须检测它是否跳转到 `base_dir` 之外。

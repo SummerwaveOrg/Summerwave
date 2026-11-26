@@ -185,6 +185,11 @@ Related commands, side by side:
 
 - **Relative layout is fixed.** The install root is hardcoded (`/opt/macwave`), and
   `Shore/` + `bin/` sit inside it; they cannot be split onto different disks. Move the tree whole.
+- **No build-machine paths may survive.** Packing unpacks into `mktemp -d`, which is gone
+  afterwards, so any reference to it is dead on the user's machine. `prepare_bottle.py`
+  re-reads the finished archive and refuses if this run's `work`/`stage` path appears in it.
+  Upstream build paths baked into static libs and debug info are **not** violations — see
+  [`DATA-LAYER.md`](./DATA-LAYER.md).
 - **Only Mach-O/ELF are rewritten.** Text files keep absolute paths: `.pc` files,
   `openssl.cnf`, `#!/abs/path` scripts, a bundled interpreter's `sys.prefix`. Those are
   handled at build time (placeholder, or read an environment variable), not here.
