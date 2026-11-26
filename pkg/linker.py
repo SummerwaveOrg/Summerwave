@@ -28,12 +28,20 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import assert_inside_entry, load_base_dir, require_safe_token, bin_dir, links_dir
+from configpaths import (
+    assert_inside_entry,
+    load_base_dir,
+    require_safe_token,
+    bin_dir,
+    pkg_dir,
+    payload_root,
+)
 
 
 BASE_DIR = load_base_dir()
+# 1.0 起分成两处：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
-LINKS_DIR = links_dir()
 TREE_MARKER = ".is_a_tree"
 
 
@@ -57,49 +65,44 @@ except ModuleNotFoundError as error:
 # -------------------- 安装状态查询 --------------------
 
 def installed_versions(name):
-    # bin/{名称}@{版本号}/ 里的版本号列表（名称即 `wave list` 显示的那个）
+    # Shore/{名称}/ 下的版本号列表（名称即 `wave list` 显示的那个）
     name = require_safe_token(name, "package name")
     versions = []
-    if not BIN_DIR.is_dir():
+    package = PAYLOAD / name
+    if not package.is_dir():
         return versions
 
-    prefix = f"{name}@"
-    for entry in BIN_DIR.iterdir():
-        if entry.is_dir() and entry.name.startswith(prefix):
-            version = entry.name[len(prefix):]
-            if version:
-                versions.append(version)
+    for entry in package.iterdir():
+        if entry.is_dir() and entry.name:
+            versions.append(entry.name)
     return versions
 
 
 def installed_packages():
-    # bin/ 下所有软件包的名称，去重并按字母序
+    # Shore/ 下有版本目录的名字，按字母序
     names = set()
-    if not BIN_DIR.is_dir():
+    if not PAYLOAD.is_dir():
         return []
 
-    for entry in BIN_DIR.iterdir():
-        if not entry.is_dir() or "@" not in entry.name:
-            continue
-        name, _, version = entry.name.partition("@")
-        if name and version:
-            names.add(name)
+    for entry in PAYLOAD.iterdir():
+        if entry.is_dir() and any(child.is_dir() for child in entry.iterdir()):
+            names.add(entry.name)
     return sorted(names)
 
 
 def is_tree_package(name, version):
-    # 整树软件包的标记：安装时由 depsmanager.sh 写在 bin/{名称}@{版本}/.is_a_tree
-    return (BIN_DIR / f"{name}@{version}" / TREE_MARKER).is_file()
+    # 整树软件包的标记：安装时由 depsmanager.sh 写在包目录根下（.is_a_tree）
+    return (pkg_dir(name, version) / TREE_MARKER).is_file()
 
 
 def link_target(name, version, bin_name=None):
-    # 链接应当指向哪个相对路径（相对 links/）。形态由安装目录里的标记决定，
+    # 链接应当指向哪个相对路径（相对 <根>/bin）。形态由安装目录里的标记决定，
     # 索引里的 install 字段只在安装那一刻用，这里不重新读索引。
     # bin_name 只在整树包链接「其余命令」时才与包名不同。
     bin_name = bin_name or name
     if is_tree_package(name, version):
-        return f"../bin/{name}@{version}/bin/{bin_name}"
-    return f"../bin/{name}@{version}/{bin_name}"
+        return f"../{PAYLOAD.name}/{name}/{version}/bin/{bin_name}"
+    return f"../{PAYLOAD.name}/{name}/{version}/{bin_name}"
 
 
 def extra_bin_names(name, version):
@@ -108,7 +111,7 @@ def extra_bin_names(name, version):
     if not is_tree_package(name, version):
         return []
 
-    bin_dir = BIN_DIR / f"{name}@{version}" / "bin"
+    bin_dir = pkg_dir(name, version) / "bin"
     if not bin_dir.is_dir():
         return []
 
@@ -123,11 +126,12 @@ def extra_bin_names(name, version):
 
 
 def _link_owner(link_name):
-    # links/{链接名} 属于哪个包、指向哪个版本（不校验名字，调用方自己处理输入）。
+    # bin/{链接名} 属于哪个包、指向哪个版本（不校验名字，调用方自己处理输入）。
     #
     # 整树包的附属命令（git-upload-pack、fdtget 这种）链接名**不是**包名，
-    # 只看名字会把它当成「一个没链接的包」；目标路径里那段 {包名}@{版本} 才是权威。
-    link = LINKS_DIR / link_name
+    # 只看名字会把它当成「一个没链接的包」；目标路径里的 ../Shore/{名}/{版本}/
+    # 那两段才是权威。
+    link = BIN_DIR / link_name
     if not link.is_symlink():
         return None
 
@@ -135,15 +139,20 @@ def _link_owner(link_name):
     if os.path.basename(target) != link_name:
         return None
 
-    # 从后往前找形如 {名称}@{版本} 的那一段：binary 是 links/x -> ../bin/x@1/x，
-    # 整树是 links/x -> ../bin/x@1/bin/x，中间多一层 bin/。
-    for part in reversed(os.path.dirname(target).split(os.sep)):
-        if "@" not in part:
+    return _owner_from_target(target)
+
+
+def _owner_from_target(target):
+    # 目标形如 ../Shore/{名}/{版本}/{命令} 或 ../Shore/{名}/{版本}/bin/{命令}：
+    # 认「Shore 之后那两段」。整树包的附属命令链接名不是包名，只能靠这里认。
+    parts = os.path.dirname(target).split(os.sep)
+    for index, part in enumerate(parts):
+        if part != PAYLOAD.name:
             continue
-        name, _, version = part.partition("@")
-        if name and version:
-            return name, version
-        return None
+        if index + 2 >= len(parts):
+            return None
+        name, version = parts[index + 1], parts[index + 2]
+        return (name, version) if name and version else None
     return None
 
 
@@ -162,11 +171,11 @@ def is_dangling(name):
 
 def unversioned_links():
     # links/ 下所有不带版本号的软链接（带版本号的链接名里一定有 @）
-    if not LINKS_DIR.is_dir():
+    if not BIN_DIR.is_dir():
         return []
 
     names = []
-    for entry in LINKS_DIR.iterdir():
+    for entry in BIN_DIR.iterdir():
         if entry.is_symlink() and "@" not in entry.name:
             names.append(entry.name)
     return sorted(names)
@@ -178,10 +187,10 @@ def create_link(name, version):
     # 建立或重指 links/{名称}；已存在（含悬空链接）先删掉再建
     name = require_safe_token(name, "package name")
     version = require_safe_token(version, "package version")
-    LINKS_DIR.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
 
-    link = LINKS_DIR / name
-    assert_inside_entry(link, LINKS_DIR, "link path")
+    link = BIN_DIR / name
+    assert_inside_entry(link, BIN_DIR, "link path")
     if link.is_symlink() or link.exists():
         link.unlink()
 
@@ -192,8 +201,8 @@ def create_link(name, version):
 
     # 整树包里的其余命令也各链一条，否则 dtc/testdisk 这类装完只剩主命令可用
     for extra in extra_bin_names(name, version):
-        extra_link = LINKS_DIR / extra
-        assert_inside_entry(extra_link, LINKS_DIR, "link path")
+        extra_link = BIN_DIR / extra
+        assert_inside_entry(extra_link, BIN_DIR, "link path")
         if extra_link.is_symlink() or extra_link.exists():
             extra_link.unlink()
         extra_link.symlink_to(link_target(name, version, extra))
@@ -203,22 +212,19 @@ def create_link(name, version):
 
 def linked_bin_names(name):
     # links/ 下所有指回 {名称}@{版本} 这个包的命令（含主命令与其余命令）
-    if not LINKS_DIR.is_dir():
+    if not BIN_DIR.is_dir():
         return []
 
     names = []
-    for entry in LINKS_DIR.iterdir():
+    for entry in BIN_DIR.iterdir():
         if not entry.is_symlink() or "@" in entry.name:
             continue
         target = os.readlink(entry)
         if os.path.basename(target) != entry.name:
             continue
-        for part in reversed(os.path.dirname(target).split(os.sep)):
-            if "@" not in part:
-                continue
-            if part.partition("@")[0] == name:
-                names.append(entry.name)
-            break
+        owner = _owner_from_target(target)
+        if owner and owner[0] == name:
+            names.append(entry.name)
     return sorted(names)
 
 
@@ -232,8 +238,8 @@ def remove_package_links(name):
     name = require_safe_token(name, "package name")
     removed = []
     for link_name in linked_bin_names(name):
-        link = LINKS_DIR / link_name
-        assert_inside_entry(link, LINKS_DIR, "link path")
+        link = BIN_DIR / link_name
+        assert_inside_entry(link, BIN_DIR, "link path")
         if link.is_symlink() or link.exists():
             link.unlink()
             removed.append(link_name)
@@ -251,10 +257,10 @@ def remove_versioned_links(name, version):
     version = require_safe_token(version, "package version")
 
     removed = []
-    if not LINKS_DIR.is_dir():
+    if not BIN_DIR.is_dir():
         return removed
 
-    for entry in LINKS_DIR.iterdir():
+    for entry in BIN_DIR.iterdir():
         if not entry.is_symlink():
             continue
         # 不带版本号的那一条归 refresh_link 管：还有旧版本时它要降指过去，
@@ -265,22 +271,18 @@ def remove_versioned_links(name, version):
         # 链接名去掉 @版本 后缀要与目标文件同名，避免把别的包的同名链接删掉。
         if os.path.basename(target) != entry.name.partition("@")[0]:
             continue
-        for part in reversed(os.path.dirname(target).split(os.sep)):
-            if "@" not in part:
-                continue
-            owner_name, _, owner_version = part.partition("@")
-            if owner_name == name and owner_version == version:
-                assert_inside_entry(entry, LINKS_DIR, "link path")
-                entry.unlink()
-                removed.append(entry.name)
-            break
+        owner = _owner_from_target(target)
+        if owner == (name, version):
+            assert_inside_entry(entry, BIN_DIR, "link path")
+            entry.unlink()
+            removed.append(entry.name)
     return removed
 
 
 def remove_link(name):
     name = require_safe_token(name, "package name")
-    link = LINKS_DIR / name
-    assert_inside_entry(link, LINKS_DIR, "link path")
+    link = BIN_DIR / name
+    assert_inside_entry(link, BIN_DIR, "link path")
     if link.is_symlink() or link.exists():
         link.unlink()
         return True

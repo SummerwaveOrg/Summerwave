@@ -74,9 +74,9 @@ printf '{"base_dir": "%s"}\n' "$BASE" > "$HOME_DIR/.config/macwave_config/config
 
 ARCH=$(python3 -c 'import platform; m=platform.machine().lower(); print("arm64" if m in ("arm64","aarch64") else "amd64")')
 
-mkdir -p "$BASE/bin/jq@1.7.1" "$BASE/links"
-: > "$BASE/bin/jq@1.7.1/jq"
-ln -s "../bin/jq@1.7.1/jq" "$BASE/links/jq"
+mkdir -p "$BASE/Shore/jq/1.7.1" "$BASE/bin"
+: > "$BASE/Shore/jq/1.7.1/jq"
+ln -s "../Shore/jq/1.7.1/jq" "$BASE/bin/jq"
 
 # -------------------- 假索引 --------------------
 

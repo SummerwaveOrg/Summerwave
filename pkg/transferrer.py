@@ -29,15 +29,16 @@ import sys
 import tempfile
 
 import silent
-from configpaths import load_base_dir, bin_dir
+from configpaths import load_base_dir, payload_root
 
 TRANSFER_SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "surfboard", "transfer.sh",
 )
 
+# 1.0 起：包与依赖都在 <根>/Shore/<名>/<版本>，靠收据区分。
 BASE_DIR = load_base_dir()
-BIN_DIR = bin_dir()
+PAYLOAD = payload_root()
 
 
 def _run_transfer(args):
@@ -67,7 +68,7 @@ def _read_deps(artifact_dir):
 
 
 def _dep_dir(name, version):
-    return os.path.join(str(BASE_DIR), "deps", name, f"{name}@{version}")
+    return os.path.join(str(PAYLOAD), name, version)
 
 
 def _collect_deps(package_dirs):
@@ -116,7 +117,7 @@ def _package_dirs(specs):
             wanted = list(reversed(installed))  # find_installed_versions 降序
 
         for each in wanted:
-            targets.append((f"{name}@{each}", os.path.join(str(BIN_DIR), f"{name}@{each}")))
+            targets.append((f"{name}@{each}", os.path.join(str(PAYLOAD), name, each)))
 
     return targets, problems
 
@@ -125,22 +126,15 @@ def all_installed_dirs():
     """所有已装软件包 + 所有已装依赖：[(标签, 目录)]。--all 与 basedir 预检共用。"""
     targets = []
 
-    if os.path.isdir(str(BIN_DIR)):
-        for entry in sorted(os.listdir(str(BIN_DIR))):
-            path = os.path.join(str(BIN_DIR), entry)
-            if os.path.isdir(path) and "@" in entry:
-                targets.append((f"bin/{entry}", path))
-
-    deps_root = os.path.join(str(BASE_DIR), "deps")
-    if os.path.isdir(deps_root):
-        for owner in sorted(os.listdir(deps_root)):
-            owner_dir = os.path.join(deps_root, owner)
+    if os.path.isdir(str(PAYLOAD)):
+        for owner in sorted(os.listdir(str(PAYLOAD))):
+            owner_dir = os.path.join(str(PAYLOAD), owner)
             if not os.path.isdir(owner_dir):
                 continue
             for version_dir in sorted(os.listdir(owner_dir)):
                 path = os.path.join(owner_dir, version_dir)
                 if os.path.isdir(path):
-                    targets.append((f"deps/{owner}/{version_dir}", path))
+                    targets.append((f"Shore/{owner}/{version_dir}", path))
 
     return targets
 

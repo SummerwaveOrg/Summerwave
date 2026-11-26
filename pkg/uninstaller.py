@@ -26,7 +26,8 @@ from configpaths import (
     require_safe_token,
     to_tilde,
     bin_dir,
-    links_dir,
+    payload_root,
+    pkg_dir,
 )
 import silent
 
@@ -37,8 +38,9 @@ import common
 
 
 BASE_DIR = load_base_dir()
+# 1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
-LINKS_DIR = links_dir()
 TAGGER_SCRIPT = Path(__file__).resolve().parent.parent / "surfboard" / "tagger.sh"
 
 
@@ -66,19 +68,15 @@ except ImportError as error:
 # -------------------- 辅助函数 --------------------
 
 def find_installed_versions(pkg_name):
-    # 扫描 bin 目录（2.2 起为 <包名>@<版本号> 目录），
-    # 返回该包所有已安装版本（降序，排除 .bak 备份）
+    # 扫描 Shore/<包名>/ 下的版本目录，返回已安装版本（降序，排除 .bak 备份）
     pkg_name = require_safe_token(pkg_name, "package name")
-    if not BIN_DIR.exists():
+    package = PAYLOAD / pkg_name
+    if not package.is_dir():
         return []
-    prefix = f"{pkg_name}@"
     versions = []
-    for entry in BIN_DIR.iterdir():
-        name = entry.name
-        if not name.startswith(prefix):
-            continue
-        version = name[len(prefix):]
-        if not version or version.endswith(".bak"):
+    for entry in package.iterdir():
+        version = entry.name
+        if not entry.is_dir() or version.endswith(".bak"):
             continue
         versions.append(version)
     return sort_versions(versions)
@@ -130,12 +128,12 @@ def has_depender_tag(dep_path):
 def remove_dep_links(dep_path):
     # 依赖包保留了整棵目录，bin/ 下可能有多个可执行文件，
     # 因此按软链接指向反查，清掉所有指向该依赖目录的链接。
-    if not LINKS_DIR.is_dir():
+    if not BIN_DIR.is_dir():
         return
 
     resolved_dep = dep_path.resolve()
 
-    for link in LINKS_DIR.iterdir():
+    for link in BIN_DIR.iterdir():
         if not link.is_symlink():
             continue
         try:
@@ -187,17 +185,17 @@ def remove_one(pkg_name, version):
     pkg_name = require_safe_token(pkg_name, "package name")
     version = require_safe_token(version, "package version")
 
-    target = BIN_DIR / f"{pkg_name}@{version}"
-    backup = BIN_DIR / f"{pkg_name}@{version}.bak"
-    link = LINKS_DIR / f"{pkg_name}@{version}"
-    backup_link = LINKS_DIR / f"{pkg_name}@{version}.bak"
+    target = pkg_dir(pkg_name, version)
+    backup = PAYLOAD / pkg_name / f"{version}.bak"
+    link = BIN_DIR / f"{pkg_name}@{version}"
+    backup_link = BIN_DIR / f"{pkg_name}@{version}.bak"
 
     # 要递归删除的路径必须先确认落在安装目录里
-    for path, root in ((target, BIN_DIR), (backup, BIN_DIR)):
+    for path, root in ((target, PAYLOAD), (backup, PAYLOAD)):
         assert_inside(path, root, "uninstall path")
 
     # 软链接只删链接本身，不能跟到 bin/ 里的目标去
-    for path, root in ((link, LINKS_DIR), (backup_link, LINKS_DIR)):
+    for path, root in ((link, BIN_DIR), (backup_link, BIN_DIR)):
         assert_inside_entry(path, root, "uninstall path")
 
     silent.say(f"🌊 Deleting {to_tilde(target)}...")

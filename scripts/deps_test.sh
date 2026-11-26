@@ -46,8 +46,9 @@ trap 'rm -rf "$SANDBOX_ROOT"' EXIT
 sandbox_install_tree "$SANDBOX_ROOT"
 CONFIG_FILE="$SANDBOX_CONFIG_FILE"
 BASE_DIR="$SANDBOX_BASE"
+PAYLOAD_DIR="$BASE_DIR/Shore"
 BIN_DIR="$BASE_DIR/bin"
-LINKS_DIR="$BASE_DIR/links"
+BIN_DIR="$BASE_DIR/links"
 DEPS_DIR="$BASE_DIR/deps"
 
 FAILED=0
@@ -131,8 +132,8 @@ run_case() {
     local PKG="$1"
     local BIN_NAME="$2"
     local VERSION="${PKG##*@}"
-    local ARTIFACT_DIR="$BIN_DIR/$BIN_NAME@$VERSION"
-    local ARTIFACT_LINK="$LINKS_DIR/$BIN_NAME@$VERSION"
+    local ARTIFACT_DIR="$PAYLOAD_DIR/$BIN_NAME/$VERSION"
+    local ARTIFACT_LINK="$BIN_DIR/$BIN_NAME@$VERSION"
     local LOG_FILE
     local INSTALL_RC=0
     local MARKERS

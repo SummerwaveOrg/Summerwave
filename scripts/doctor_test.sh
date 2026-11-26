@@ -31,7 +31,7 @@ fail() { echo -e "${RED_BOLD}🌊 FAIL: $1${RESET}"; FAILED=$((FAILED + 1)); }
 
 SANDBOX="$WORK/sandbox"
 BASE="$SANDBOX/opt/macwave"
-mkdir -p "$SANDBOX/opt/macwave_config" "$BASE"/{bin,links,deps,downloads/tmp}
+mkdir -p "$SANDBOX/opt/macwave_config" "$BASE"/{bin,Shore,downloads/tmp}
 printf '{"base_dir": "%s"}' "$BASE" > "$SANDBOX/opt/macwave_config/config.json"
 for component in cli config lib net pkg surfboard; do
     ln -sfn "$REPO_DIR/$component" "$BASE/$component"
@@ -44,22 +44,31 @@ doctor() {  # 输出在 OUT，退出码在 RC
 
 # 造一棵树：healthy / broken 两种形态
 build_tree() {  # build_tree healthy|broken
-    rm -rf "${BASE:?}/bin" "$BASE/links" "$BASE/deps"
-    mkdir -p "$BASE/bin/jq@1.8.2" "$BASE/bin/yq@2.0" "$BASE/links" "$BASE/deps/gcc/gcc@13"
-    printf '#!/bin/sh\ntrue\n' > "$BASE/bin/jq@1.8.2/jq"
-    printf '#!/bin/sh\ntrue\n' > "$BASE/bin/yq@2.0/yq"
-    chmod +x "$BASE/bin/jq@1.8.2/jq" "$BASE/bin/yq@2.0/yq"
-    : > "$BASE/deps/gcc/gcc@13/.depped_pkg_jq@1.8.2"
-    ln -s ../bin/jq@1.8.2/jq "$BASE/links/jq"
-    ln -s ../bin/yq@2.0/yq "$BASE/links/yq"
+    rm -rf "${BASE:?}/bin" "$BASE/Shore"
+    mkdir -p "$BASE/Shore/jq/1.8.2" "$BASE/Shore/yq/2.0" "$BASE/Shore/gcc/13" "$BASE/bin"
+    printf '#!/bin/sh\ntrue\n' > "$BASE/Shore/jq/1.8.2/jq"
+    printf '#!/bin/sh\ntrue\n' > "$BASE/Shore/yq/2.0/yq"
+    chmod +x "$BASE/Shore/jq/1.8.2/jq" "$BASE/Shore/yq/2.0/yq"
+    # 依赖树与包同构，靠收据里的 requested 区分
+    : > "$BASE/Shore/gcc/13/.depped_pkg_jq@1.8.2"
+    printf '{"schema": 1, "name": "gcc", "version": "13", "requested": false}\n' \
+        > "$BASE/Shore/gcc/13/Note"
+    printf '{"schema": 1, "name": "jq", "version": "1.8.2", "requested": true}\n' \
+        > "$BASE/Shore/jq/1.8.2/Note"
+    printf '{"schema": 1, "name": "yq", "version": "2.0", "requested": true}\n' \
+        > "$BASE/Shore/yq/2.0/Note"
+    ln -s ../Shore/jq/1.8.2/jq "$BASE/bin/jq"
+    ln -s ../Shore/yq/2.0/yq "$BASE/bin/yq"
 
     if [ "${1:-healthy}" = "broken" ]; then
-        : > "$BASE/bin/jq@1.8.2/README"          # 主可执行文件被换掉
-        rm -f "$BASE/bin/jq@1.8.2/jq"
-        rm -f "$BASE/links/yq"                    # yq 装了但没链接
-        ln -s ../bin/gone@9/gone "$BASE/links/gone"   # 悬空链接
-        mkdir -p "$BASE/deps/old/old@1"          # 没人引用的依赖树
-        mkdir -p "$BASE/bin/broken@1.0.bak"      # 中断留下的备份目录
+        : > "$BASE/Shore/jq/1.8.2/README"        # 主可执行文件被换掉
+        rm -f "$BASE/Shore/jq/1.8.2/jq"
+        rm -f "$BASE/bin/yq"                      # yq 装了但没链接
+        ln -s ../Shore/gone/9/gone "$BASE/bin/gone"   # 悬空链接
+        mkdir -p "$BASE/Shore/old/1"              # 没人引用的依赖树
+        printf '{"schema": 1, "name": "old", "version": "1", "requested": false}\n' \
+            > "$BASE/Shore/old/1/Note"
+        mkdir -p "$BASE/Shore/broken/1.0.bak"     # 中断留下的备份目录
         printf 'x' > "$BASE/downloads/tmp/a.partial"
     fi
 }
@@ -84,14 +93,14 @@ doctor
     || fail "漏了缺可执行文件：$(printf '%.400s' "$OUT")"
 [[ "$OUT" == *"wave reinstall jq@1.8.2"* ]] && pass "并给出 wave reinstall" \
     || fail "缺可执行文件没给修复命令"
-[[ "$OUT" == *"links/gone points at something that is gone"* ]] && pass "报出悬空链接" \
+[[ "$OUT" == *"bin/gone points at something that is gone"* ]] && pass "报出悬空链接" \
     || fail "漏了悬空链接"
 [[ "$OUT" == *"yq is installed but has no unversioned link"* ]] && pass "报出「装了没链接」" \
     || fail "漏了「装了没链接」"
 [[ "$OUT" == *"wave link yq"* ]] && pass "并给出 wave link yq" || fail "没给 wave link"
-[[ "$OUT" == *"deps/old/old@1 is not referenced"* ]] && pass "报出孤儿依赖树" \
+[[ "$OUT" == *"Shore/old/1 is not referenced"* ]] && pass "报出孤儿依赖树" \
     || fail "漏了孤儿依赖树"
-[[ "$OUT" == *"leftover backup directory bin/broken@1.0.bak"* ]] && pass "报出中断留下的 .bak" \
+[[ "$OUT" == *"leftover backup directory Shore/broken/1.0.bak"* ]] && pass "报出中断留下的 .bak" \
     || fail "漏了 .bak 目录"
 [[ "$OUT" == *"unfinished download(s)"* ]] && pass "提醒了没下完的 .partial" \
     || fail "没提 .partial"
@@ -123,7 +132,7 @@ echo "========== 5. 单跑一个检查项 =========="
 
 doctor links
 [[ "$RC" -gt 0 ]] && pass "单跑 links 报出了问题" || fail "单跑 links 没报问题"
-[[ "$OUT" != *"deps/old"* ]] && pass "没把别的检查项的结果带进来" \
+[[ "$OUT" != *"Shore/old"* ]] && pass "没把别的检查项的结果带进来" \
     || fail "单跑 links 却报了依赖问题：$(printf '%.400s' "$OUT")"
 
 doctor base-dir

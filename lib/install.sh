@@ -2067,6 +2067,46 @@ apply_migrations() {
     # 4.1.6：传输层从 lib/ 搬到 net/。不删也能跑（没有代码再 import 它们），
     # 但留着会让「安装树里到底有哪份 tls.py」变成两说。
     local stale
+    # 1.0：包与依赖合并到 Shore/<名>/<版本>/，bin/ 只留无版本号链接。
+    # 逐条搬，不整目录 mv：旧树里可能同时有 bin/ 与 deps/，而两者都会落到
+    # Shore/ 下同构的位置；某一条搬失败只跳过它，别把整次安装搞崩。
+    local _old _new _owner _ver _pkgdir
+    if [[ -d "$BASE_DIR/deps" ]]; then
+        for _owner in "$BASE_DIR/deps"/*; do
+            [[ -d "$_owner" ]] || continue
+            for _pkgdir in "$_owner"/*; do
+                [[ -d "$_pkgdir" ]] || continue
+                _new="$SHORE_DIR/${_pkgdir##*/}"
+                [[ -e "$_new" ]] && continue
+                run_cmd mkdir -p "$SHORE_DIR"
+                run_cmd mv "$_pkgdir" "$_new" 2>/dev/null || true
+            done
+        done
+    fi
+    if [[ -d "$BASE_DIR/bin" ]]; then
+        for _pkgdir in "$BASE_DIR/bin"/*@*; do
+            [[ -d "$_pkgdir" ]] || continue
+            # bin/<名>@<版本> -> Shore/<名>/<版本>
+            _owner="${_pkgdir##*/}"
+            _ver="${_owner##*@}"
+            _owner="${_owner%@*}"
+            _new="$SHORE_DIR/$_owner/$_ver"
+            [[ -e "$_new" ]] && { run_cmd rm -rf "$_pkgdir"; continue; }
+            run_cmd mkdir -p "$SHORE_DIR/$_owner"
+            run_cmd mv "$_pkgdir" "$_new" 2>/dev/null || true
+        done
+    fi
+    # links/* -> bin/*（同名已存在就以新树为准，旧链接直接丢掉）
+    if [[ -d "$BASE_DIR/links" ]]; then
+        for _old in "$BASE_DIR/links"/*; do
+            [[ -e "$_old" || -L "$_old" ]] || continue
+            _new="$INSTALL_DIR/${_old##*/}"
+            [[ -e "$_new" || -L "$_new" ]] || run_cmd mv "$_old" "$_new" 2>/dev/null || true
+            run_cmd rm -f "$_old"
+        done
+        run_cmd rmdir "$BASE_DIR/links" 2>/dev/null || true
+    fi
+
     for stale in "$LIB_DIR/tls.py" "$LIB_DIR/timeouts.py" "$LIB_DIR/domains.py" \
                  "$LIB_DIR/configpaths.py" "$LIB_DIR/configerror.py" \
                  "$LIB_DIR/help.py" "$LIB_DIR/flags.py" "$LIB_DIR/suggest.py" \
@@ -2100,8 +2140,11 @@ fi
 # 创建目录
 # ==========================================
 
+# 1.0 起：bin/ 只放无版本号的软链接（4.x 的 links/ 并进来了），
+# 解开的包与依赖都在 Shore/<名>/<版本>/，靠 Note 区分。
 INSTALL_DIR="$BASE_DIR/bin"
-LINKS_DIR="$BASE_DIR/links"
+LINKS_DIR="$INSTALL_DIR"
+SHORE_DIR="$BASE_DIR/Shore"
 REPO_DIR="$BASE_DIR/pkg"
 SURFBOARD_DIR="$BASE_DIR/surfboard"
 LIB_DIR="$BASE_DIR/lib"
@@ -2116,7 +2159,7 @@ INFO_DIR="$BASE_DIR/info"
 # 发布签名用的公钥。装进来之后 <base_dir>/Keys/*.asc 就是验签的信任根，
 # 用户不必再去官网另找一份（那一步恰恰最容易被换掉）。
 KEYS_DIR="$BASE_DIR/Keys"
-DEPS_DIR="$BASE_DIR/deps"
+DEPS_DIR="$SHORE_DIR"
 DOWNLOAD_DIR="$BASE_DIR/downloads/tmp"
 
 # CONFIG_DIR 在「判断是否需要 sudo」那一节就算好了：它跟着 SYSTEM_INSTALL 走
@@ -2167,6 +2210,7 @@ trap install_failed ERR
 
 run_cmd mkdir -p "$INSTALL_DIR"
 run_cmd mkdir -p "$LINKS_DIR"
+run_cmd mkdir -p "$SHORE_DIR"
 run_cmd mkdir -p "$REPO_DIR"
 run_cmd mkdir -p "$SURFBOARD_DIR"
 run_cmd mkdir -p "$LIB_DIR"

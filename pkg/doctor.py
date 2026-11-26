@@ -21,7 +21,8 @@
 import os
 import sys
 
-from configpaths import bin_dir, dep_root, links_dir, load_base_dir
+from configpaths import bin_dir, load_base_dir, payload_root
+from receipt import read_note
 import silent
 
 RED_BOLD = '\033[1;31m'
@@ -30,9 +31,9 @@ YELLOW = '\033[33m'
 RESET = '\033[0m'
 
 BASE_DIR = load_base_dir()
+# 1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
-LINKS_DIR = links_dir()
-DEPS_DIR = dep_root()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 COMPONENTS = ("cli", "config", "lib", "net", "pkg", "surfboard")
 TREE_MARKER = ".is_a_tree"
@@ -58,16 +59,17 @@ class Finding:
 
 
 def _installed_dirs():
-    """[(包名, 版本)]，按名字排序。只看 bin/<名>@<版本> 这一层。"""
-    if not BIN_DIR.is_dir():
+    """[(包名, 版本)]，按名字排序。看 Shore/<名>/<版本> 这一层。"""
+    if not PAYLOAD.is_dir():
         return []
     pairs = []
-    for entry in sorted(os.listdir(str(BIN_DIR))):
-        if "@" not in entry or not (BIN_DIR / entry).is_dir():
+    for name in sorted(os.listdir(str(PAYLOAD))):
+        package = PAYLOAD / name
+        if not package.is_dir():
             continue
-        name, _, version = entry.partition("@")
-        if name and version:
-            pairs.append((name, version))
+        for version in sorted(os.listdir(str(package))):
+            if (package / version).is_dir():
+                pairs.append((name, version))
     return pairs
 
 
@@ -101,10 +103,14 @@ def check_tree():
 
 
 def check_installed():
-    """每个 bin/<名>@<版本>/ 里真的有那个可执行文件吗。"""
+    """每个 Shore/<名>/<版本>/ 里真的有那个可执行文件吗。"""
     findings = []
     for name, version in _installed_dirs():
-        directory = BIN_DIR / f"{name}@{version}"
+        directory = PAYLOAD / name / version
+        note = read_note(directory)
+        if note is not None and not note.get("requested", True):
+            # 依赖树：里面的东西是库与自己的 bin/，不保证有同名可执行文件。
+            continue
         if (directory / TREE_MARKER).is_file():
             target = directory / "bin" / name
         else:
@@ -113,29 +119,29 @@ def check_installed():
             continue
         findings.append(Finding("installed", f"{name}@{version} has no {target.name}",
                                 f"wave reinstall {name}@{version}"))
-    for entry in sorted(os.listdir(str(BIN_DIR))):
-        if entry.endswith(".bak"):
-            findings.append(Finding("installed", f"leftover backup directory bin/{entry}",
+    for name, version in _installed_dirs():
+        if version.endswith(".bak"):
+            findings.append(Finding("installed", f"leftover backup directory Shore/{name}/{version}",
                                     "delete it once you are sure the package works"))
     return findings
 
 
 def check_links():
-    """links/ 里的悬空链接，以及该有却没有的不带版本号链接。"""
+    """bin/ 里的悬空链接，以及该有却没有的不带版本号链接。"""
     findings = []
-    if not LINKS_DIR.is_dir():
+    if not BIN_DIR.is_dir():
         if _installed_dirs():
-            findings.append(Finding("links", "the links/ directory is missing",
+            findings.append(Finding("links", "the bin/ directory is missing",
                                     "wave link --all"))
         return findings
 
     linked = {}
-    for entry in sorted(os.listdir(str(LINKS_DIR))):
-        path = LINKS_DIR / entry
+    for entry in sorted(os.listdir(str(BIN_DIR))):
+        path = BIN_DIR / entry
         if not path.is_symlink():
             continue
         if not os.path.exists(str(path)):
-            findings.append(Finding("links", f"links/{entry} points at something that is gone",
+            findings.append(Finding("links", f"bin/{entry} points at something that is gone",
                                     f"wave link {entry.partition('@')[0]}"))
             continue
         if "@" in entry:
@@ -144,6 +150,10 @@ def check_links():
 
     by_name = {}
     for name, version in _installed_dirs():
+        note = read_note(PAYLOAD / name / version)
+        if note is not None and not note.get("requested", True):
+            # 依赖树不要求有不带版本号的链接：它进 PATH 的东西由依赖它的包决定。
+            continue
         by_name.setdefault(name, []).append(version)
     for name, versions in sorted(by_name.items()):
         if name in linked:
@@ -154,26 +164,22 @@ def check_links():
 
 
 def check_dependencies():
-    """deps/ 里没有人引用的树（.depped_* 一个都没有）。"""
+    """Shore/ 里没有一个 .depped_* 标记的依赖树（没人引用它了）。"""
     findings = []
-    if not DEPS_DIR.is_dir():
-        return findings
-    for owner in sorted(os.listdir(str(DEPS_DIR))):
-        owner_dir = DEPS_DIR / owner
-        if not owner_dir.is_dir():
+    for owner, entry in _installed_dirs():
+        version_dir = PAYLOAD / owner / entry
+        marks = [name for name in os.listdir(str(version_dir))
+                 if name.startswith(".depped_")]
+        if marks:
             continue
-        for entry in sorted(os.listdir(str(owner_dir))):
-            version_dir = owner_dir / entry
-            if not version_dir.is_dir():
-                continue
-            marks = [name for name in os.listdir(str(version_dir))
-                     if name.startswith(".depped_")]
-            if marks:
-                continue
-            findings.append(Finding("dependencies",
-                                    f"deps/{owner}/{entry} is not referenced by anything",
-                                    f"wave uninstall {owner} (then it is removed with the "
-                                    f"package that pulled it in)"))
+        note = read_note(version_dir)
+        if note is None or note.get("requested", True):
+            # 没有收据、或用户显式装的：都不该按「没人引用的依赖」报出来。
+            continue
+        findings.append(Finding("dependencies",
+                                f"Shore/{owner}/{entry} is not referenced by anything",
+                                f"wave uninstall {owner} (then it is removed with the "
+                                f"package that pulled it in)"))
     return findings
 
 

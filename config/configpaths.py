@@ -128,50 +128,76 @@ LEGACY_STATE_NOTE = "config.json"
 # 安装树里「东西放哪」的**唯一来源**。以前 bin/ 与 links/ 的字面量散在七八个
 # 模块里各拼一次，改布局要一处一处追；现在调用方一律走下面的函数。
 #
-# 目前两类东西仍分居两处：
+# 1.0 起只有一处放"解开的软件包"，包与依赖同构：
 #
-#   <根>/bin/<包名>@<版本>/                 用户显式装的软件包
-#   <根>/deps/<依赖名>/<依赖名>@<版本>/      被包带进来的依赖
+#   <根>/Shore/<名>/<版本>/…            编译好的软件包（Bottle 解开就长这样）
+#   <根>/Shore/<名>/<版本>/Note         收据（JSON，见 pkg/receipt.py）
+#   <根>/bin/<命令> -> ../Shore/<名>/<版本>/bin/<命令>    PATH 里唯一的目录
 #
-# 1.0 会把它们统一成 <根>/<PAYLOAD_ROOT>/<名>/<版本>/（依赖与包同构，靠收据区分）。
-# 到那时只需要改这几个名字与两个 *_dir 的拼接方式，调用点不用动。
+# 以前是 <根>/bin/<名>@<版本>/ 与 <根>/deps/<依赖名>/<依赖名>@<版本>/ 两处并存，
+# 靠目录区分"用户显式装的"与"被带进来的"；现在两者同构，靠 Note 里的 requested
+# 字段区分。好处：依赖升级不会在树上长出第三层，卸载只要看一个根。
+#
+# 下面这几个函数是**唯一**的拼接点：改布局只改这里，调用点不用动。
+# （历史上 bin/ 既是"包树"又是 PATH 目录，所以老代码里 BIN_DIR 有两种含义；
+# 1.0 把它们分开了：PAYLOAD_ROOT 是包树，BIN_DIR 只放链接。）
+PAYLOAD_ROOT_NAME = "Shore"
 BIN_DIR_NAME = "bin"
-LINKS_DIR_NAME = "links"
-PKG_ROOT_NAME = "bin"
-DEP_ROOT_NAME = "deps"
 RECEIPT_NAME = "Note"
 
 
+def payload_root(base_dir=None):
+    # 所有解开的软件包（含依赖）都在这下面：<根>/Shore
+    return (base_dir or load_base_dir()) / PAYLOAD_ROOT_NAME
+
+
 def bin_dir(base_dir=None):
-    # 可执行入口所在的目录（现在还是"每个版本一棵树"，1.0 起只放链接）。
+    # PATH 里唯一要加的目录；1.0 起这里只有无版本号的软链接。
     return (base_dir or load_base_dir()) / BIN_DIR_NAME
 
 
 def links_dir(base_dir=None):
-    # 无版本号的软链接（1.0 起会并进 bin/）。
-    return (base_dir or load_base_dir()) / LINKS_DIR_NAME
+    # 兼容旧调用点：4.x 的 links/ 已并进 bin/。
+    return bin_dir(base_dir)
 
 
 def pkg_root(base_dir=None):
-    return (base_dir or load_base_dir()) / PKG_ROOT_NAME
+    # 兼容旧调用点：4.x 的 bin/（包树）现在叫 Shore/。
+    return payload_root(base_dir)
 
 
 def dep_root(base_dir=None):
-    return (base_dir or load_base_dir()) / DEP_ROOT_NAME
+    # 兼容旧调用点：4.x 的 deps/ 已并进 Shore/。
+    return payload_root(base_dir)
 
 
 def pkg_dir(name, version, base_dir=None):
-    # 软件包的目标目录：<根>/bin/<包名>@<版本>/
+    # 软件包的目标目录：<根>/Shore/<包名>/<版本>/
     name = require_safe_token(name, "package name")
     version = require_safe_token(version, "package version")
-    return pkg_root(base_dir) / f"{name}@{version}"
+    return payload_root(base_dir) / name / version
 
 
 def dep_dir(name, version, base_dir=None):
-    # 依赖的目标目录：<根>/deps/<依赖名>/<依赖名>@<版本>/
+    # 依赖的目标目录：与包完全同构（<根>/Shore/<名>/<版本>/），只是 Note 里
+    # requested=False。已经不是"依赖名再套一层"了。
     name = require_safe_token(name, "dependency name")
     version = require_safe_token(version, "dependency version")
-    return dep_root(base_dir) / name / f"{name}@{version}"
+    return payload_root(base_dir) / name / version
+
+
+def legacy_pkg_dir(name, version, base_dir=None):
+    # 4.x 的位置（<根>/bin/<名>@<版本>），只给迁移与"读到旧树"用。
+    name = require_safe_token(name, "package name")
+    version = require_safe_token(version, "package version")
+    return (base_dir or load_base_dir()) / "bin" / f"{name}@{version}"
+
+
+def legacy_dep_dir(name, version, base_dir=None):
+    # 4.x 的位置（<根>/deps/<名>/<名>@<版本>），同上。
+    name = require_safe_token(name, "dependency name")
+    version = require_safe_token(version, "dependency version")
+    return (base_dir or load_base_dir()) / "deps" / name / f"{name}@{version}"
 
 
 def self_install_root():

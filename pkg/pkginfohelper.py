@@ -18,7 +18,7 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import load_base_dir, require_safe_token, bin_dir
+from configpaths import load_base_dir, payload_root, require_safe_token
 import common
 import domains
 import flags
@@ -37,7 +37,8 @@ def github_api_headers(url):
     return {"Authorization": f"Bearer {token}"}
 
 BASE_DIR = load_base_dir()
-BIN_DIR = bin_dir()
+# 1.0 起：所有解开的包与依赖都在 <根>/Shore/<名>/<版本>。
+PAYLOAD = payload_root()
 
 # -------------------- 依赖库检查 --------------------
 
@@ -71,17 +72,6 @@ def get_arch():
     else:
         print(f"{RED_BOLD}🌊 Error: Unknown Arch!{RESET}")
         sys.exit(1)
-
-
-def parse_pkg_from_bin(dirname):
-
-    # 从 bin 目录下的目录名解析出包名和版本。
-    # 形如 ldid@2.1.5-procursus7 -> ("ldid", "2.1.5-procursus7")
-
-    if "@" in dirname:
-        name, version = dirname.split("@", 1)
-        return name, version
-    return dirname, None
 
 
 def fetch_remote_versions(pkg_name, arch, budget=None):
@@ -174,8 +164,12 @@ def handle_list(budget=None, raw=False):
     # 插入一行说明文字会让 `wave list --raw | xargs` 拿到一个假包名。
 
     entries = []
-    if BIN_DIR.exists():
-        entries = sorted([f.name for f in BIN_DIR.iterdir() if f.is_dir()])
+    if PAYLOAD.exists():
+        entries = sorted([
+            f"{package.name}@{version.name}"
+            for package in PAYLOAD.iterdir() if package.is_dir()
+            for version in package.iterdir() if version.is_dir()
+        ])
 
     if raw:
         for name in entries:
@@ -330,12 +324,9 @@ def handle_info(pkg_name, output_format=None, budget=None):
     # 1. 扫描本地 bin 目录，找出所有该包的已安装版本
     # （2.2 起每个版本对应一个 <包名>@<版本号> 目录）
     installed_versions = []
-    if BIN_DIR.exists():
-        for f in BIN_DIR.iterdir():
-            if f.is_dir():
-                name, version = parse_pkg_from_bin(f.name)
-                if name.lower() == pkg_name.lower() and version:
-                    installed_versions.append(version)
+    package = PAYLOAD / pkg_name
+    if package.is_dir():
+        installed_versions = [entry.name for entry in package.iterdir() if entry.is_dir()]
 
     installed_versions = sort_versions(installed_versions)
 

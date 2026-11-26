@@ -80,13 +80,13 @@ ARCH=$(python3 -c 'import platform; m=platform.machine().lower(); print("arm64" 
 
 # 装三个包：jq 旧（有新版）、bat 最新、tree 本地比索引新
 for spec in "jq@1.7.1" "bat@0.26.1" "tree@2.2.1"; do
-    mkdir -p "$BASE/bin/$spec"
-    : > "$BASE/bin/$spec/${spec%@*}"
+    mkdir -p "$BASE/Shore/${spec%@*}/${spec##*@}"
+    : > "$BASE/Shore/${spec%@*}/${spec##*@}/${spec%@*}"
 done
-mkdir -p "$BASE/links"
-ln -s "../bin/jq@1.7.1/jq"     "$BASE/links/jq"
-ln -s "../bin/bat@0.26.1/bat"  "$BASE/links/bat"
-ln -s "../bin/tree@2.2.1/tree" "$BASE/links/tree"
+mkdir -p "$BASE/bin"
+ln -s "../Shore/jq/1.7.1/jq"     "$BASE/bin/jq"
+ln -s "../Shore/bat/0.26.1/bat"  "$BASE/bin/bat"
+ln -s "../Shore/tree/2.2.1/tree" "$BASE/bin/tree"
 
 # -------------------- 假索引 --------------------
 #

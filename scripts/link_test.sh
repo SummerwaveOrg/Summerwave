@@ -28,12 +28,12 @@ SANDBOX_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/link_test.XXXXXX")"
 sandbox_install_tree "$SANDBOX_ROOT"
 CONFIG_FILE="$SANDBOX_CONFIG_FILE"
 BASE_DIR="$SANDBOX_BASE"
+PAYLOAD_DIR="$BASE_DIR/Shore"
 BIN_DIR="$BASE_DIR/bin"
-LINKS_DIR="$BASE_DIR/links"
 
 PKG="test_bin_no_ext"
 VER="1.0"
-UNV="$LINKS_DIR/$PKG"
+UNV="$BIN_DIR/$PKG"
 
 FAILED=0
 PASSED=0
@@ -62,39 +62,39 @@ link_state() {
 }
 
 unversioned_count() {
-    ls "$LINKS_DIR" 2>/dev/null | grep -v '@' | wc -l | tr -d ' '
+    ls "$BIN_DIR" 2>/dev/null | grep -v '@' | wc -l | tr -d ' '
 }
 
 # 造一个“已装好”的包：bin/<名>@<版本>/<名> + 带版本号的软链接。全程离线。
 install_fake() {
     local version="$1"
-    mkdir -p "$BIN_DIR/$PKG@$version"
-    printf '#!/bin/sh\necho "Test Successful! (no-extension)"\n' > "$BIN_DIR/$PKG@$version/$PKG"
-    chmod +x "$BIN_DIR/$PKG@$version/$PKG"
-    ln -sfn "../bin/$PKG@$version/$PKG" "$LINKS_DIR/$PKG@$version"
+    mkdir -p "$PAYLOAD_DIR/$PKG/$version"
+    printf '#!/bin/sh\necho "Test Successful! (no-extension)"\n' > "$PAYLOAD_DIR/$PKG/$version/$PKG"
+    chmod +x "$PAYLOAD_DIR/$PKG/$version/$PKG"
+    ln -sfn "../Shore/$PKG/$version/$PKG" "$BIN_DIR/$PKG@$version"
 }
 
 # 造一个“已装好”的整树包：bin/<名>@<版本>/bin/<名> + .is_a_tree 标记。
 # 链接目标要比单文件包多一层 bin/，linker 靠标记区分这两种形态。
 install_fake_tree() {
     local version="$1"
-    mkdir -p "$BIN_DIR/$PKG@$version/bin" "$BIN_DIR/$PKG@$version/share/templates"
-    printf '#!/bin/sh\necho "Tree Successful!"\n' > "$BIN_DIR/$PKG@$version/bin/$PKG"
-    chmod +x "$BIN_DIR/$PKG@$version/bin/$PKG"
+    mkdir -p "$PAYLOAD_DIR/$PKG/$version/bin" "$PAYLOAD_DIR/$PKG/$version/share/templates"
+    printf '#!/bin/sh\necho "Tree Successful!"\n' > "$PAYLOAD_DIR/$PKG/$version/bin/$PKG"
+    chmod +x "$PAYLOAD_DIR/$PKG/$version/bin/$PKG"
     # 整树包里除了主命令还会有别的命令（dtc 的 fdtget、testdisk 的 photorec…）
-    printf '#!/bin/sh\necho "Tree Extra!"\n' > "$BIN_DIR/$PKG@$version/bin/$PKG-extra"
-    chmod +x "$BIN_DIR/$PKG@$version/bin/$PKG-extra"
-    : > "$BIN_DIR/$PKG@$version/.is_a_tree"
+    printf '#!/bin/sh\necho "Tree Extra!"\n' > "$PAYLOAD_DIR/$PKG/$version/bin/$PKG-extra"
+    chmod +x "$PAYLOAD_DIR/$PKG/$version/bin/$PKG-extra"
+    : > "$PAYLOAD_DIR/$PKG/$version/.is_a_tree"
     # 安装时 depsmanager.sh 会给每个可执行文件各建一条 links/<名>@<版本>，
     # 主命令之外那些在卸载时最容易漏 —— 这里照它的样子造出来。
-    ln -sfn "../bin/$PKG@$version/bin/$PKG" "$LINKS_DIR/$PKG@$version"
-    ln -sfn "../bin/$PKG@$version/bin/$PKG-extra" "$LINKS_DIR/$PKG-extra@$version"
+    ln -sfn "../Shore/$PKG/$version/bin/$PKG" "$BIN_DIR/$PKG@$version"
+    ln -sfn "../Shore/$PKG/$version/bin/$PKG-extra" "$BIN_DIR/$PKG-extra@$version"
 }
 
 cleanup() {
-    rm -rf "$BIN_DIR/$PKG@$VER" "$BIN_DIR/$PKG@2.0"
-    rm -f "$LINKS_DIR/$PKG@$VER" "$LINKS_DIR/$PKG@2.0" "$UNV" "$LINKS_DIR/$PKG-extra" \
-        "$LINKS_DIR/$PKG-extra@$VER" "$LINKS_DIR/$PKG-extra@2.0"
+    rm -rf "$PAYLOAD_DIR/$PKG/$VER" "$BIN_DIR/$PKG@2.0"
+    rm -f "$BIN_DIR/$PKG@$VER" "$BIN_DIR/$PKG@2.0" "$UNV" "$BIN_DIR/$PKG-extra" \
+        "$BIN_DIR/$PKG-extra@$VER" "$BIN_DIR/$PKG-extra@2.0"
     # 整个沙箱一起删：这个测试现在跑在自己的安装树里，不再碰真实安装。
     rm -rf "$SANDBOX_ROOT"
 }
@@ -108,7 +108,7 @@ trap cleanup EXIT
 echo ""
 echo "========== 1. 建不带版本号的链接 =========="
 install_fake "$VER"
-VERSIONED_LINK="$LINKS_DIR/$PKG@$VER"
+VERSIONED_LINK="$BIN_DIR/$PKG@$VER"
 python3 "$WAVE_BIN" link "$PKG" </dev/null >/dev/null
 check "link 后 $UNV 存在" "$(link_state "$UNV")" "yes"
 check "linkquery 报告 $PKG => $VER" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊 $PKG => $VER"
@@ -126,13 +126,13 @@ check "重复 link 不改指向" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊
 
 echo ""
 echo "========== 3. -a / --all =========="
-VERSIONED_BEFORE=$(ls "$LINKS_DIR" | grep -c '@' || true)
+VERSIONED_BEFORE=$(ls "$BIN_DIR" | grep -c '@' || true)
 python3 "$WAVE_BIN" unlink -a >/dev/null
 check "unlink -a 清空无版本号链接" "$(unversioned_count)" "0"
-check "unlink -a 不动带版本号的链接" "$(ls "$LINKS_DIR" | grep -c '@' || true)" "$VERSIONED_BEFORE"
+check "unlink -a 不动带版本号的链接" "$(ls "$BIN_DIR" | grep -c '@' || true)" "$VERSIONED_BEFORE"
 python3 "$WAVE_BIN" link -a >/dev/null
 check "link -a 后仍指向 $PKG => $VER" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊 $PKG => $VER"
-check "link -a 不动带版本号的链接" "$(ls "$LINKS_DIR" | grep -c '@' || true)" "$VERSIONED_BEFORE"
+check "link -a 不动带版本号的链接" "$(ls "$BIN_DIR" | grep -c '@' || true)" "$VERSIONED_BEFORE"
 
 # 造一个同包的更高版本（避免依赖 infosource 里真有 2.0）
 make_v2() {
@@ -206,11 +206,11 @@ check "linkquery 未链接时退出码为 1" "$QUERY_EXIT" "1"
 echo ""
 echo "========== 8. 悬空链接会被发现 =========="
 # 不联网：用假目录造一个“已装版本”并链上，再把目录删掉，链接就悬空了
-mkdir -p "$BIN_DIR/$PKG@$VER"
-ln -sfn "../bin/$PKG@$VER/$PKG" "$LINKS_DIR/$PKG@$VER"
+mkdir -p "$PAYLOAD_DIR/$PKG/$VER"
+ln -sfn "../Shore/$PKG/$VER/$PKG" "$BIN_DIR/$PKG@$VER"
 python3 "$WAVE_BIN" link "$PKG" >/dev/null
 check "8.1 链接先正常建立" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊 $PKG => $VER"
-rm -rf "$BIN_DIR/$PKG@$VER"
+rm -rf "$PAYLOAD_DIR/$PKG/$VER"
 set +e
 DANGLE_OUT=$(python3 "$WAVE_BIN" linkquery "$PKG" 2>&1)
 DANGLE_EXIT=$?
@@ -234,14 +234,14 @@ install_fake_tree "$VER"
 python3 "$WAVE_BIN" link "$PKG" >/dev/null
 check "9.1 linkquery 报告 $PKG => $VER" "$(python3 "$WAVE_BIN" linkquery "$PKG")" "🌊 $PKG => $VER"
 check "9.2 链接指向 bin/ 下那一个可执行文件" \
-    "$(readlink "$UNV")" "../bin/$PKG@$VER/bin/$PKG"
+    "$(readlink "$UNV")" "../Shore/$PKG/$VER/bin/$PKG"
 RUN_OUTPUT=$("$UNV")
 check "9.3 不带版本号也能跑" "$([[ "$RUN_OUTPUT" == *"Tree Successful!"* ]] && echo yes || echo no)" "yes"
-check "9.4 安装目录仍是 bin/<名>@<版本>" "$([[ -d "$BIN_DIR/$PKG@$VER" ]] && echo yes || echo no)" "yes"
-EXTRA_UNV="$LINKS_DIR/$PKG-extra"
+check "9.4 安装目录仍是 bin/<名>@<版本>" "$([[ -d "$PAYLOAD_DIR/$PKG/$VER" ]] && echo yes || echo no)" "yes"
+EXTRA_UNV="$BIN_DIR/$PKG-extra"
 check "9.5 其余命令也建了不带版本号的链接" "$(link_state "$EXTRA_UNV")" "yes"
 check "9.6 其余命令的链接指向同一个包的 bin/" \
-    "$(readlink "$EXTRA_UNV")" "../bin/$PKG@$VER/bin/$PKG-extra"
+    "$(readlink "$EXTRA_UNV")" "../Shore/$PKG/$VER/bin/$PKG-extra"
 check "9.7 其余命令能跑" "$("$EXTRA_UNV")" "Tree Extra!"
 # 这一步是回退过的东西：附属命令不是包，拿它的名字去 bin/ 里找 {名}@{版} 永远找不到，
 # 于是 -a 在每台装了整树包的机器上都吐一片「is not linked」并以 1 退出。
@@ -278,8 +278,8 @@ check "9.15 卸载后附属命令的链接一起消失" "$(link_state "$EXTRA_UN
 # 带版本号的那一套（links/<名>@<版本>）同样要摘掉。它们只覆盖了主命令时，
 # random_test 的「links/ 没有残留」会在装过 dtc / git 的机器上红。
 check "9.16 卸载后附属命令的带版本链接也消失" \
-    "$(link_state "$LINKS_DIR/$PKG-extra@$VER")" "no"
-check "9.17 主命令的带版本链接也没了" "$(link_state "$LINKS_DIR/$PKG@$VER")" "no"
+    "$(link_state "$BIN_DIR/$PKG-extra@$VER")" "no"
+check "9.17 主命令的带版本链接也没了" "$(link_state "$BIN_DIR/$PKG@$VER")" "no"
 
 echo ""
 echo "=========================================="

@@ -17,7 +17,7 @@ RESET = '\033[0m'
 
 # -------------------- 依赖与配置 --------------------
 
-from configpaths import load_base_dir, require_safe_token, bin_dir, links_dir
+from configpaths import bin_dir, load_base_dir, payload_root, require_safe_token
 import domains
 import flags
 import tls
@@ -31,8 +31,9 @@ except ImportError:
     sys.exit(1)
 
 BASE_DIR = load_base_dir()
+# 1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
-LINKS_DIR = links_dir()
 
 # 并发取版本清单。装了几十个包时逐个串行会让「看一眼有没有更新」变成等半分钟。
 MAX_WORKERS = 8
@@ -104,42 +105,38 @@ def highest(versions):
 
 def installed_versions(bin_name):
     bin_name = require_safe_token(bin_name, "package name")
-    if not BIN_DIR.is_dir():
+    package = PAYLOAD / bin_name
+    if not package.is_dir():
         return []
-    prefix = f"{bin_name}@"
-    found = []
-    for entry in BIN_DIR.iterdir():
-        if entry.is_dir() and entry.name.startswith(prefix):
-            version = entry.name[len(prefix):]
-            if version:
-                found.append(version)
+    found = [entry.name for entry in package.iterdir() if entry.is_dir()]
     from versioncompare import sort_versions
     return sort_versions(found)
 
 
 def linked_version(bin_name):
-    # links/<名称> 指向 bin/<名称>@<版本>；没链接或指向别处时返回 None
+    # bin/<名称> 指向 ../Shore/<名称>/<版本>/…；没链接或指向别处时返回 None
     bin_name = require_safe_token(bin_name, "package name")
-    link = LINKS_DIR / bin_name
+    link = BIN_DIR / bin_name
     if not link.is_symlink():
         return None
-    directory = os.path.basename(os.path.dirname(os.readlink(link)))
-    if "@" not in directory:
+    parts = os.path.dirname(os.readlink(link)).split(os.sep)
+    if PAYLOAD.name not in parts:
         return None
-    name, _, version = directory.partition("@")
+    index = parts.index(PAYLOAD.name)
+    if index + 2 >= len(parts) + 1:
+        return None
+    name = parts[index + 1] if index + 1 < len(parts) else ""
+    version = parts[index + 2] if index + 2 < len(parts) else ""
     return version if name == bin_name and version else None
 
 
 def installed_bin_names():
-    if not BIN_DIR.is_dir():
+    if not PAYLOAD.is_dir():
         return []
     names = set()
-    for entry in BIN_DIR.iterdir():
-        if not entry.is_dir() or "@" not in entry.name:
-            continue
-        name, _, version = entry.name.partition("@")
-        if name and version:
-            names.add(name)
+    for entry in PAYLOAD.iterdir():
+        if entry.is_dir() and any(child.is_dir() for child in entry.iterdir()):
+            names.add(entry.name)
     return sorted(names)
 
 

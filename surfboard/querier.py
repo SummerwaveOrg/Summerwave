@@ -13,11 +13,12 @@ RESET = '\033[0m'
 
 # -------------------- 配置加载 --------------------
 
-from configpaths import assert_inside, dep_dir as _layout_dep_dir, dep_root, load_base_dir, require_safe_token
+from configpaths import assert_inside, dep_dir as _layout_dep_dir, load_base_dir, payload_root, require_safe_token
 
 
+# 1.0 起：依赖与包同构，都在 <根>/Shore/<名>/<版本>。
 BASE_DIR = load_base_dir()
-DEPS_DIR = dep_root()
+PAYLOAD = payload_root()
 
 
 # -------------------- 查询 --------------------
@@ -27,7 +28,7 @@ def dep_owner_dir(dep_name):
     # 依赖名目录，同一依赖的所有版本都放在这里。
 
     dep_name = require_safe_token(dep_name, "dependency name")
-    return DEPS_DIR / dep_name
+    return PAYLOAD / dep_name
 
 
 def dep_dir(dep_name, dep_version):
@@ -35,7 +36,7 @@ def dep_dir(dep_name, dep_version):
     # 依赖具体版本的安装目录。
 
     path = _layout_dep_dir(dep_name, dep_version)
-    assert_inside(path, DEPS_DIR, "dependency path")
+    assert_inside(path, PAYLOAD, "dependency path")
     return path
 
 

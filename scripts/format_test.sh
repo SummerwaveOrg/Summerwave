@@ -28,8 +28,9 @@ trap 'rm -rf "$SANDBOX_ROOT"' EXIT
 sandbox_install_tree "$SANDBOX_ROOT"
 CONFIG_FILE="$SANDBOX_CONFIG_FILE"
 BASE_DIR="$SANDBOX_BASE"
+PAYLOAD_DIR="$BASE_DIR/Shore"
 BIN_DIR="$BASE_DIR/bin"
-LINKS_DIR="$BASE_DIR/links"
+BIN_DIR="$BASE_DIR/links"
 
 PKGS=(
     "test_bin_no_ext|no-extension"
@@ -65,21 +66,21 @@ for entry in "${PKGS[@]}"; do
         continue
     fi
 
-    if [[ ! -L "$LINKS_DIR/${pkg}@1.0" ]]; then
+    if [[ ! -L "$BIN_DIR/${pkg}@1.0" ]]; then
         echo -e "${RED_BOLD}🌊 FAIL: ${pkg}@1.0 link not found${RESET}"
         FAILED=$((FAILED + 1))
         python3 "$WAVE_BIN" uninstall "${pkg}@1.0" || true
         continue
     fi
 
-    if [[ ! -x "$LINKS_DIR/${pkg}@1.0" ]]; then
+    if [[ ! -x "$BIN_DIR/${pkg}@1.0" ]]; then
         echo -e "${RED_BOLD}🌊 FAIL: ${pkg}@1.0 link not executable${RESET}"
         FAILED=$((FAILED + 1))
         python3 "$WAVE_BIN" uninstall "${pkg}@1.0" || true
         continue
     fi
 
-    if [[ ! -L "$LINKS_DIR/${pkg}" ]]; then
+    if [[ ! -L "$BIN_DIR/${pkg}" ]]; then
         echo -e "${RED_BOLD}🌊 FAIL: install did not create the unversioned link ${pkg}${RESET}"
         FAILED=$((FAILED + 1))
         python3 "$WAVE_BIN" uninstall "${pkg}@1.0" || true
@@ -101,7 +102,7 @@ done
 echo ""
 echo "========== install --no-link =========="
 if python3 "$WAVE_BIN" install "test_bin_zip@1.0" --no-link </dev/null >/dev/null 2>&1; then
-    if [[ -L "$LINKS_DIR/test_bin_zip" ]]; then
+    if [[ -L "$BIN_DIR/test_bin_zip" ]]; then
         echo -e "${RED_BOLD}🌊 FAIL: install --no-link created links/test_bin_zip${RESET}"
         FAILED=$((FAILED + 1))
     else

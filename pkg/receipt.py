@@ -66,6 +66,18 @@ def path_for(target_dir):
     return Path(target_dir) / RECEIPT_NAME
 
 
+def read_note(target_dir):
+    # 读一份收据；没有或坏掉时返回 None（调用方据此退回旧行为，不报错）。
+    # 用途：区分「用户显式装的」与「被带进来的依赖」—— 1.0 起两者同构，
+    # 只剩这一个字段能区分。
+    try:
+        with open(Path(target_dir) / RECEIPT_NAME, encoding="utf-8") as handle:
+            note = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return note if isinstance(note, dict) else None
+
+
 def write_note(target_dir, name, version, arch,
                requested, linked, tree,
                deps=(), commands=(), link_note=None, bottle=None):

@@ -183,9 +183,15 @@ def references(path):
 
 
 def package_root(path, root):
-    """bin/<包名>@<版本> 或 deps/<依赖名>/<依赖名>@<版本> 这两段。"""
+    """1.0 起只有一种：<根>/Shore/<名>/<版本>（包与依赖同构）。
+
+    4.x 的 bin/<名>@<版本> 与 deps/<名>/<名>@<版本> 也认，好让旧 bottle 还能跑
+    一遍重定位；判据是路径开头那一段。
+    """
     rel = os.path.relpath(path, root)
     parts = rel.split(os.sep)
+    if len(parts) >= 3 and parts[0] == "Shore":
+        return os.path.join(*parts[:3])
     if len(parts) >= 3 and parts[0] == "deps":
         return os.path.join(*parts[:3])
     if len(parts) >= 2:
