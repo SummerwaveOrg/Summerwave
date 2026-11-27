@@ -816,7 +816,7 @@ def detect_arch():
 
 def package_common_url(package_name):
 
-    return f"{domains.api_domain()}/pkg/pkginfo/{package_name}/_{package_name}@common"
+    return f"{domains.api_domain()}/{package_name}/_{package_name}@common"
 
 
 def _as_request_timeout(value):
@@ -1182,7 +1182,7 @@ def _install_single_locked(input_string):
     # 5. 获取 URL 和 SHA256（deps 也写在该版本文件里）
     steplog.begin("read version record")
     pkg_version_url = (
-        f"{domains.api_domain()}/pkg/pkginfo/{ParsePkgName}/"
+        f"{domains.api_domain()}/{ParsePkgName}/"
         f"_{ParsePkgName}@{ParsePkgVersion}.{platforminfo.bottle_tag(ARCH)}"
     )
     steplog.detail(f"GET {domains.redact_url(pkg_version_url)}")

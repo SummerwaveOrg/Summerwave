@@ -80,7 +80,7 @@ ln -s "../Shore/jq/1.7.1/jq" "$BASE/bin/jq"
 # -------------------- 假索引 --------------------
 
 MIRROR="$WORK/mirror"
-INDEX="$MIRROR/pkg/pkginfo"
+INDEX="$MIRROR"
 mkdir -p "$INDEX/jq" "$INDEX/bare"
 printf 'jq\nbare\n' > "$INDEX/versions"
 printf '_jq@1.8.2.%s\n_jq@1.7.1.%s\n_jq@common\n' "$BOTTLE_TAG" "$BOTTLE_TAG" > "$INDEX/jq/versions"
@@ -108,7 +108,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/versions" && break
     sleep 0.1
 done
 

@@ -70,7 +70,7 @@ import sys
 root = pathlib.Path(sys.argv[1])
 machine = platform.machine().lower()
 arch = "arm64" if machine in ("arm64", "aarch64") else "amd64"
-pkg_root = root / "pkg" / "pkginfo"
+pkg_root = root
 if not pkg_root.is_dir():
     sys.exit(0)
 

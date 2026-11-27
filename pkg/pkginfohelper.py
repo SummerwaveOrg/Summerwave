@@ -109,7 +109,7 @@ def fetch_remote_info(pkg_name, arch, budget=None):
     # 拉不到时返回 (None, None)，调用方据此区分「没这条记录」和「有记录但没字段」。
 
     pkg_name = require_safe_token(pkg_name, "package name")
-    common_url = f"{domains.api_domain()}/pkg/pkginfo/{pkg_name}/_{pkg_name}@common"
+    common_url = f"{domains.api_domain()}/{pkg_name}/_{pkg_name}@common"
     try:
         resp = requests.get(common_url, timeout=_to(budget or _fallback()),
                             **tls.request_kwargs())
@@ -135,7 +135,7 @@ def fetch_version_min_os(pkg_name, arch, version, budget=None):
 
     pkg_name = require_safe_token(pkg_name, "package name")
     version = require_safe_token(version, "version")
-    version_url = (f"{domains.api_domain()}/pkg/pkginfo/{pkg_name}/"
+    version_url = (f"{domains.api_domain()}/{pkg_name}/"
                    f"_{pkg_name}@{version}.{platforminfo.bottle_tag(arch)}")
     try:
         resp = requests.get(version_url, timeout=_to(budget or _fallback()),

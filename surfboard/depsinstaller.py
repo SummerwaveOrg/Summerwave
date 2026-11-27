@@ -31,9 +31,11 @@ import silent
 BASE_DIR = load_base_dir()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 
-# 依赖的元数据（deps/depsinfo/）属于索引，跟着 MACWAVE_API_DOMAIN 走；
-# 依赖的二进制包本身才跟 MACWAVE_DEPS_DOMAIN 走（见 domains.dep_url）。
-DEPSINFO_BASE = f"{domains.api_domain()}/deps"
+# 依赖的元数据属于索引，跟着 MACWAVE_API_DOMAIN 走；依赖的二进制包本身才跟
+# MACWAVE_DEPS_DOMAIN 走（见 domains.dep_url）。
+# 索引是单一命名空间、放在仓库根：依赖记录与软件包记录同一个目录结构，
+# 地址就是 <api>/<名>/_<名>@<版本>.macos-<arch>。
+DEPSINFO_BASE = domains.api_domain()
 TAGGER_SCRIPT = Path(__file__).resolve().parent / "tagger.sh"
 TRANSFER_SCRIPT = Path(__file__).resolve().parent / "transfer.sh"
 
@@ -156,12 +158,12 @@ def fetch_text(url, attempts=3, timeout=None):
 
 def dep_common_url(dep_name, arch):
 
-    return f"{DEPSINFO_BASE}/depsinfo/{dep_name}/_{dep_name}@common"
+    return f"{DEPSINFO_BASE}/{dep_name}/_{dep_name}@common"
 
 
 def dep_version_url(dep_name, dep_version, arch):
 
-    return f"{DEPSINFO_BASE}/depsinfo/{dep_name}/_{dep_name}@{dep_version}.{platforminfo.bottle_tag(arch)}"
+    return f"{DEPSINFO_BASE}/{dep_name}/_{dep_name}@{dep_version}.{platforminfo.bottle_tag(arch)}"
 
 
 # -------------------- 错误输出 --------------------

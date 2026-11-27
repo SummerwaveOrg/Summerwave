@@ -51,10 +51,9 @@ BUILD_MARKERS = [
 
 def records(index):
     """(kind, name, version, url) 一行一条，跳过 @common。"""
-    for kind, base in (("pkg", "pkg/pkginfo"), ("deps", "deps/depsinfo")):
-        root = index / base
-        if not root.is_dir():
-            continue
+    # 单一命名空间：包与依赖都在仓库根，路径上不再区分 kind（这里统一记 "pkg"）
+    if True:
+        root = index
         for path in sorted(root.rglob("_*")):
             if path.name.endswith("@common"):
                 continue
@@ -64,7 +63,7 @@ def records(index):
             name, version, _arch = match.groups()
             text = path.read_text(errors="replace")
             url = re.search(r'url:\s*"([^"]*)"', text)
-            yield kind, name, version, (url.group(1) if url else "")
+            yield "pkg", name, version, (url.group(1) if url else "")
 
 
 def source_candidates(name, version, url):

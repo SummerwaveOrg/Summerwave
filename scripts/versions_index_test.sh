@@ -41,8 +41,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 INFO="$WORK/infosource"
 MIRROR="$WORK/mirror"
-mkdir -p "$INFO/pkg/pkginfo/jq" "$INFO/pkg/pkginfo/yq" \
-         "$INFO/deps/depsinfo" \
+mkdir -p "$INFO/jq" "$INFO/yq" \
          "$MIRROR/bottle/jq" "$MIRROR/bottle/yq" "$MIRROR/deps"
 
 # 记录：名字带瓶子标签，`file:` 决定扩展名（产物名就是按它算的）
@@ -55,35 +54,35 @@ EOF
 }
 
 SHA="$(printf 'a%.0s' {1..64})"
-printf 'bin_name: "jq"\n' > "$INFO/pkg/pkginfo/jq/_jq@common"
-record "$INFO/pkg/pkginfo/jq/_jq@1.8.2.macos-arm64" "$SHA" "jq-macos-arm64"
-record "$INFO/pkg/pkginfo/jq/_jq@1.8.2.macos-amd64" "$SHA" "jq-macos-amd64"
+printf 'bin_name: "jq"\n' > "$INFO/jq/_jq@common"
+record "$INFO/jq/_jq@1.8.2.macos-arm64" "$SHA" "jq-macos-arm64"
+record "$INFO/jq/_jq@1.8.2.macos-amd64" "$SHA" "jq-macos-amd64"
 # yq 有记录但镜像里没有产物 —— 必须被排除
-record "$INFO/pkg/pkginfo/yq/_yq@4.45.1.macos-arm64" "$SHA" "yq.tar.gz"
+record "$INFO/yq/_yq@4.45.1.macos-arm64" "$SHA" "yq.tar.gz"
 
 # 镜像里只放 jq 两份（按新命名规则：<名>@<版本>.<os>-<arch><扩展名>）
 : > "$MIRROR/bottle/jq/jq@1.8.2.macos-arm64"
 : > "$MIRROR/bottle/jq/jq@1.8.2.macos-amd64"
-rm -rf "$INFO/pkg/pkginfo/yq"
+rm -rf "$INFO/yq"
 
 echo "========== 1. 清单按新布局生成 =========="
 
 OUT="$("$PYTHON" "$BUILD" --infosource "$INFO" --mirror "$MIRROR" 2>&1)"; RC=$?
 check "退出码 0" "$RC" "0"
-check "包名清单写成 jq" "$(cat "$INFO/pkg/pkginfo/versions")" "jq"
+check "包名清单写成 jq" "$(cat "$INFO/versions")" "jq"
 # 清单里写的是「记录名去掉前导下划线」（与线上镜像一致，客户端 split("@") 后只用版本段）
 check "两个架构都进同一份版本清单" \
-    "$(tr '\n' ' ' < "$INFO/pkg/pkginfo/jq/versions")" \
+    "$(tr '\n' ' ' < "$INFO/jq/versions")" \
     "jq@1.8.2.macos-amd64 jq@1.8.2.macos-arm64 "
 
 echo
 echo "========== 2. 镜像里没有产物的记录不进清单 =========="
 
 # 再塞一条 yq 记录，但镜像里没有它的产物
-mkdir -p "$INFO/pkg/pkginfo/yq"
-record "$INFO/pkg/pkginfo/yq/_yq@4.45.1.macos-arm64" "$SHA" "yq.tar.gz"
+mkdir -p "$INFO/yq"
+record "$INFO/yq/_yq@4.45.1.macos-arm64" "$SHA" "yq.tar.gz"
 "$PYTHON" "$BUILD" --infosource "$INFO" --mirror "$MIRROR" > "$WORK/out2.log" 2>&1
-check "只有产物的包才进清单" "$(cat "$INFO/pkg/pkginfo/versions")" "jq"
+check "只有产物的包才进清单" "$(cat "$INFO/versions")" "jq"
 check "缺产物时给出了说明" \
     "$(grep -c '未列入' "$WORK/out2.log")" "1"
 [[ "$(cat "$WORK/out2.log")" == *"yq"* ]] \
@@ -92,9 +91,9 @@ check "缺产物时给出了说明" \
 echo
 echo "========== 3. 幂等 =========="
 
-FIRST="$(cat "$INFO/pkg/pkginfo/versions"; cat "$INFO/pkg/pkginfo/jq/versions")"
+FIRST="$(cat "$INFO/versions"; cat "$INFO/jq/versions")"
 "$PYTHON" "$BUILD" --infosource "$INFO" --mirror "$MIRROR" > /dev/null 2>&1
-SECOND="$(cat "$INFO/pkg/pkginfo/versions"; cat "$INFO/pkg/pkginfo/jq/versions")"
+SECOND="$(cat "$INFO/versions"; cat "$INFO/jq/versions")"
 check "重复跑结果不变" "$SECOND" "$FIRST"
 
 echo
@@ -104,9 +103,9 @@ rm -rf "$MIRROR/bottle/jq"
 OUT="$("$PYTHON" "$BUILD" --infosource "$INFO" --mirror "$MIRROR" 2>&1)"; RC=$?
 check "空镜像退出码非 0（当作没准备好）" "$([[ $RC -ne 0 ]] && echo nonzero || echo zero)" "nonzero"
 check "旧的包名清单已删掉（不留下一个下不到的包）" \
-    "$([[ -f "$INFO/pkg/pkginfo/versions" ]] && echo present || echo gone)" "gone"
+    "$([[ -f "$INFO/versions" ]] && echo present || echo gone)" "gone"
 check "旧的版本清单也删掉了" \
-    "$([[ -f "$INFO/pkg/pkginfo/jq/versions" ]] && echo present || echo gone)" "gone"
+    "$([[ -f "$INFO/jq/versions" ]] && echo present || echo gone)" "gone"
 
 echo
 echo "========== 5. 参数校验 =========="

@@ -5,8 +5,8 @@
 # 为「列出版本 / 列出软件包」生成镜像自备的清单。
 #
 # 为什么需要：设了 MACWAVE_API_DOMAIN 之后，客户端不再问 api.github.com，而是读
-#   <api>/pkg/pkginfo/versions            一行一个包名
-#   <api>/pkg/pkginfo/<包名>/versions     一行一个版本记录文件名
+#   <api>/versions            一行一个包名
+#   <api>/<包名>/versions     一行一个版本记录文件名
 #                                         （_jq@1.8.2.macos-arm64 —— 平台标签在名字里）
 # infosource 仓库里没有这两类文件 —— 它们本来由 GitHub 的 contents 接口动态算出。
 #
@@ -32,20 +32,14 @@ components.add_to_sys_path()
 import domains  # noqa: E402
 from sync_payloads import read_record, records  # noqa: E402
 
-# 索引里两个顶层目录。1.0 起不再按架构分目录：平台与架构编进记录名
-# （_<名>@<版本>.<os>-<arch>），所以两个架构的记录写进同一份 versions。
-# 注意 deps 侧叫 depsinfo，与 bottle 侧的 pkginfo 不同名。
-KIND_LAYOUT = {
-    "bottle": ("pkg", "pkginfo"),
-    "deps": ("deps", "depsinfo"),
-}
+# 1.0 起索引是单一命名空间（根下 <名>/_<名>@<版本>.<os>-<arch>），所以清单只有一份，
+# kind 不再决定目录。保留这个映射只是为了日志里还能看出「这是哪一类」。
+KIND_LAYOUT = {"bottle": "", "deps": ""}
 
 
 def version_entry_path(infosource, kind):
-    # <infosource>/pkg/pkginfo、<infosource>/deps/depsinfo
-    # 同时也是对外暴露的路径，所以清单直接写在这里。
-    root, prefix = KIND_LAYOUT[kind]
-    return infosource / root / prefix
+    # 清单要写到索引根本身（<api>/versions 与 <api>/<包名>/versions）
+    return infosource
 
 
 def collect(infosource, mirror):
@@ -78,8 +72,10 @@ def main():
                         help="mirror root; its bottle/ and deps/ subtrees decide what gets listed")
     args = parser.parse_args()
 
-    if not (args.infosource / "pkg").is_dir():
-        print(f"🌊 Error: {args.infosource} does not look like the infosource repository.")
+    # 单一命名空间之后没有 pkg/ 可判，改认记录本身：根下至少要有 <名>/_<名>@<版本>.*
+    if not any(args.infosource.glob("*/_*@*")):
+        print(f"🌊 Error: {args.infosource} does not look like the SeaLane index "
+              "(no <name>/_<name>@<version>.* record found).")
         return 1
     if not (args.mirror / "bottle").is_dir():
         print(f"🌊 Error: {args.mirror} does not look like a mirror root (no bottle/).")

@@ -5,7 +5,7 @@
 #
 #   1. 每次随机挑一个「安装目录方案」（含 33% 概率的自定义方案 ~/test dir），
 #      自己把脚本部署进去，跑完无论成败都清理干净。
-#   2. 从 infosource 的 pkginfo 里随机抽 10~20 个软件包（必含 wget），
+#   2. 从索引（仓库根，单一命名空间）里随机抽 10~20 个软件包（必含 wget），
 #      下载体积超过 200MB 的包重抽；逐个 install → 校验 → uninstall。
 #   3. 指定版本号 / 不指定版本号各占一半，但两组都必须落在 [5, 15] 内，否则重抽。
 #      指定版本号的包里，1~2 个给「不存在的版本」，1~2 个给「非法版本」，其余正常。
@@ -412,7 +412,7 @@ def detect_arch():
 
 def load_catalog(source, arch):
     """{包名: {版本: (url, sha256, bin_name, deps)}}，从本地 infosource 检出读。"""
-    root = source / "pkg" / "pkginfo"
+    root = source
     if not root.is_dir():
         raise RuntimeError(f"{root} 不存在")
 

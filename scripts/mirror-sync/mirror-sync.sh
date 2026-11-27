@@ -261,7 +261,7 @@ hr
 mw_say "第 2/6 步 · 同步三棵主干"
 # SeaLane（索引仓）要铺进一层 `HEAD/`：客户端默认地址是
 # `…/SummerwaveOrg/SeaLane/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
-# `pkg/pkginfo/…`（1.0 起不再按架构分目录，平台标签编在记录名里）。站点上那层
+# `<名>/_<名>@<版本>.macos-<arch>`（1.0 起单一命名空间，平台标签编在记录名里）。站点上那层
 # HEAD 是真实目录（nginx 只做 `alias /…/MacWave/sealane/`），所以数据必须落在 HEAD 里。
 infosource_publish() {
     tree sealane SeaLane main "$DEST/sealane/HEAD" || return 1

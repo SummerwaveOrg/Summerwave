@@ -86,7 +86,7 @@ ln -s "../Shore/tree/2.2.1/tree" "$BASE/bin/tree"
 # 和「有名字但没出清单」这两种完全不同的故障。
 
 MIRROR="$WORK/mirror"
-INDEX="$MIRROR/pkg/pkginfo"
+INDEX="$MIRROR"
 mkdir -p "$INDEX"/{jq,bat,tree}
 printf 'bat\njq\ntree\nwget\n' > "$INDEX/versions"
 printf 'jq@1.8.2\njq@1.7.1\njq@common\n' > "$INDEX/jq/versions"
@@ -102,7 +102,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/versions" && break
     sleep 0.1
 done
 

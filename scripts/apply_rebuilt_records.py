@@ -41,9 +41,9 @@ FIELD_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(.*)"\s*$', re.M)
 
 
 def record_path(infosource, kind, name, version, arch):
-    root = "pkg/pkginfo" if kind == "pkg" else "deps/depsinfo"
+    # 1.0 起索引是单一命名空间：记录就在仓库根下 <名>/_<名>@<版本>.macos-<arch>
     tag = platforminfo.bottle_tag(arch)
-    return infosource / root / name / f"_{name}@{version}.{tag}"
+    return infosource / name / f"_{name}@{version}.{tag}"
 
 
 def read_field(text, key):

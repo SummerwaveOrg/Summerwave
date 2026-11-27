@@ -138,23 +138,23 @@ def index_list_url(package_name=None):
     # api.github.com，与索引本身的地址不是一台机器，镜像站无法等价提供。
     #
     # 所以：设了 MACWAVE_API_DOMAIN（也就是在用镜像）时，要求镜像自己提供一份清单——
-    #   <api>/pkg/pkginfo/versions           → 一行一个包名
-    #   <api>/pkg/pkginfo/<包名>/versions     → 一行一个版本号
-    # 1.0 起索引不再按架构分目录：平台与架构编进记录名（_<名>@<版本>.<os>-<arch>）。
+    #   <api>/versions              → 一行一个包名
+    #   <api>/<包名>/versions        → 一行一个版本号
+    # 1.0 起索引是**单一命名空间放在仓库根**：包与依赖不分开，平台与架构编进记录名
+    # （_<名>@<版本>.<os>-<arch>）。
     # 没设时仍用 GitHub API，行为与 3.x 一致。
     # 4.0 的索引协议定稿后，这里改成只读镜像那一份。
-    path = "pkg/pkginfo"
-    if package_name:
-        path = f"{path}/{package_name}"
+    # 索引是单一命名空间、就在仓库根：列软件包读 <api>/versions，列版本读 <api>/<名>/versions
+    suffix = f"/{package_name}" if package_name else ""
 
     if is_custom("api"):
-        url = f"{api_domain()}/{path}/versions"
+        url = f"{api_domain()}{suffix}/versions"
         steplog.detail(f"listing source: mirror-provided {redact_url(url)}")
         return url
 
     # ref=HEAD 而不是 ref=main：HEAD 解析为默认分支，改默认分支名不必回来改这里。
     # 返回的是 contents API 的 JSON 数组，与镜像那份纯文本由 listing_names 统一。
-    url = f"https://api.github.com/repos/SummerwaveOrg/SeaLane/contents/{path}?ref=HEAD"
+    url = f"https://api.github.com/repos/SummerwaveOrg/SeaLane/contents{suffix}?ref=HEAD"
     steplog.detail("listing source: GitHub API (MACWAVE_API_DOMAIN not set)")
     return url
 

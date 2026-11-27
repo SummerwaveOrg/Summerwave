@@ -57,10 +57,10 @@ MARKER = "_RELOCATED"
 # -------------------- 索引 --------------------
 
 def record_path(infosource, kind, arch, name, version):
-    # 1.0 起索引不再按架构分目录，平台标签编在记录名里（_<名>@<版本>.<os>-<arch>）。
-    root = "pkg/pkginfo" if kind == "pkg" else "deps/depsinfo"
+    # 1.0 起索引是单一命名空间：包与依赖同一个目录结构，平台标签编在记录名里。
+    # kind 只用来区分「这条记录是包还是依赖」，不再影响落盘位置。
     tag = platforminfo.bottle_tag(arch)
-    return infosource / root / name / f"_{name}@{version}.{tag}"
+    return infosource / name / f"_{name}@{version}.{tag}"
 
 
 def parse_fields(text):

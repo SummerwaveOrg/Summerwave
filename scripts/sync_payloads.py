@@ -43,22 +43,22 @@ SHA_RE = re.compile(r'^sha256:\s*"([0-9a-f]{64})"\s*$', re.M)
 URL_RE = re.compile(r'^url:\s*"([^"]+)"\s*$', re.M)
 FILE_RE = re.compile(r'^file:\s*"([^"]+)"\s*$', re.M)
 
-# 索引目录不再按架构分：pkg/pkginfo、deps/depsinfo。
+# 索引是单一命名空间，直接放在仓库根下（没有 pkg/、deps/ 之分）。
 # 平台与架构编在记录名里：_<名>@<版本>.<os>-<arch>。
-INDEX_DIR_RE = re.compile(r'^(?:pkginfo|depsinfo)$')
 BOTTLE_TAG_RE = re.compile(r'\.(?:macos|linux)-(arm64|amd64)$')
+NOT_A_PACKAGE = {"docs", "scripts", "LICENSE", "README.md", ".github", ".gitignore"}
 
 
 def records(infosource):
-    # 产出 (kind, arch, name, version, path)
-    for kind, root_name in (("bottle", "pkg"), ("deps", "deps")):
-        root = infosource / root_name
-        if not root.is_dir():
+    # 产出 (kind, arch, name, version, path)。kind 从记录内容看不出来，统一给 "bottle"：
+    # 依赖与软件包的区别只在别的记录有没有在 deps 里提到它，与落盘位置无关。
+    for kind in ("bottle",):
+        if not infosource.is_dir():
             continue
-        for directory in sorted(root.iterdir()):
-            if not INDEX_DIR_RE.match(directory.name):
-                continue
-            for record in sorted(directory.glob("*/_*@*")):
+        for directory in sorted(p for p in infosource.iterdir()
+                                if p.is_dir() and p.name not in NOT_A_PACKAGE
+                                and not p.name.startswith(".")):
+            for record in sorted(directory.glob("_*@*")):
                 if record.name.endswith("@common"):
                     continue
                 # _<名字>@<版本>.<os>-<arch>

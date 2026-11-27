@@ -132,7 +132,7 @@ def macho_refs(path):
 
 
 def split_data_path(path):
-    # deps/depsinfo/gettext/_gettext@0.21.0.macos-arm64 -> ("dep", "arm64", "gettext@0.21.0")
+    # gettext/_gettext@0.21.0.macos-arm64 -> ("dep", "arm64", "gettext@0.21.0")
     # 1.0 起索引不再按架构分目录，平台与架构编在记录名的后缀里。
     parts = path.split("/")
     kind = "dep" if parts[0] == "deps" else "pkg"
@@ -335,7 +335,7 @@ def audit_data(files, check_urls=False):
             refs += 1
 
             dep_name, _, dep_version = dep_ref.partition("@")
-            common_path = f"deps/depsinfo/{dep_name}/_{dep_name}@common"
+            common_path = f"{dep_name}/_{dep_name}@common"
             if common_path not in common_paths:
                 problems.append(f"{label}: depsinfo 缺少 {dep_name} 的 @common")
             if find_record(files, "dep", dep_name, dep_version) is None:
