@@ -5,7 +5,7 @@
 # 宿主除了沙箱目录以外的地方一个字节都不会被写。
 #
 # 做法：
-#   1. 在临时目录里搭一份离线镜像，只把 BASE_URL / SELFUPDATE_URL / PYTHON_DOMAIN_URL 三行改成
+#   1. 在临时目录里搭一份离线镜像，只把 BASE_URL / PYTHON_DOMAIN_URL 两行改成
 #      file:// 路径，因此整个过程**不需要网络**；
 #   2. 用 macOS 自带的 sandbox-exec 起一个「默认拒绝、只允许写沙箱目录」的沙箱，
 #      在里头跑安装 / 卸载的各种路径，逐条断言。
@@ -162,12 +162,11 @@ scenario_install() {
            done; echo yes)" "yes"
     check "状态文件在树内 var/config.sh" \
         "$([[ -f "$TREE/var/config.sh" ]] && echo yes || echo no)" "yes"
-    check "状态里的版本与 latest.toml 一致" "$(state_version)" \
-        "$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' \
-            "$SANDBOX_DIR/mirror/selfupdate/macwavedata/latest.toml" | head -n 1)"
-    check "状态里带构建号" "$(state_build)" "000A0000"
-    check "没有 config.json（安装根不再靠配置文件）" \
-        "$(find "$TEST_ROOT" -name config.json 2>/dev/null | wc -l | tr -d ' ')" "0"
+    check "状态里的版本就是脚本自带的那个 tag" "$(state_version)" "$SANDBOX_VERSION"
+    check "状态里带构建号（从 tag 的时间部分派生）" "$(state_build)" "2026-01-01T00:00Z"
+    # 只看安装树：赝品镜像里也有仓库的副本，里面有 platform/linux 的模板 config.json
+    check "安装树里没有 config.json（不再靠配置文件）" \
+        "$(find "$TREE" -name config.json 2>/dev/null | wc -l | tr -d ' ')" "0"
     check "入口可执行" \
         "$([[ -x "$TREE/lib/wave" ]] && echo yes || echo no)" "yes"
     # 安装器**不写 rc 文件**（只打印该敲的那条命令）
@@ -362,7 +361,7 @@ run_scenarios() {
 
 if [[ -n "${SANDBOX_INNER:-}" ]]; then
     OFFLINE_INSTALLER="$SANDBOX_DIR/install-offline.sh"
-    MIRROR_BASE="$SANDBOX_DIR/mirror/base"
+    MIRROR_BASE="$SANDBOX_DIR/mirror/core/$SANDBOX_VERSION"
     # configpaths / install.sh 会把 HOME 搬进测试根，这里按同一条规则算，
     # 断言才能指向安装器真正用的那个家目录。
     export MACWAVE_TEST="$SANDBOX_DIR"
@@ -414,6 +413,8 @@ for mod in requests packaging urllib3 rich; do
     fi
 done
 
+# 版本 tag 必须在内外两层都可见：内层是被 exec 重入的同一份脚本，只继承 export 过的变量。
+export SANDBOX_VERSION="0.0.0@2026-01-01T00:00Z"
 SANDBOX_DIR="$(mktemp -d "${TMPDIR:-/tmp}/macwave-sandbox.XXXXXX")"
 SANDBOX_DIR="$(cd "$SANDBOX_DIR" && pwd -P)"      # 解析 /tmp -> /private/tmp，沙箱规则要真实路径
 cleanup() {
@@ -427,52 +428,25 @@ echo "🌊 Nothing outside this directory will be written."
 echo ""
 
 # ---------- 1. 离线镜像 ----------
-mkdir -p "$SANDBOX_DIR/mirror/base" "$SANDBOX_DIR/mirror/selfupdate"
-tar -C "$REPO_DIR" -cf - \
-    --exclude=.git --exclude=.github --exclude=.templates \
-    --exclude=.vscode --exclude=.codex --exclude=.pycharm \
-    --exclude=__pycache__ --exclude=.DS_Store . \
-    | tar -C "$SANDBOX_DIR/mirror/base" -xf -
 
-# 自更新数据现在只有两个位置：macwavedata/latest.toml（版本指针）与
-# macwavedata/<版本>/update_commands.sh（下载哪些文件、怎么迁移）。
-# 两者都由本仓库生成，所以沙箱不依赖外部仓库也能跑。
-SELFUPDATE_SRC="${MACWAVE_SELFUPDATE:-$(dirname "$REPO_DIR")/Selfupdate}"
-SANDBOX_VERSION="0.0.0"
-mkdir -p "$SANDBOX_DIR/mirror/selfupdate/macwavedata/$SANDBOX_VERSION"
+# 1.0 的安装器从 <CORE>/<tag>/<路径> 取文件，所以镜像里要有一棵**以 tag 命名**的树。
+# 树与清单都取自同一个 git ref（不是工作区）：两份内容必须逐字节一致，否则
+# 「下载到的字节」和「清单里的哈希」对不上，测试会失败在一个假问题上。
+mkdir -p "$SANDBOX_DIR/mirror/core/$SANDBOX_VERSION"
+git -C "$REPO_DIR" archive HEAD | tar -C "$SANDBOX_DIR/mirror/core/$SANDBOX_VERSION" -xf - \
+    || { echo -e "${RED_BOLD}🌊 Error: cannot export the tree for the sandbox mirror.${RESET}"; exit 1; }
 
-# update_commands.sh 必须由生成器产出，不能手写：手写就会漏文件，而漏掉的文件在装完之后
-# 表现为某条命令 ModuleNotFoundError —— 那种故障要翻完整棵树才看得出来。
-#
-# 安装器与卸载器不装自己：它们由 curl 直接执行，不落到安装树里。
-# 目录清单取自 components.txt + assets.txt，不手写 —— 手写就会漏掉后加的
-# cli/、config/、net/、man/、info/，而漏掉的后果是装完之后某条命令 ImportError。
-SANDBOX_FILES=""
-for d in $(sed -e 's/#.*//' "$SCRIPT_DIR/components.txt") \
-         $(sed -e 's/#.*//' "$SCRIPT_DIR/assets.txt"); do
-    for f in "$REPO_DIR/$d"/*; do
-        [[ -f "$f" ]] || continue
-        base="$(basename "$f")"
-        [[ "$base" == "install.sh" || "$base" == "uninstall.sh" ]] && continue
-        SANDBOX_FILES="$SANDBOX_FILES $d/$base"
-    done
-done
-
-if ! python3 "$REPO_DIR/scripts/build_update_commands.py" \
-        --version "$SANDBOX_VERSION" --branch main \
-        --files $SANDBOX_FILES --delta $SANDBOX_FILES \
-        --out "$SANDBOX_DIR/mirror/selfupdate/macwavedata/$SANDBOX_VERSION/update_commands.sh" \
-        > /dev/null; then
-    echo -e "${RED_BOLD}🌊 Error: cannot generate update_commands.sh for the sandbox.${RESET}"
+# 安装器由生成器产出（清单内嵌在它头部）—— 手写清单必然漏文件，而漏掉的文件在装完
+# 之后表现为某条命令 ModuleNotFoundError。
+if ! python3 "$REPO_DIR/scripts/build_installer.py" \
+        --version "$SANDBOX_VERSION" --ref HEAD \
+        --template "$REPO_DIR/lib/install.sh" \
+        --out "$SANDBOX_DIR/install-generated.sh" > /dev/null; then
+    echo -e "${RED_BOLD}🌊 Error: cannot build the offline installer.${RESET}"
     exit 1
 fi
-
-{
-    echo 'version = "0.0.0"'
-    echo 'release_date = "2026-01-01"'
-    echo 'build_number = "000A0000"'
-    echo 'branch = "main"'
-} > "$SANDBOX_DIR/mirror/selfupdate/macwavedata/latest.toml"
+cp "$REPO_DIR/lib/uninstall.sh" "$SANDBOX_DIR/source-uninstall.sh"
+cp "${BASH_SOURCE[0]}" "$SANDBOX_DIR/sandbox_test.sh"
 
 # 解释器镜像：只放版本指针，不放归档。客户端会先读到版本号、再去取 python_url.toml，
 # 取不到就回退系统 python3 —— 这条「问到了但拿不到」的路径比「问不到」更常见，
@@ -484,31 +458,19 @@ echo 'arm64_url = "file:///dev/null/cpython.tar.gz"' >> "$SANDBOX_DIR/mirror/pyt
 echo 'arm64_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"' \
     >> "$SANDBOX_DIR/mirror/python/pythondata/$SANDBOX_VERSION/python_url.toml"
 
-if [[ -f "$SELFUPDATE_SRC/macwavedata/latest.toml" ]]; then
-    echo "🌊 Self-update data generated here; the real one is at $SELFUPDATE_SRC"
-else
-    echo -e "${YELLOW}🌊 Generated self-update data from the repo tree.${RESET}"
-    echo -e "${YELLOW}🌊 Set MACWAVE_SELFUPDATE=<path> to point at the real one.${RESET}"
-fi
-
-# 只改三行 URL，其余与真实安装器逐字节一致
-# 三个数据来源都要指向离线镜像：
-#   BASE_URL          MacWave 自身文件
-#   SELFUPDATE_URL    latest.toml 与 update_commands.sh
+# 只改两行 URL，其余与真实安装器逐字节一致
+#   BASE_URL          这一版的代码树（<CORE>/<tag>）
 #   PYTHON_DOMAIN_URL 自带解释器的 latest.toml 与归档
 # 漏掉任何一个，沙箱里那一步就会去访问真实网络，被 sandbox-exec 拦掉，
 # 于是失败原因看起来像「安装器坏了」，实际是测试自己没隔离干净。
-sed -e "s|^BASE_URL=.*|BASE_URL=\"file://$SANDBOX_DIR/mirror/base\"|" \
-    -e "s|^SELFUPDATE_URL=.*|SELFUPDATE_URL=\"file://$SANDBOX_DIR/mirror/selfupdate\"|" \
+sed -e "s|^BASE_URL=.*|BASE_URL=\"file://$SANDBOX_DIR/mirror/core/$SANDBOX_VERSION\"|" \
     -e "s|^PYTHON_DOMAIN_URL=.*|PYTHON_DOMAIN_URL=\"file://$SANDBOX_DIR/mirror/python\"|" \
-    "$REPO_DIR/lib/install.sh" > "$SANDBOX_DIR/install-offline.sh"
-cp "$REPO_DIR/lib/uninstall.sh" "$SANDBOX_DIR/source-uninstall.sh"
-cp "${BASH_SOURCE[0]}" "$SANDBOX_DIR/sandbox_test.sh"
+    "$SANDBOX_DIR/install-generated.sh" > "$SANDBOX_DIR/install-offline.sh"
 
-if [[ "$(diff <(sed -e 's|^BASE_URL=.*|X|' -e 's|^SELFUPDATE_URL=.*|Y|' -e 's|^PYTHON_DOMAIN_URL=.*|Z|' "$REPO_DIR/lib/install.sh") \
-               <(sed -e 's|^BASE_URL=.*|X|' -e 's|^SELFUPDATE_URL=.*|Y|' -e 's|^PYTHON_DOMAIN_URL=.*|Z|' "$SANDBOX_DIR/install-offline.sh") \
+if [[ "$(diff <(sed -e 's|^BASE_URL=.*|X|' -e 's|^PYTHON_DOMAIN_URL=.*|Z|' "$SANDBOX_DIR/install-generated.sh") \
+               <(sed -e 's|^BASE_URL=.*|X|' -e 's|^PYTHON_DOMAIN_URL=.*|Z|' "$SANDBOX_DIR/install-offline.sh") \
           | wc -l | tr -d ' ')" != "0" ]]; then
-    echo -e "${RED_BOLD}🌊 Error: the offline installer differs from lib/install.sh beyond the URLs.${RESET}"
+    echo -e "${RED_BOLD}🌊 Error: the offline installer differs from the generated one beyond the URLs.${RESET}"
     exit 1
 fi
 

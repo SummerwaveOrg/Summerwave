@@ -1549,7 +1549,7 @@ sync_tree() {
         if ! mw_download "$url" "$destination" 60; then
             echo -e "${RED_BOLD}🌊 Error: cannot download $path.${RESET}" >&2
             echo -e "${RED_BOLD}🌊   $(mw_redact "$url")${RESET}" >&2
-            echo -e "${RED_BOLD}🌊 If every file fails like this, the mirror has not synced branch $BRANCH yet.${RESET}" >&2
+            echo -e "${RED_BOLD}🌊 If every file fails like this, the mirror has not synced $MACWAVE_VERSION yet.${RESET}" >&2
             echo -e "${RED_BOLD}🌊 Run scripts/mirror-sync/mirror-sync.sh on the mirror (see docs/MIRROR-SETUP.md).${RESET}" >&2
             install_failure_notice 1
             exit 1
