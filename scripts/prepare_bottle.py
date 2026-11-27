@@ -50,6 +50,7 @@ components.add_to_sys_path()
 import domains  # noqa: E402  —— 产物命名只此一份（与客户端同一个函数）
 # 平台标签与客户端同源（config/platforminfo.bottle_tag），不在这里再抄一份词表。
 import platforminfo  # noqa: E402
+import stage_audit  # noqa: E402  —— 上传前的体检与冒烟（上游产物同样要过）
 DEFAULT_INFOSOURCE = Path.home() / "Projects" / "SummerwaveOrg" / "SeaLane"
 MARKER = "_RELOCATED"
 
@@ -417,7 +418,7 @@ def stage_target(stage, kind, name, version):
 
 
 def prepare(infosource, kind, name, version, arch, out_dir, keep,
-            source="auto", cache=None):
+            source="auto", cache=None, smoke=True, audit=True):
     work = Path(tempfile.mkdtemp(prefix=f"prepare-{name}-"))
     try:
         stage = work / "stage"
@@ -471,11 +472,49 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
             sys.exit("🌊 Error: has_prefix placeholders survive in "
                      + ", ".join(leftovers[:5]) + " — the payload would point at the build machine")
 
+        # 2.6 静态体检：悬空链接、执行位、Mach-O 引用构建机路径这类「装完才炸」
+        #     的东西，必须在打包之前拦住。上游产物不是我们编的，这些都可能带着。
+        if audit:
+            stage_report = stage_audit.audit_stage(stage)
+            for item in stage_report.errors:
+                detail = f" — {item['detail']}" if item["detail"] else ""
+                print(f"🌊 ERROR  {item['kind']}: {item['path']}{detail}", file=sys.stderr)
+            if stage_report.errors:
+                sys.exit("🌊 Error: the staging tree is not installable (see errors above)")
+            for item in stage_report.warnings:
+                detail = f" — {item['detail']}" if item["detail"] else ""
+                print(f"🌊 warn   {item['kind']}: {item['path']}{detail}")
+
+        # 2.7 冒烟：真跑一次。上游产物把 /tmp 或构建机路径烘进了 load command、
+        #     或者依赖闭包不全，静态检查都看不出来 —— dyld 要到执行那一刻才说话。
+        if smoke:
+            results = stage_audit.smoke(stage)
+            broken = [r for r in results if r["status"] in ("dyld-error", "exec-failed")]
+            for item in broken:
+                print(f"🌊 smoke {item['status']}: {item['path']} — {item['detail']}",
+                      file=sys.stderr)
+            if broken:
+                sys.exit("🌊 Error: the payload cannot start on this machine; "
+                         "it would be just as broken on the user's")
+            started = sum(1 for r in results if r["status"] == "ok")
+            if results:
+                print(f"🌊 smoke: {started}/{len(results)} executable(s) started cleanly")
+
         # 3. 打标记 + 只重打目标产物（依赖由它们自己那一轮处理）
         (target / MARKER).write_text("@loader_path\n", encoding="utf-8")
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / repacked_name(name, version, arch)
         digest = repack(target, out_file)
+
+        if audit:
+            packed = stage_audit.audit_archive(out_file)
+            for item in packed.errors:
+                detail = f" — {item['detail']}" if item["detail"] else ""
+                print(f"🌊 ERROR  {item['kind']}: {item['path']}{detail}", file=sys.stderr)
+            if packed.errors:
+                out_file.unlink(missing_ok=True)
+                sys.exit("🌊 Error: the repacked archive is not installable "
+                         "(see errors above); nothing was kept")
 
         leaks = audit_archive(out_file, (stage, work))
         if leaks:
@@ -506,7 +545,8 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
             shutil.rmtree(work, ignore_errors=True)
 
 
-def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_existing):
+def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_existing,
+          smoke=True, audit=True):
     """把索引里所有记录重打一遍。断点续跑：产物已在 out_dir 就跳过。"""
     from sync_payloads import records
 
@@ -536,7 +576,8 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
         print(f"\n=== [{index}/{len(todo)}] {name}@{version} ({kind}, {arch}) ===", flush=True)
         try:
             result = prepare(infosource, kind, name, version, arch, out_dir,
-                             keep=False, source=source, cache=cache)
+                             keep=False, source=source, cache=cache,
+                             smoke=smoke, audit=audit)
         except SystemExit as error:            # prepare() 用 sys.exit 报错
             failures.append((f"{name}@{version}.{arch}", str(error)))
             print(f"🌊 FAILED: {error}", flush=True)
@@ -578,6 +619,10 @@ def main():
     parser.add_argument("--infosource", default=str(DEFAULT_INFOSOURCE))
     parser.add_argument("--out", default=str(Path.cwd() / "prebuilt"))
     parser.add_argument("--keep", action="store_true", help="keep the staging tree for inspection")
+    parser.add_argument("--no-smoke", action="store_true",
+                        help="skip running every executable once (faster batch runs)")
+    parser.add_argument("--no-audit", action="store_true",
+                        help="skip the static staging/archive audit (not recommended)")
     args = parser.parse_args()
 
     if not RELOCATE.is_file():
@@ -591,12 +636,14 @@ def main():
         only = {n.strip() for n in args.only.split(",") if n.strip()}
         kinds = {k.strip() for k in args.kinds.split(",") if k.strip()}
         return batch(Path(args.infosource), Path(args.out), args.source, cache,
-                     only, args.limit, kinds, args.tsv, args.resume)
+                     only, args.limit, kinds, args.tsv, args.resume,
+                     smoke=not args.no_smoke, audit=not args.no_audit)
 
     if not (args.kind and args.name and args.version):
         parser.error("either --all, or --kind + --name + --version")
     prepare(Path(args.infosource), args.kind, args.name, args.version,
-            args.arch, Path(args.out), args.keep, source=args.source, cache=cache)
+            args.arch, Path(args.out), args.keep, source=args.source, cache=cache,
+            smoke=not args.no_smoke, audit=not args.no_audit)
     return 0
 
 
