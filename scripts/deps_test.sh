@@ -118,6 +118,34 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
     TARGETS=("wget@1.25.0 wget")
 fi
 
+# 这是一条**真机**回归：要联网装真包。索引域名（raw.githubusercontent.com）
+# 在校园网与家宽上十次有三次连不上，那种情况下红的是网络不是依赖链 —— 先探一次，
+# 探不通就明确跳过，别让人去查一个不存在的 bug。
+INDEX_PROBE="$(
+    PYTHONPATH="$(component_paths)" python3 - "$REPO_DIR/lib" <<'PROBE_PY'
+import sys
+
+sys.path.insert(0, sys.argv[1])
+import domains
+
+print(domains.domain("api") or "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD")
+PROBE_PY
+)"
+# 探的正是 install 的第一步（读 _<名>@common）：只探 /versions 不够，那个文件
+# 小、常能通，而单条记录那次连接被 reset 才是真正的拦路虎。三次都失败才跳过。
+PROBE_PKG="${TARGETS[0]%%@*}"
+PROBE_URL="$INDEX_PROBE/$PROBE_PKG/_${PROBE_PKG}@common"
+PROBE_OK=no
+for _ in 1 2 3; do
+    curl -fsS --max-time 15 "$PROBE_URL" > /dev/null 2>&1 && { PROBE_OK=yes; break; }
+    sleep 2
+done
+if [[ "$PROBE_OK" != "yes" ]]; then
+    echo -e "${YELLOW}🌊 Skipped: the package index is unreachable (this test needs the real one).${RESET}"
+    echo -e "${YELLOW}🌊          $PROBE_URL${RESET}"
+    exit 0
+fi
+
 echo "🌊 Dependency chain test: ${#TARGETS[@]} package(s)"
 for target in "${TARGETS[@]}"; do
     echo "   ${target%% *}"

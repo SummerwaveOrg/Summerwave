@@ -34,8 +34,11 @@ trap 'rm -rf "$WORK"' EXIT
 
 ROOT="$WORK/root"
 BASE="$ROOT/opt/macwave"
-mkdir -p "$BASE"
+mkdir -p "$BASE/var"
 copy_components "$BASE/" >/dev/null
+# 状态文件必须先在：缺了它 configpaths 会判定「未安装」，而源码目录是 git 检出，
+# 于是走到「MacWave is a git clone!」那条错误上，跟排版毫无关系
+printf "MACWAVE_VERSION='0.1.0'\n" > "$BASE/var/config.sh"
 
 export MACWAVE_TEST="$ROOT"
 
@@ -48,12 +51,13 @@ PKGS=(
     bash@5.2.37 openssl@3.6.0 python@3.13.9 cmatrix@2.0
 )
 
+# 0.1.0 的布局：<根>/Shore/<名>/<版本>/，包与依赖同构
 install_fixture() {
-    rm -rf "${BASE:?}/bin"
-    mkdir -p "$BASE/bin"
+    rm -rf "${BASE:?}/Shore"
+    mkdir -p "$BASE/Shore"
     local spec
     for spec in "$@"; do
-        mkdir -p "$BASE/bin/$spec"
+        mkdir -p "$BASE/Shore/${spec%@*}/${spec##*@}"
     done
 }
 

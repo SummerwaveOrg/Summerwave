@@ -47,6 +47,31 @@ PKGS=(
 FAILED=0
 PASSED=0
 
+# 这是一条**真机**回归：装的都是索引里真实存在的格式样例包。索引域名
+# （raw.githubusercontent.com）十次有三次连不上，那种情况下红的是网络不是格式 ——
+# 先探一次（探的正是 install 的第一步），探不通就明确跳过。
+INDEX_BASE="$(
+    PYTHONPATH="$(component_paths)" python3 - "$REPO_DIR/lib" <<'PROBE_PY'
+import sys
+
+sys.path.insert(0, sys.argv[1])
+import domains
+
+print(domains.domain("api") or "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD")
+PROBE_PY
+)"
+PROBE_PKG="${PKGS[0]%%|*}"
+PROBE_OK=no
+for _ in 1 2 3; do
+    curl -fsS --max-time 15 "$INDEX_BASE/$PROBE_PKG/_${PROBE_PKG}@common" > /dev/null 2>&1 &&
+        { PROBE_OK=yes; break; }
+    sleep 2
+done
+if [[ "$PROBE_OK" != "yes" ]]; then
+    echo -e "${YELLOW}🌊 Skipped: the package index is unreachable (this test needs the real one).${RESET}"
+    exit 0
+fi
+
 for entry in "${PKGS[@]}"; do
     IFS='|' read -r pkg fmt <<< "$entry"
     echo ""
