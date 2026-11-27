@@ -50,7 +50,7 @@ components.add_to_sys_path()
 import domains  # noqa: E402  —— 产物命名只此一份（与客户端同一个函数）
 # 平台标签与客户端同源（config/platforminfo.bottle_tag），不在这里再抄一份词表。
 import platforminfo  # noqa: E402
-DEFAULT_INFOSOURCE = Path.home() / "Projects" / "MacWaveOrg" / "infosource"
+DEFAULT_INFOSOURCE = Path.home() / "Projects" / "SummerwaveOrg" / "SeaLane"
 MARKER = "_RELOCATED"
 
 

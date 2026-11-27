@@ -10,6 +10,9 @@
 #                                         （_jq@1.8.2.macos-arm64 —— 平台标签在名字里）
 # infosource 仓库里没有这两类文件 —— 它们本来由 GitHub 的 contents 接口动态算出。
 #
+# 顺手还写一份 <api>/INDEX.md：根目录有 150 多个包目录，人在网页上翻不动。它**只给人看**，
+# 客户端一个字节都不读（机器读 versions）。两者用同一份过滤结果，所以不会互相矛盾。
+#
 # 关键设计：**只列镜像里真实存在的产物**。索引里有 12 条记录按设计或缺陷拿不到产物
 # （test_001 上游已删、ldid 校验值不符等）。若把它们也列进去，用户执行 `wave install ldid`
 # 会解析出一个装不上的版本，下载阶段才 404 —— 报错位置离原因太远。宁可让它「没有这个版本」。
@@ -30,6 +33,7 @@ import components  # noqa: E402
 components.add_to_sys_path()
 
 import domains  # noqa: E402
+import versioncompare  # noqa: E402  —— 版本排序只有这一份实现，INDEX.md 不另造一套
 from sync_payloads import read_record, records  # noqa: E402
 
 # 1.0 起索引是单一命名空间（根下 <名>/_<名>@<版本>.<os>-<arch>），所以清单只有一份，
@@ -43,8 +47,9 @@ def version_entry_path(infosource, kind):
 
 
 def collect(infosource, mirror):
-    # 返回 {kind: {包名: [记录文件名, ...]}}
+    # 返回 {kind: {包名: [记录文件名, ...]}}，以及 {包名: [版本, ...]}（给 INDEX.md 用）
     tree = {}
+    versions_of = {}
     missing = []
 
     for kind, arch, name, version, record in records(infosource):
@@ -59,8 +64,44 @@ def collect(infosource, mirror):
             continue
 
         tree.setdefault(kind, {}).setdefault(name, []).append(record.name[1:])
+        versions_of.setdefault(name, []).append(version)
 
-    return tree, missing
+    return tree, versions_of, missing
+
+
+def latest_of(versions):
+    # 怪版本号让 sort_key 抛异常时退回字符串序：INDEX.md 只是给人看的，
+    # 不值得为一个版本号让整条清单生成失败。
+    try:
+        return max(versions, key=versioncompare.sort_key)
+    except Exception:
+        return max(versions)
+
+
+def write_human_index(directory, packages, versions_of):
+    # <api>/INDEX.md：按首字分组的总览表。自动生成，不参与客户端任何逻辑。
+    groups = {}
+    for name in packages:
+        head = name[0]
+        groups.setdefault(head if head.isalpha() else "0-9", []).append(name)
+
+    total = sum(len(v) for v in packages.values())
+    lines = [
+        "# 索引总览",
+        "",
+        "> 自动生成，请勿手工编辑 —— 由 `scripts/build_versions_index.py` 写出。",
+        f"> 共 {len(packages)} 个名字、{total} 条记录；机器请读 `versions`，这里只是给人翻的。",
+        "",
+    ]
+    for head in sorted(groups):
+        lines += [f"## {head.upper()}", "",
+                  "| 名字 | 版本数 | 最新版本 |", "| --- | ---: | --- |"]
+        for name in sorted(groups[head]):
+            versions = sorted(set(versions_of.get(name, [])))
+            lines.append(f"| `{name}` | {len(versions)} | `{latest_of(versions)}` |")
+        lines.append("")
+
+    (directory / "INDEX.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def main():
@@ -81,7 +122,7 @@ def main():
         print(f"🌊 Error: {args.mirror} does not look like a mirror root (no bottle/).")
         return 1
 
-    tree, missing = collect(args.infosource, args.mirror)
+    tree, versions_of, missing = collect(args.infosource, args.mirror)
 
     # 先清掉旧文件，再写新的 —— 顺序不能反。镜像里删掉的产物必须同时从清单里消失，
     # 否则客户端会拿到一个指向已删除文件的版本号，直到下载阶段才 404。
@@ -94,6 +135,7 @@ def main():
         for stale in directory.glob("*/versions"):
             stale.unlink()
         (directory / "versions").unlink(missing_ok=True)
+        (directory / "INDEX.md").unlink(missing_ok=True)
 
     if not tree:
         print("🌊 Nothing to list: the mirror has no payloads. Lists were cleared.")
@@ -114,6 +156,8 @@ def main():
 
         total = sum(len(v) for v in packages.values())
         print(f"  {kind}: {len(packages)} 个名字, {total} 条版本")
+
+        write_human_index(directory, packages, versions_of)
 
     if missing:
         print(f"\n🌊 {len(missing)} 条记录未列入（镜像里没有对应产物）：")

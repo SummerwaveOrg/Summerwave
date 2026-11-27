@@ -443,7 +443,7 @@ else
     rc=$?
     mw_say "$out" | tail -4
     if (( rc == 0 )); then
-        ok "清单" "$(find "$DEST/sealane/HEAD" -name versions -type f | wc -l | tr -d ' ') 个"
+        ok "清单" "$(find "$DEST/sealane/HEAD" -name versions -type f | wc -l | tr -d ' ') 个，INDEX.md $([[ -f "$DEST/sealane/HEAD/INDEX.md" ]] && echo 已更新 || echo 未生成)"
     else
         no "清单" "重建失败 —— 客户端会表现为「没有版本可装」"
     fi

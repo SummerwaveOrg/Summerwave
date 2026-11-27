@@ -76,6 +76,18 @@ check "两个架构都进同一份版本清单" \
     "jq@1.8.2.macos-amd64 jq@1.8.2.macos-arm64 "
 
 echo
+echo "========== 1b. 根目录的 INDEX.md（给人看的） =========="
+
+check "INDEX.md 生成在索引根" \
+    "$([[ -f "$INFO/INDEX.md" ]] && echo present || echo gone)" "present"
+check "表里有 jq 这一行（两架构同版本 → 版本数 1）" \
+    "$(grep -c '^| `jq` | 1 | `1.8.2` |$' "$INFO/INDEX.md")" "1"
+check "按首字母分组出了 J 这一节" \
+    "$(grep -c '^## J$' "$INFO/INDEX.md")" "1"
+check "标题写明共 1 个名字、2 条记录" \
+    "$(grep -c '共 1 个名字、2 条记录' "$INFO/INDEX.md")" "1"
+
+echo
 echo "========== 2. 镜像里没有产物的记录不进清单 =========="
 
 # 再塞一条 yq 记录，但镜像里没有它的产物
@@ -87,13 +99,15 @@ check "缺产物时给出了说明" \
     "$(grep -c '未列入' "$WORK/out2.log")" "1"
 [[ "$(cat "$WORK/out2.log")" == *"yq"* ]] \
     && pass "点出了是哪个包缺产物" || fail "没说清缺的是哪个包：$(cat "$WORK/out2.log")"
+check "缺产物的包也不进 INDEX.md" \
+    "$(grep -c '`yq`' "$INFO/INDEX.md")" "0"
 
 echo
 echo "========== 3. 幂等 =========="
 
-FIRST="$(cat "$INFO/versions"; cat "$INFO/jq/versions")"
+FIRST="$(cat "$INFO/versions"; cat "$INFO/jq/versions"; cat "$INFO/INDEX.md")"
 "$PYTHON" "$BUILD" --infosource "$INFO" --mirror "$MIRROR" > /dev/null 2>&1
-SECOND="$(cat "$INFO/versions"; cat "$INFO/jq/versions")"
+SECOND="$(cat "$INFO/versions"; cat "$INFO/jq/versions"; cat "$INFO/INDEX.md")"
 check "重复跑结果不变" "$SECOND" "$FIRST"
 
 echo
@@ -106,6 +120,8 @@ check "旧的包名清单已删掉（不留下一个下不到的包）" \
     "$([[ -f "$INFO/versions" ]] && echo present || echo gone)" "gone"
 check "旧的版本清单也删掉了" \
     "$([[ -f "$INFO/jq/versions" ]] && echo present || echo gone)" "gone"
+check "INDEX.md 也跟着删掉（不留下一个指向空索引的总览）" \
+    "$([[ -f "$INFO/INDEX.md" ]] && echo present || echo gone)" "gone"
 
 echo
 echo "========== 5. 参数校验 =========="

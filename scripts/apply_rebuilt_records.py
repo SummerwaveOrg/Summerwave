@@ -35,7 +35,7 @@ components.add_to_sys_path()
 
 import platforminfo  # noqa: E402  —— 记录名里的瓶子标签与客户端同源
 
-DEFAULT_INFOSOURCE = Path.home() / "Projects" / "MacWaveOrg" / "infosource"
+DEFAULT_INFOSOURCE = Path.home() / "Projects" / "SummerwaveOrg" / "SeaLane"
 
 FIELD_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(.*)"\s*$', re.M)
 
