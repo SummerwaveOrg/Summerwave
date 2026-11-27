@@ -5,6 +5,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -205,35 +206,123 @@ def probe_is_newer(data, current, current_build):
                                         current, current_build)
 
 
-def run_script(environment, overall_timeout):
-    # 编排脚本（lib/selfupdate.sh）随安装树一起发布，文件下载由它再去取
-    # macwavedata/<版本>/update_commands.sh 完成。
-    #
-    # **必须从临时副本执行**：更新过程会覆盖 lib/selfupdate.sh 自己，而 bash 是
-    # 边读边执行的，被覆盖的正文会让运行中的脚本读到半截内容。复制一份再跑，
-    # 覆盖就发生在「已经读完的副本」之外，不影响本次执行。
-    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "selfupdate.sh")
+RELEASE_REPO = "SummerwaveOrg/Summerwave"
 
-    print("🌊 Preparing the update script for this version...")
 
+def _asset_ids(tag):
+    """查一次 Release，返回 {资产名: asset id}。
+
+    **必须走 api.github.com**：发布资产的规范地址是
+    github.com/…/releases/download/…，而那个域名在校园网与家宽上十次有三次连不上。
+    api 这条一直通，且拿到 id 之后可以用 octet-stream 直接取字节。
+    """
+    url = f"https://api.github.com/repos/{RELEASE_REPO}/releases/tags/{tag}"
+    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return {asset.get("name"): asset.get("id") for asset in payload.get("assets", [])}
+
+
+def _download_asset(asset_id, destination):
+    url = f"https://api.github.com/repos/{RELEASE_REPO}/releases/assets/{asset_id}"
+    request = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
+    with urllib.request.urlopen(request, timeout=600) as response, open(destination, "wb") as out:
+        shutil.copyfileobj(response, out)
+
+
+def _trusted_pub():
+    """可信公钥的路径。
+
+    优先 MACWAVE_RSA_PUB（运维/测试自备）。否则从**当前安装树里的 lib/install.sh**
+    里把内嵌的那份 PEM 抠出来 —— 与 bash 侧同一个锚点。
+
+    为什么不用 <base>/Keys/macwave-rsa.pub.pem：那份与安装器/数据走同一条下载通道，
+    能换数据的人也能换公钥，拿它验等于自证。
+    """
+    override = os.environ.get("MACWAVE_RSA_PUB")
+    if override and os.path.isfile(override):
+        return override
+    script = os.path.join(load_base_dir(), "lib", "install.sh")
     try:
-        with open(source, encoding="utf-8") as stream:
-            text = stream.read()
+        with open(script, encoding="utf-8") as handle:
+            text = handle.read()
     except OSError:
-        print(f"{RED_BOLD}🌊 Error: Cannot read the update script.{RESET}")
-        print(f"{RED_BOLD}🌊 {source}{RESET}")
+        return None
+    match = re.search(r"-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----", text, re.S)
+    if match is None:
+        return None
+    handle, path = tempfile.mkstemp(prefix="macwave-pub-", suffix=".pem")
+    with os.fdopen(handle, "w") as stream:
+        stream.write(match.group(0) + "\n")
+    return path
+
+
+def _verify(script, signature, pub):
+    result = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-verify", pub, "-signature", signature, script],
+        capture_output=True)
+    return result.returncode == 0
+
+
+def run_installer(tag, environment, overall_timeout):
+    """取目标 tag 的 install.sh + 它的 .sig，验签，然后执行。
+
+    为什么不再有 lib/selfupdate.sh：换轨之后「怎么装」只有 install.sh 一份实现，
+    版本号与逐文件清单都内嵌在它自己头部。自更新于是退化成「取那一份、验签、跑它」——
+    多留一套 1200 行的编排脚本，只会让两条路慢慢分叉。
+    """
+    if not tag:
+        print(f"{RED_BOLD}🌊 Error: the release data has no tag.{RESET}")
         sys.exit(1)
 
-    handle, path = tempfile.mkstemp(prefix="macwave-selfupdate-", suffix=".sh")
+    work = tempfile.mkdtemp(prefix="macwave-selfupdate-")
+    pub = None
     try:
-        with os.fdopen(handle, "w") as stream:
-            stream.write(text)
-        return subprocess.run(['/bin/bash', path], env=environment, timeout=overall_timeout)
-    finally:
+        print("🌊 Downloading the installer for this version...")
         try:
-            os.unlink(path)
-        except OSError:
-            pass
+            assets = _asset_ids(tag)
+        except (urllib.error.URLError, ValueError) as error:
+            print(f"{RED_BOLD}🌊 Error: cannot read the release {tag}: {error}{RESET}")
+            sys.exit(1)
+
+        for name in ("install.sh", "install.sh.sig"):
+            if not assets.get(name):
+                print(f"{RED_BOLD}🌊 Error: the release {tag} has no {name}.{RESET}")
+                sys.exit(1)
+
+        script = os.path.join(work, "install.sh")
+        signature = script + ".sig"
+        try:
+            _download_asset(assets["install.sh"], script)
+            _download_asset(assets["install.sh.sig"], signature)
+        except (urllib.error.URLError, OSError) as error:
+            print(f"{RED_BOLD}🌊 Error: cannot download the installer: {error}{RESET}")
+            sys.exit(1)
+
+        pub = _trusted_pub()
+        if pub is None:
+            print(f"{RED_BOLD}🌊 Error: no trusted public key; refusing to run an unsigned installer.{RESET}")
+            print(f"{RED_BOLD}🌊 Set MACWAVE_RSA_PUB=<pem path> if you are testing a mirror.{RESET}")
+            sys.exit(1)
+        if not _verify(script, signature, pub):
+            if os.environ.get("MACWAVE_ALLOW_UNSIGNED") == "1":
+                print(f"{YELLOW}🌊 Warning: the installer is not signed by the trusted key "
+                      f"(MACWAVE_ALLOW_UNSIGNED=1, continuing).{RESET}")
+            else:
+                print(f"{RED_BOLD}🌊 Error: the installer is not signed by the trusted key.{RESET}")
+                print(f"{RED_BOLD}🌊 Refusing to run it: the bytes may have been altered after signing.{RESET}")
+                sys.exit(1)
+        else:
+            print("🌊 Installer signature OK.")
+
+        return subprocess.run(["/bin/bash", script], env=environment, timeout=overall_timeout)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+        if pub:
+            try:
+                os.unlink(pub)
+            except OSError:
+                pass
 
 
 def version_data(text):
@@ -469,7 +558,7 @@ def _handle_selfupdate_locked(input_string=""):
     overall_timeout = max(UPDATE_TIMEOUT, int(budget.total) * 20)
 
     try:
-        result = run_script(environment, overall_timeout)
+        result = run_installer(data.get("tag", ""), environment, overall_timeout)
     except subprocess.TimeoutExpired:
         print(f"{RED_BOLD}🌊 Error: The update command timed out.{RESET}")
         sys.exit(1)

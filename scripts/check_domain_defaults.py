@@ -17,9 +17,9 @@ import sys
 from pathlib import Path
 
 # shell 只需要这三个（索引与二进制都在 Python 侧取）。
-SHELL_KINDS = ("core", "selfupdate")  # python 已改为构建时注入，不再有域名
+SHELL_KINDS = ("core",)  # 只有 core 还在 shell 里取文件；python 与自更新数据都已移出
 
-SHELL_FILES = ("lib/install.sh", "lib/selfupdate.sh")
+SHELL_FILES = ("lib/install.sh",)  # lib/selfupdate.sh 已在 0.1.0 换轨时删除
 
 # shell 里「变量名 + 默认值」的写法：${SUMMERWAVE_CORE_DOMAIN:-https://…}
 DEFAULT_RE = r'\$\{%s:-([^}"]*)\}'

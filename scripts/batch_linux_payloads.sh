@@ -31,12 +31,14 @@ LOG="${LOG:-$BASE/linux-batch.log}"
 LIMIT=0
 UPLOAD=false
 ONLY=""
+SKIP=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --limit)  LIMIT="${2:-0}"; shift 2 ;;
         --only)   ONLY="${2:-}"; shift 2 ;;
+        --skip)   SKIP="${2:-}"; shift 2 ;;
         --upload) UPLOAD=true; shift ;;
-        *) echo "usage: $0 [--limit N] [--only a,b,c] [--upload]" >&2; exit 2 ;;
+        *) echo "usage: $0 [--limit N] [--only a,b,c] [--skip a,b,c] [--upload]" >&2; exit 2 ;;
     esac
 done
 
@@ -62,6 +64,12 @@ for rec in "${RECORDS[@]}"; do
     version="${key#*@}"
 
     if [[ -n "$ONLY" && ",$ONLY," != *",$name,"* ]]; then
+        continue
+    fi
+    # 个别上游的资产在 CDN 上极慢（flyctl 实测十几分钟不动），先用 --skip 绕开，
+    # 剩下的跑完再单独收拾它们。
+    if [[ -n "$SKIP" && ",$SKIP," == *",$name,"* ]]; then
+        skipped=$((skipped + 1))
         continue
     fi
     index=$((index + 1))

@@ -35,7 +35,6 @@ SYNC = {
     # 前面那一步验过了）。
     "signature-verify": (
         "lib/install.sh",
-        "lib/selfupdate.sh",
     ),
 }
 

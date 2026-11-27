@@ -47,7 +47,7 @@ checks = [
      "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/jq/_jq@1.7.1"),
     ("依赖索引", f"{domains.api_domain()}/deps/depsinfo/libidn2/_libidn2@common",
      "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/deps/depsinfo/libidn2/_libidn2@common"),
-    ("版本指针", domains.selfupdate_latest_url(),
+    ("发布列表", domains.release_latest_url(),
      "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/macwavedata/latest.toml"),
     ("预发布版本指针", domains.selfupdate_prerelease_latest_url(),
      "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/prerelease/latest.toml"),
@@ -90,9 +90,6 @@ if domains.api_domain() != "https://mirror.example.com/macwave":     # 末尾斜
     ok = False
 if domains.index_list_url("jq") != "https://mirror.example.com/macwave/jq/versions":
     print(f"    list: {domains.index_list_url('jq')}")
-    ok = False
-if domains.selfupdate_latest_url() != "https://mirror.example.com/su/macwavedata/latest.toml":
-    print(f"    selfupdate: {domains.selfupdate_latest_url()}")
     ok = False
 raise SystemExit(0 if ok else 1)
 PY
@@ -288,20 +285,9 @@ fi
 echo
 echo "========== 6. 两份 shell 脚本的域名块必须逐字一致 =========="
 
-# install.sh 与 selfupdate.sh 各抄了一份（前者是 curl | bash，没有本地文件可 source）。
-# 抄两份就会漂移，所以这里逐字比对：改一处就必须改另一处。
-extract_domain_block() {
-    sed -n '/^# 域名（4.0/,/^PYTHON_DOMAIN_URL=/p' "$1"
-}
-
-if diff -q <(extract_domain_block "$REPO_DIR/lib/install.sh") \
-           <(extract_domain_block "$REPO_DIR/lib/selfupdate.sh") > /dev/null; then
-    pass "install.sh 与 selfupdate.sh 的域名块一致"
-else
-    fail "两份脚本的域名块已经漂移"
-    diff <(extract_domain_block "$REPO_DIR/lib/install.sh") \
-         <(extract_domain_block "$REPO_DIR/lib/selfupdate.sh") | head -20
-fi
+# 0.1.0 换轨之后只剩 lib/install.sh 一份 shell 脚本（lib/selfupdate.sh 已删），
+# 「两份域名块要逐字一致」这条检查没有对象了。域名仍由 check_domain_defaults.py
+# 对着 config/envvar.py 校验。
 
 # 两边的默认值也必须与 config/envvar.py 对得上（那是唯一来源），
 # 否则 shell 和 Python 会指向不同的地方。

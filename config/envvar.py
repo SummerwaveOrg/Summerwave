@@ -59,11 +59,6 @@ DOMAINS = {
         "SUMMERWAVE_CORE_DOMAIN",
         "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave",
         "MacWave's own files"),
-    # 解释器单独一个仓库：体积（每架构约 26 MB）与发布节奏都和自更新数据不同
-    "selfupdate": Domain(
-        "SUMMERWAVE_SELFUPDATE_DOMAIN",
-        "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD",
-        "self-update data"),
     # 「该装哪一版」的来源：GitHub 的发布列表（0.1.0 起版本号就是 tag，不再有
     # Selfupdate 仓库）。单独列成一条，是为了让离线测试能把整个接口换成本地假站点
     # —— 否则 `wave selfupdate` 无法离线验证。
@@ -74,7 +69,7 @@ DOMAINS = {
 }
 
 # pip 的索引。不在 DOMAINS 里：它不是「MacWave 的数据源」，没有协议校验，
-# 只由 install.sh / selfupdate.sh 装依赖时用，`wave mirror` 负责展示。
+# 只由 install.sh 装依赖时用，`wave mirror` 负责展示。
 PIP_INDEX = "MACWAVE_PIP_INDEX"
 PIP_DEFAULT = "https://pypi.org/simple"
 

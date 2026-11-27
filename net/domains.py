@@ -123,10 +123,6 @@ def core_domain():
     return domain("core")
 
 
-def selfupdate_domain():
-    return domain("selfupdate")
-
-
 # -------------------- 索引 --------------------
 
 def index_list_url(package_name=None):
@@ -326,20 +322,6 @@ def release_list_url(per_page=30):
 def release_tarball_url(tag):
     """某个 tag 的源码包。0.1.0 的安装/自更新就是「取这一份、整树同步」。"""
     return f"https://github.com/{RELEASE_REPO}/archive/refs/tags/{quote(tag, safe='')}.tar.gz"
-
-
-def selfupdate_latest_url():
-    return f"{selfupdate_domain()}/macwavedata/latest.toml"
-
-
-def selfupdate_prerelease_latest_url():
-    return f"{selfupdate_domain()}/prerelease/latest.toml"
-
-
-def selfupdate_commands_url(version):
-    # 一个版本一份，随版本冻结。它同时承担三件事：下载哪些文件、放到哪里、
-    # 以及目录结构变更时的迁移（见 docs/MIRROR-SETUP.md 之外的 docs/CODE-MAP.md）。
-    return f"{selfupdate_domain()}/macwavedata/{version}/update_commands.sh"
 
 
 # -------------------- 自带解释器 --------------------
