@@ -109,10 +109,6 @@ def fetch_text(url, budget, raws=()):
     return result.stdout
 
 
-def fetch_version_data(budget, raws=(), url=None):
-    return fetch_text(url or domains.selfupdate_latest_url(), budget, raws)
-
-
 def release_candidate(channel, budget, raws=()):
     """从 GitHub 的发布里挑出「该装的那一版」，返回与原来 latest.toml 同形的 dict。
 
