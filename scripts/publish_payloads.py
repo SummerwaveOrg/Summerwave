@@ -30,9 +30,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 1.0 起包与依赖同构，共用一个载荷仓库（4.x 的 MacWaveOrg/Bottle、MacWaveOrg/Deps 已冻结）
 KIND_REPO = {
-    "bottle": "MacWaveOrg/Bottle",
-    "deps": "MacWaveOrg/Deps",
+    "bottle": "SummerwaveOrg/Bottle",
+    "deps": "SummerwaveOrg/Bottle",
 }
 
 
