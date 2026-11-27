@@ -279,7 +279,9 @@ PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.
 CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自带 CPython 的清单
 # 解释器单独一个仓库（体积与发布节奏都和自更新数据不同）
-PYTHON_DOMAIN_URL="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD}")"
+# 便携 Python 不在这里定地址：版本、文件名、sha256 与 Release asset id 全部由
+# scripts/build_installer.py 注入（数据来自 config/portable_python.toml），
+# 运行时只有一次 api.github.com 请求。见 portable_python_asset / ensure_portable_python。
 
 # 用户协议所在页面。4.7 起安装器只在开头把地址念一遍（不记录同意、结尾也不问），
 # 所以它纯粹是给人看的一个链接。站点在 summerwave.org。
@@ -547,13 +549,20 @@ mw_download() {
     # _RawProgress 同一条规则），未知就每 MiB 一个。不换行重绘、不带颜色，
     # 所以落进日志是一行完整的进度，而不是一串控制字符。
     local url="$1" out="$2" cap="$3" total pid rc=0 size shown=0 step
+    shift 3
+    # 多出来的参数按「每个都是 header 值」处理 —— api.github.com 的 Release 资产接口
+    # 要 Accept: application/octet-stream 才会 302 到 CDN。
+    local header_args=()
+    while [[ $# -gt 0 ]]; do header_args+=(-H "$1"); shift; done
     if ! mw_raw; then
-        curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} -o "$out" "$url"
+        curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+            ${header_args[@]+"${header_args[@]}"} -o "$out" "$url"
         return $?
     fi
 
     # 先问一次长度。HEAD 失败不算错：拿不到就按 MiB 打刻度。
-    total="$(curl -fsSI --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} "$url" 2>/dev/null \
+    total="$(curl -fsSI --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+        ${header_args[@]+"${header_args[@]}"} "$url" 2>/dev/null \
         | tr -d '\r' | tr 'A-Z' 'a-z' | awk -F': *' '$1=="content-length"{print $2}' | tail -n 1)"
     case "$total" in
         ''|*[!0-9]*) total=0 ;;
@@ -566,7 +575,8 @@ mw_download() {
     fi
 
     rm -f "$out" 2>/dev/null || true
-    curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} -o "$out" "$url" & pid=$!
+    curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+        ${header_args[@]+"${header_args[@]}"} -o "$out" "$url" & pid=$!
     while kill -0 "$pid" 2>/dev/null; do
         size=$(wc -c < "$out" 2>/dev/null | tr -d ' ')
         size=${size:-0}
@@ -1934,7 +1944,7 @@ fi
 # 一次「系统 Python 从 3.14 升到 3.15，所有命令都报模块缺失」。
 #
 # 自带之后，「用哪个解释器」由 MacWave 自己决定，报错也就能稳定复现。
-# 数据来自 SUMMERWAVE_PYTHON_DOMAIN 的 pythondata/latest.toml，换版本不用改脚本。
+# 版本、文件名、sha256 与 asset id 都由 build_installer.py 注入（config/portable_python.toml）。
 # 下载失败（网络问题）时回退到系统 python3，安装不会因此中断。
 
 portable_python_arch() {
@@ -1992,119 +2002,82 @@ normalize_portable_python() {
     return 0
 }
 
+portable_python_asset() {
+    # 按 <os>-<arch> 输出「asset_id sha256 文件名」三件套。
+    #
+    # 三个值都是构建 install.sh 时注入的：scripts/build_installer.py 现查一次
+    # GitHub Release 拿到 asset id（那个值不稳定，重建 Release 会换一批），再连同
+    # sha256 与文件名写进脚本。运行时因此不解析 JSON、也不发第二次请求。
+    # 数据来源是 config/portable_python.toml —— 便携解释器的唯一来源。
+    case "$1" in
+        macos-arm64) echo "${MACWAVE_PYTHON_MACOS_ARM64_ID:-} ${MACWAVE_PYTHON_MACOS_ARM64_SHA256:-} ${MACWAVE_PYTHON_MACOS_ARM64_NAME:-}" ;;
+        macos-amd64) echo "${MACWAVE_PYTHON_MACOS_AMD64_ID:-} ${MACWAVE_PYTHON_MACOS_AMD64_SHA256:-} ${MACWAVE_PYTHON_MACOS_AMD64_NAME:-}" ;;
+        linux-arm64) echo "${MACWAVE_PYTHON_LINUX_ARM64_ID:-} ${MACWAVE_PYTHON_LINUX_ARM64_SHA256:-} ${MACWAVE_PYTHON_LINUX_ARM64_NAME:-}" ;;
+        linux-amd64) echo "${MACWAVE_PYTHON_LINUX_AMD64_ID:-} ${MACWAVE_PYTHON_LINUX_AMD64_SHA256:-} ${MACWAVE_PYTHON_LINUX_AMD64_NAME:-}" ;;
+        *) return 1 ;;
+    esac
+}
+
 ensure_portable_python() {
     # 成功时把解释器路径打到 stdout，失败返回 1（调用方回退系统 python3）。
     #
-    # 两种来源：
-    #   默认                —— 从我们自己的 Python 仓库取（pythondata/<版本>/<文件名>）
-    #   --install-python-from-source —— 按 python_url.toml 记的上游地址直接回上游取
-    # 两条路径的校验值相同：字节原样搬运，所以 sha256 可以复用。
+    # 只从 api.github.com 的 Release 资产取，不走 raw.githubusercontent.com ——
+    # 那个域名在校园网与家宽上十次有三次连不上，而这里是 25–35 MB 的一次性下载，
+    # 挂掉就等于整套依赖退回系统 site-packages。api 那条路会 302 到 CDN，
+    # 实测 5 MB/s。
     local base_dir="$1"
     local arch="$2"
-    local latest_file url_file version="" url="" sha="" filename="" archive_url
-    local target current archive actual py
+    local platform version id sha filename url target current archive actual py
 
     [[ -n "$arch" ]] || return 1
+    version="${MACWAVE_PYTHON_VERSION:-}"
+    # 模板（沙箱里跑的那份）没有注入，直接让调用方回退系统 python3
+    [[ -n "$version" ]] || return 1
 
-    # ── 第一步：MacWave 现在提供哪个版本的解释器 ──
-    # 这一步失败不算错：网络不好时继续用本机已有的那份，安装照常完成。
-    # 但**必须先问一次**，否则「本机已有 3.14.9」会让升级到「要求 3.15」的版本时
-    # 永远发现不了自己落后 —— 这正是 per-version 目录存在的理由。
-    mw_say_err "🌊 Checking the bundled Python version..." "🌊 正在检查自带 Python 版本……"
-    latest_file="$(mw_mktemp macwave-pylatest)"
-    if mw_download "$PYTHON_DOMAIN_URL/pythondata/latest.toml" "$latest_file" 30 2>/dev/null; then
-        version="$(read_toml_string "$(cat "$latest_file")" version)"
-    fi
-    rm -f "$latest_file"
+    platform="$(mw_platform)-$arch"
+    read -r id sha filename <<<"$(portable_python_asset "$platform")" || return 1
+    [[ -n "$id" && -n "$sha" && -n "$filename" ]] || return 1
 
-    if [[ -n "$version" ]]; then
-        target="$base_dir/python/$version"
-        current="$base_dir/python/current"
+    target="$base_dir/python/$version"
+    current="$base_dir/python/current"
 
-        # 已经是最新版：直接用，一个字节都不下
-        if py="$(portable_python_binary "$target" 2>/dev/null)" \
-           && "$py" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
-            echo "$py"
-            return 0
-        fi
-    else
-        # 问不到最新版：退回到「本机有任何一份可用解释器就用它」
-        for candidate in "$base_dir/python/current" "$base_dir"/python/*/; do
-            [[ -d "$candidate" ]] || continue
-            if py="$(portable_python_binary "$candidate" 2>/dev/null)" \
-               && "$py" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
-                echo "$py"
-                return 0
-            fi
-        done
-        return 1
+    # 已经有一份能跑的同版本解释器：一个字节都不下
+    if py="$(portable_python_binary "$target" 2>/dev/null)" \
+       && "$py" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
+        echo "$py"
+        return 0
     fi
 
-    # ── 第二步：这个版本各架构的地址与校验值 ──
-    mw_say_err "🌊 Fetching the bundled Python $version definition..." "🌊 正在获取自带 Python $version 的定义……"
-    url_file="$(mw_mktemp macwave-pyurl)"
-    if ! mw_download "$PYTHON_DOMAIN_URL/pythondata/$version/python_url.toml" "$url_file" 30 2>/dev/null; then
-        rm -f "$url_file"
-        return 1
-    fi
-
-    # 键名先试 <os>_<arch>（macos_arm64_url / linux_amd64_url），再回落到 <arch>。
-    #
-    # 为什么要有 <os>_ 这一层：python-build-standalone 的产物按平台分开命名
-    # （cpython-3.14.x-aarch64-apple-darwin-… vs …-aarch64-unknown-linux-gnu-…）。
-    # 只有 arm64_url 的话，Linux 会下到 macOS 的那一份 —— 校验通过、解包成功，然后
-    # portable_python_binary 找不到可执行文件，静默退到系统 python3。
-    #
-    # 回落是刻意的：python_url.toml 目前还没有 Linux 条目，改了数据才真的生效；
-    # 在那之前行为与现在完全一致。
-    local os_key
-    os_key="$(mw_platform)"
-    url="$(sed -n "s/^[[:space:]]*${os_key}_${arch}_url[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
-    [[ -n "$url" ]] || url="$(sed -n "s/^[[:space:]]*${arch}_url[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$url_file" | head -n 1)"
-    sha="$(sed -n "s/^[[:space:]]*${os_key}_${arch}_sha256[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
-    [[ -n "$sha" ]] || sha="$(sed -n "s/^[[:space:]]*${arch}_sha256[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$url_file" | head -n 1)"
-    rm -f "$url_file"
-
-    if [[ -z "$url" || -z "$sha" ]]; then
-        return 1
-    fi
-
-    # 文件名取上游地址的末段：我们自己托管的那份用同一个名字，校验值才能共用
-    filename="${url##*/}"
-    if [[ -n "$INSTALL_PYTHON_FROM_SOURCE" ]]; then
-        archive_url="$url"
-    else
-        archive_url="$PYTHON_DOMAIN_URL/pythondata/$version/$filename"
-    fi
-
-    # ── 第三步：下载并校验 ──
-    mw_say_err "🌊 Downloading the bundled Python $version (about 26 MB)..." "🌊 正在下载自带 Python ${version}（约 26 MB）……"
+    url="https://api.github.com/repos/${MACWAVE_PYTHON_REPO:-SummerwaveOrg/Python}/releases/assets/$id"
     archive="$base_dir/downloads/tmp/portable-python-$version.tar.gz"
     mkdir -p "$base_dir/downloads/tmp" 2>/dev/null || true
-    if ! mw_download "$archive_url" "$archive" 900 2>/dev/null; then
-        rm -f "$archive"
-        echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$archive_url")${RESET}" >&2
+
+    mw_say_err "🌊 Downloading the bundled Python $version (about 26 MB)..." \
+        "🌊 正在下载自带 Python ${version}（约 26 MB）……"
+    # Accept: application/octet-stream 是必须的：少了它 api 会返回 JSON 元数据
+    if ! mw_download "$url" "$archive" 900 "Accept: application/octet-stream"; then
+        echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$url")${RESET}" >&2
         return 1
     fi
-    # 用 mw_sha256（openssl）而不是 shasum：Linux 上通常没有 shasum（那是 perl 脚本），
-    # 只有 sha256sum；openssl 两个平台都有，与文件里其它校验走同一条路。
+
     actual="$(mw_sha256 "$archive")"
     if [[ "$actual" != "$sha" ]]; then
         rm -f "$archive"
         echo -e "${RED_BOLD}🌊 Error: the bundled Python download failed its checksum check.${RESET}" >&2
         return 1
     fi
+
     mkdir -p "$target" 2>/dev/null || true
     if ! tar -xzf "$archive" -C "$target" 2>/dev/null; then
         rm -f "$archive"
         return 1
     fi
     rm -f "$archive"
+
     py="$(portable_python_binary "$target" 2>/dev/null)" || return 1
     if ! "$py" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
         return 1
     fi
-
     normalize_portable_python "$target" "$py"
 
     mkdir -p "$base_dir/python" 2>/dev/null || true

@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 # shell 只需要这三个（索引与二进制都在 Python 侧取）。
-SHELL_KINDS = ("core", "selfupdate", "python")
+SHELL_KINDS = ("core", "selfupdate")  # python 已改为构建时注入，不再有域名
 
 SHELL_FILES = ("lib/install.sh", "lib/selfupdate.sh")
 

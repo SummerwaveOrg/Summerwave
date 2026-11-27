@@ -123,10 +123,6 @@ def core_domain():
     return domain("core")
 
 
-def python_domain():
-    return domain("python")
-
-
 def selfupdate_domain():
     return domain("selfupdate")
 
@@ -348,30 +344,13 @@ def selfupdate_commands_url(version):
 
 # -------------------- 自带解释器 --------------------
 #
-# 与自更新数据分开一个仓库，因为它有自己的体积（每架构约 26 MB）和发布节奏。
+# 这里**没有**域名：便携 CPython 的版本、文件名、sha256 与 Release asset id 全部由
+# scripts/build_installer.py 在打包时注入 install.sh（数据源是
+# config/portable_python.toml），运行时只对 api.github.com 发一次请求。
 #
-#   pythondata/latest.toml          哪个版本是最新的
-#   pythondata/<版本>/python_url.toml   各架构的**上游**地址与校验值
-#   pythondata/<版本>/<文件名>          我们自己托管的那份（默认从这里取）
-#
-# python_url.toml 记的是上游地址，默认不用 —— 只有 --install-python-from-source
-# 才直接回上游取。文件名取上游地址的末段，所以两条路径共用同一个名字。
-
-def python_data_domain():
-    return domain("python")
-
-
-def python_latest_url():
-    return f"{python_data_domain()}/pythondata/latest.toml"
-
-
-def python_url_toml_url(version):
-    return f"{python_data_domain()}/pythondata/{version}/python_url.toml"
-
-
-def python_archive_url(version, filename):
-    # 默认从我们自己的存储取同一份字节；文件名与上游一致，所以校验值可以复用。
-    return f"{python_data_domain()}/pythondata/{version}/{filename}"
+# 以前这里有三个 URL 拼装函数（pythondata/latest.toml、python_url.toml、<文件名>），
+# 走 raw.githubusercontent.com —— 那个域名在校园网与家宽上十次有三次连不上，
+# 而这里是一次 25–35 MB 的下载，挂掉就等于整套依赖退回系统 site-packages。
 
 
 # -------------------- 极简 TOML 读取 --------------------

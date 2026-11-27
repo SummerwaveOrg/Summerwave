@@ -311,8 +311,6 @@ def report_dry_run(current, latest, data, options, overall_timeout,
     raws = ", ".join(f"{flag} {value}" for flag, value in options.timeout_raws.items())
     line("timeouts", f"connect {budget.connect:g}s, content {budget.content:g}s, "
                      f"total {budget.total:g}s" + (f" (from {raws})" if raws else " (defaults)"))
-    if options.install_python_from_source:
-        line("python", "fetched from its upstream URL")
     line("script", f"a temporary copy of lib/selfupdate.sh, overall timeout {overall_timeout}s")
 
     print(f"{GREEN}🌊 Nothing was downloaded and nothing was changed.{RESET}")

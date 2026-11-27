@@ -25,6 +25,7 @@
 
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -98,7 +99,85 @@ def manifest_block(version, entries, ref):
     return "\n".join(lines), len([1 for _p, ex in entries if ex])
 
 
-def inject(template, version, manifest):
+PYTHON_DATA = REPO_DIR / "config" / "portable_python.toml"
+
+
+def read_python_data():
+    """读 config/portable_python.toml，返回 (version, release, repo, [(platform, asset, sha, id)])。
+
+    只认这一个文件：它是便携解释器的唯一来源。以前分散在数据仓的 latest.toml +
+    python_url.toml 里，运行时读三个 URL 才能下载；现在构建时一次定死。
+    """
+    text = PYTHON_DATA.read_text(encoding="utf-8")
+    top = {}
+    sections, current = {}, None
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current = line[1:-1].strip()
+            sections[current] = {}
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"')
+        (sections[current] if current else top)[key] = value
+    platforms = [(name, data.get("asset", ""), data.get("sha256", ""), data.get("asset_id", ""))
+                 for name, data in sections.items()]
+    return (top.get("version", ""), top.get("release", ""), top.get("repo", ""), platforms)
+
+
+def resolve_asset_ids(repo, release, platforms, offline):
+    """向 GitHub 查一次 Release，把四个 asset 的 id 换成当前值。
+
+    asset id 不是稳定值：重建 Release 会换一批。所以构建时查一次、写进脚本，
+    运行时就不用解析 JSON 了（安装器里没有 JSON 解析器，也不想为此引入一个）。
+    """
+    if offline or not repo or not release:
+        return platforms
+    result = subprocess.run(
+        ["gh", "api", f"repos/{repo}/releases/tags/{release}"],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        print("🌊 warning: cannot reach the release list; using the cached asset ids",
+              file=sys.stderr)
+        return platforms
+    try:
+        assets = {a["name"]: str(a["id"]) for a in json.loads(result.stdout).get("assets", [])}
+    except (json.JSONDecodeError, KeyError):
+        print("🌊 warning: unexpected release payload; using the cached asset ids",
+              file=sys.stderr)
+        return platforms
+    resolved = []
+    for name, asset, sha, cached in platforms:
+        if asset in assets:
+            resolved.append((name, asset, sha, assets[asset]))
+        else:
+            print(f"🌊 warning: {asset} is not in {repo} {release}; keeping cached id",
+                  file=sys.stderr)
+            resolved.append((name, asset, sha, cached))
+    return resolved
+
+
+def python_block(version, release, repo, platforms):
+    """生成注入 install.sh 的那几行。"""
+    lines = [
+        f'MACWAVE_PYTHON_VERSION="{version}"',
+        f'MACWAVE_PYTHON_RELEASE="{release}"',
+        f'MACWAVE_PYTHON_REPO="{repo}"',
+    ]
+    for name, asset, sha, asset_id in platforms:
+        key = name.replace("-", "_").upper()
+        lines.append(f'MACWAVE_PYTHON_{key}_ID="{asset_id}"')
+        lines.append(f'MACWAVE_PYTHON_{key}_SHA256="{sha}"')
+        lines.append(f'MACWAVE_PYTHON_{key}_NAME="{asset}"')
+    return "\n".join(lines) + "\n"
+
+
+def inject(template, version, manifest, python_vars=""):
     """把清单块插在 shebang 之后。
 
     为什么必须插在文件里而不是「运行时从 $0 读自己」：`curl … | bash` 时 `$0` 是 `bash`
@@ -116,6 +195,7 @@ def inject(template, version, manifest):
         f"{HEADER}"
         f"{MANIFEST_SIGNAL}=1\n"
         f'MACWAVE_VERSION="{version}"\n'
+        f"{python_vars}"
         # set -u / set -e 都会让 read 的退出码变成致命错误：显式兜住。
         f"read -r -d '' MANIFEST <<'{MANIFEST_OPEN}' || true\n"
         f"{manifest}\n"
@@ -135,6 +215,8 @@ def main():
                         help="git ref to read the tree from (default: v<version>)")
     parser.add_argument("--template", default=str(REPO_DIR / "lib" / "install.sh"))
     parser.add_argument("--out", default=str(REPO_DIR / "dist" / "install.sh"))
+    parser.add_argument("--python-offline", action="store_true",
+                        help="do not ask GitHub for the current asset ids; use the cached ones")
     args = parser.parse_args()
 
     # 版本号是协议的一部分：这里用 taginfo 校验，不合规就在打包时炸，别等客户端。
@@ -157,7 +239,12 @@ def main():
 
     manifest, exec_count = manifest_block(args.version, entries, ref)
 
-    output = inject(template_path.read_text(encoding="utf-8"), args.version, manifest)
+    py_version, py_release, py_repo, platforms = read_python_data()
+    platforms = resolve_asset_ids(py_repo, py_release, platforms, args.python_offline)
+    python_vars = python_block(py_version, py_release, py_repo, platforms)
+
+    output = inject(template_path.read_text(encoding="utf-8"), args.version, manifest,
+                    python_vars=python_vars)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -168,6 +255,7 @@ def main():
     print(f"🌊 version  {args.version}")
     print(f"🌊 ref      {ref}")
     print(f"🌊 files    {len(entries)}（其中 +x {exec_count}）")
+    print(f"🌊 python   {py_version} ({len(platforms)} platform(s))")
     print(f"🌊 out      {out_path}")
     print(f"🌊 sha256   {digest}")
     return 0
