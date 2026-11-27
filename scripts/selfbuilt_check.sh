@@ -299,7 +299,7 @@ if [[ "$BLOCKING" -eq 0 ]]; then
     else
         printf '✅ 可以上线，但有 %d 项提醒（见上）\n' "$WARNED"
     fi
-    printf '   下一步：原始产物传到 MacWaveOrg/Bottle 的 <包名> release，再写索引记录；\n'
+    printf '   下一步：原始产物传到 SummerwaveOrg/Bottle 的 <包名> release，再写索引记录；\n'
     printf '          构建配方与溯源传到 MacWaveOrg/Ports 的同名 release\n'
     exit 0
 fi

@@ -49,11 +49,11 @@ DOMAINS = {
     # 100 MiB 硬限拦住。
     "bottle": Domain(
         "MACWAVE_BOTTLE_DOMAIN",
-        "https://github.com/MacWaveOrg/Bottle/releases/download",
+        "https://github.com/SummerwaveOrg/Bottle/releases/download",
         "prebuilt binary packages"),
     "deps": Domain(
         "MACWAVE_DEPS_DOMAIN",
-        "https://github.com/MacWaveOrg/Deps/releases/download",
+        "https://github.com/SummerwaveOrg/Bottle/releases/download",
         "dependency binaries"),
     "core": Domain(
         "MACWAVE_CORE_DOMAIN",

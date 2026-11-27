@@ -196,7 +196,7 @@ def listing_names(text, dirs_only=False):
 #
 # 默认域名指向 GitHub Releases，它的下载路径恰好也是 /<tag>/<资产>：
 #
-#   默认：https://github.com/MacWaveOrg/Bottle/releases/download/jq/jq%401.7.1.arm64
+#   默认：https://github.com/SummerwaveOrg/Bottle/releases/download/jq/jq%401.7.1.arm64
 #   镜像：https://mirror.example.cn/MacWave/bottle/jq/jq%401.7.1.arm64
 #                                  ↑ 域名之后完全相同
 #

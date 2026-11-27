@@ -59,7 +59,7 @@ MIRROR="https://alice:s3cr3t-pw@mirror.example.test/MacWave"
 
 echo "========== defaults are printed, nothing is blank =========="
 OUT="$(run_mirror 2>&1)"
-if [[ "$OUT" == *"https://github.com/MacWaveOrg/Bottle/releases/download"* ]]; then
+if [[ "$OUT" == *"https://github.com/SummerwaveOrg/Bottle/releases/download"* ]]; then
     pass "built-in default for bottle is shown"
 else
     fail "default for bottle missing"
@@ -113,7 +113,7 @@ fi
 
 echo "========== masking only applies to entries that need auth =========="
 OUT="$(run_mirror_api "$MIRROR/infosource" 2>&1)"
-if [[ "$OUT" == *"https://github.com/MacWaveOrg/Deps/releases/download"* ]]; then
+if [[ "$OUT" == *"https://github.com/SummerwaveOrg/Bottle/releases/download"* ]]; then
     pass "an address without credentials is left alone"
 else
     fail "plain address was altered"

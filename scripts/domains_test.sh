@@ -145,7 +145,7 @@ payload = domains.resolve_payload(
 check("transport", payload["transport"], "https")
 check("文件名带平台标签", payload["filename"], "jq@1.7.1.macos-arm64")
 check("地址形状", payload["url"],
-      "https://github.com/MacWaveOrg/Bottle/releases/download/jq/jq%401.7.1.macos-arm64")
+      "https://github.com/SummerwaveOrg/Bottle/releases/download/jq/jq%401.7.1.macos-arm64")
 check("不出现上游主机", "github.com/jqlang" in payload["url"], False)
 
 # 3.2 两个架构不撞名（arm64 / amd64 是同名同版本的两条索引记录）
@@ -167,7 +167,7 @@ payload = domains.resolve_payload("deps", "libidn2", "2.3.7", "arm64",
                                   from_source=False)
 check("多段后缀", payload["filename"], "libidn2@2.3.7.macos-arm64.tar.gz")
 check("依赖专用仓库", payload["url"].split("/releases")[0],
-      "https://github.com/MacWaveOrg/Deps")
+      "https://github.com/SummerwaveOrg/Bottle")
 
 # 3.5 裸可执行文件没有扩展名，合法
 payload = domains.resolve_payload("bottle", "choma", "1.0", "amd64",
