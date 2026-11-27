@@ -283,8 +283,8 @@ SELFUPDATE_URL="$(mw_domain MACWAVE_SELFUPDATE_DOMAIN "${MACWAVE_SELFUPDATE_DOMA
 PYTHON_DOMAIN_URL="$(mw_domain MACWAVE_PYTHON_DOMAIN "${MACWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
 
 # 用户协议所在页面。4.7 起安装器只在开头把地址念一遍（不记录同意、结尾也不问），
-# 所以它纯粹是给人看的一个链接。站点暂用 summerwaveorg.github.io，域名定了改这一行。
-AGREEMENT_URL="${MACWAVE_AGREEMENT_URL:-https://summerwaveorg.github.io}"
+# 所以它纯粹是给人看的一个链接。站点在 summerwave.org。
+AGREEMENT_URL="${MACWAVE_AGREEMENT_URL:-https://summerwave.org}"
 
 # ==========================================
 # 额外根证书（MACWAVE_CACERT）
