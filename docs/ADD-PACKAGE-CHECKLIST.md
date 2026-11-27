@@ -28,7 +28,7 @@
 | 2 | **Bottle 仓库的 Release（tag = 包名）** | `wave install` 的下载步骤 | 索引有记录但下不到文件 |
 | 3 | `SeaLane/README.md` 的 Supported Packages | 人 | 说明与事实不符 |
 | 4 | **`MacWave/README.md` + `README.zh-Hans.md`** | 人 | 同上，中英各一份 |
-| 5 | **`Pages/index.html`（macwave.org）** | 人 | 官网清单少一个包 |
+| 5 | **`Pages/index.html`（summerwave.org）** | 人 | 官网清单少一个包 |
 | 6 | **`MacWaveOrg/Ports` 的 Release（tag = 包名）** | 人、审计、`--install-from-source` | 只有自建包才有这一处；缺了等于自建产物没有溯源（见[五之二](#五之二自建包上游不发-macos-产物怎么办)） |
 
 第 3、4、5 处是**同一份清单的三个副本**，格式一字不差。改就要三处一起改，
@@ -380,11 +380,11 @@ cd ~/Projects/SummerwaveOrg/Summerwave && git add README.md README.zh-Hans.md &&
 cd ~/Projects/MacWaveOrg/Pages && git add index.html && git commit -m "List <包名>" && git push origin main
 ```
 
-`macwave.org` 是 GitHub Pages，推送后自动构建，约 1～3 分钟。确认：
+`summerwave.org` 是 GitHub Pages，推送后自动构建，约 1～3 分钟。确认：
 
 ```bash
 gh api repos/MacWaveOrg/Pages/pages --jq .status     # 等到 built
-curl -s https://macwave.org/ | grep -c "<包名>"
+curl -s https://summerwave.org/ | grep -c "<包名>"
 ```
 
 **`mirror.repohub.top` 不一样**：它是自有服务器，没有自动部署，要自己同步

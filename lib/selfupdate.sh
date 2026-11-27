@@ -760,7 +760,7 @@ if [[ -n "$CURRENT_MAJOR" && -n "$TARGET_MAJOR" && "$CURRENT_MAJOR" != "$TARGET_
     # 只把人指到官网，安装命令以官网上的为准，免得印一份会过期的 curl 进来。
     echo -e "${RED_BOLD}🌊 MacWave $TARGET_MAJOR is a new major version, so it cannot be installed with selfupdate.${RESET}" >&2
     echo -e "${RED_BOLD}🌊 Your version: $CURRENT_VERSION. Please install $VERSION from the website:${RESET}" >&2
-    echo -e "${YELLOW}   https://macwave.org${RESET}" >&2
+    echo -e "${YELLOW}   https://summerwave.org${RESET}" >&2
     echo -e "${RED_BOLD}🌊 Your current installation has not been changed.${RESET}" >&2
     exit 1
 fi

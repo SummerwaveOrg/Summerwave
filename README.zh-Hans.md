@@ -8,7 +8,7 @@ Linux 用户？请看 [LinuxWave](https://github.com/LinuxWaveOrg/LinuxWave)
 
 ## 🌊 官方网站
 
-[macwave.org](https://macwave.org)
+[summerwave.org](https://summerwave.org)
 
 ## 🌊 支持的 macOS 版本
 
@@ -189,7 +189,7 @@ source ~/.zshrc
 
 ### 受信任用户专用镜像
 
-除了自己搭，还有一个**由项目维护的国内镜像**，地址列在 [macwave.org](https://macwave.org) 的「镜像站」一栏。账号只发给受信任的用户。
+除了自己搭，还有一个**由项目维护的国内镜像**，地址列在 [summerwave.org](https://summerwave.org) 的「镜像站」一栏。账号只发给受信任的用户。
 需要的话写信给 [hi@macwave.org](mailto:hi@macwave.org?subject=申请%20MacWave%20镜像账号) 索取账号和密码。
 
 账号是一组用户名 + 密码，直接写进 URL：
@@ -388,7 +388,7 @@ wave latest --all                  Same, for every installed package
 ## 🌊 支持的软件包
 （按字母顺序排列）
 
-同一份清单还出现在 `SeaLane/README.md` 与 [macwave.org](https://macwave.org)。加一个软件包要四处一起改，见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md)。
+同一份清单还出现在 `SeaLane/README.md` 与 [summerwave.org](https://summerwave.org)。加一个软件包要四处一起改，见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md)。
 
 ```
 
@@ -624,7 +624,7 @@ python3 scripts/audit_deps.py data # 用已装的库审计索引数据
 
 | 项目 (Item) | 类型/内容 (Type) | 金额 CNY | 金额 USD |
 | :--- | :--- | :--- | :--- |
-| 域名 (Domains) | `macwave.org` | ¥8.39 | $1.25 |
+| 域名 (Domains) | `summerwave.org` | ¥8.39 | $1.25 |
 | 服务器 (Server) | 香港云服务器 (镜像/官网) | ¥56.00 | $8.34 |
 | AI 辅助开发 (API) | DeepSeek API (按量浮动) | ¥285.00 | $42.45 |
 | **总计 (Total)** | | **¥349.39** | **$52.04** |

@@ -463,7 +463,7 @@ git push origin 4.1
   `资产数 = 文件数 + 4`；缺了等于这版没发完，当场补。脚本与判据见
   [`docs/RELEASE-CHECKLIST.md`](./docs/RELEASE-CHECKLIST.md) 第 7 步
 - 密钥：私钥一律不进仓库、不进 CI、不进 Actions secret。签名只在本机做，CI 只负责验
-- 用户协议：正文在 `Pages` 仓库的 `agreement/*.md`，官网 `https://macwave.org/#agreement`
+- 用户协议：正文在 `Pages` 仓库的 `agreement/*.md`，官网 `https://summerwave.org/#agreement`
   那节的落款日期就是协议标识。改协议要**同时**改官网正文与 `lib/selfupdate.py` 的
   `AGREEMENT_ID`，两边日期不一致的后果是「问的是新协议、记下的却是旧标识」，下次再问一遍。
   `AGREEMENT_INTRODUCED_IN` 是「第一版带上这份协议的版本」（现行文本是 4.6.0，

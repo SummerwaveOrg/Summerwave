@@ -54,7 +54,7 @@ MacWave 不是一个仓库，而是一组职责分离的仓库。理解分工是
 
 **包索引仓库**（`SummerwaveOrg/SeaLane`）是纯数据：每个包和每个依赖的元数据、下载地址、校验值、依赖声明。安装、搜索、详情查询都实时读它，没有本地缓存。
 
-**官网仓库**（`MacWaveOrg/Pages`）只服务 `macwave.org`。
+**官网仓库**（`MacWaveOrg/Pages`）只服务 `summerwave.org`。
 
 **历史快照仓库**（`MacWaveOrg/legacy-MacWave`）已归档为只读，只为留存旧实现。
 

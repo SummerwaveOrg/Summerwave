@@ -153,7 +153,7 @@ Regression: `scripts/dir_guard_test.sh`.
 Fixes land on the current release line and are published through
 `wave selfupdate`. Older major versions do not receive security backports —
 crossing a major version requires reinstalling from
-[macwave.org](https://macwave.org), by design.
+[summerwave.org](https://summerwave.org), by design.
 
 | Version | Supported |
 | --- | --- |

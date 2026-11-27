@@ -217,7 +217,7 @@ def version_data(text):
 #
 # 所以这里只留协议地址，用来在升级前说一句「协议在这儿」——
 # 没有闸门、没有 AGREEMENT.json、没有「已同意过」这种状态。
-AGREEMENT_URL = "https://macwave.org/#agreement"
+AGREEMENT_URL = "https://summerwave.org/#agreement"
 
 
 def print_agreement_notice():

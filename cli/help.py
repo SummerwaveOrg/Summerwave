@@ -166,8 +166,8 @@ OVERVIEW_NOTES = {
              "--no-link never leaves one broken.",
 }
 
-OVERVIEW_FOOTER = {"en": "For more details, visit: https://macwave.org",
-                   "zh": "更多说明见 https://macwave.org"}
+OVERVIEW_FOOTER = {"en": "For more details, visit: https://summerwave.org",
+                   "zh": "更多说明见 https://summerwave.org"}
 
 USAGE_LINE = {"en": "wave <command> [package] [flags]",
               "zh": "wave <命令> [软件包] [旗标]"}

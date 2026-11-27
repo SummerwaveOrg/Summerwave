@@ -8,7 +8,7 @@ Linux? View [LinuxWave](https://github.com/LinuxWaveOrg/LinuxWave)
 
 ## 🌊 Official Website
 
-[macwave.org](https://macwave.org)
+[summerwave.org](https://summerwave.org)
 
 ## 🌊 Supported macOS Version
 
@@ -198,7 +198,7 @@ Whatever you end up with, `wave mirror` reports the effective address for every 
 ### The project-run mirror (trusted users only)
 
 Besides running your own, there is **a mirror hosted by the project** for users in mainland China,
-listed under *Mirrors* on [macwave.org](https://macwave.org). Accounts are invite-only: write to
+listed under *Mirrors* on [summerwave.org](https://summerwave.org). Accounts are invite-only: write to
 [hi@macwave.org](mailto:hi@macwave.org?subject=Request%20a%20MacWave%20mirror%20account)
 to ask for a username and password.
 
@@ -400,7 +400,7 @@ See [docs.macwave.org](https://docs.macwave.org/)
 ## 🌊 Supported Packages
 (Listed in alphabetical order)
 
-The same list appears in `SeaLane/README.md` and on [macwave.org](https://macwave.org). Adding a package means updating all of them — see [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md).
+The same list appears in `SeaLane/README.md` and on [summerwave.org](https://summerwave.org). Adding a package means updating all of them — see [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md).
 
 ```
 
@@ -658,7 +658,7 @@ The project requires about **¥349 CNY (about $52 USD)** per month to keep runni
 
 | Item | Type/Content | Amount CNY | Amount USD |
 | :--- | :--- | :--- | :--- |
-| Domains | `macwave.org` | ¥8.39 | $1.25 |
+| Domains | `summerwave.org` | ¥8.39 | $1.25 |
 | Server | Hong Kong cloud server (mirror/official website) | ¥56.00 | $8.34 |
 | AI-assisted development (API) | DeepSeek API (usage-based, variable) | ¥285.00 | $42.45 |
 | **Total** | | **¥349.39** | **$52.04** |  
