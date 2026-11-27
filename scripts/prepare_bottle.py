@@ -141,7 +141,7 @@ def extension_of(filename):
     return os.path.splitext(filename)[1]
 
 
-def candidate_sources(kind, name, version, arch, fields, source):
+def candidate_sources(kind, name, version, arch, fields, source, os_name=None):
     """可能存着我们这份字节的地方，按可信度排好。
 
     为什么不止一个：索引记录里的 `sha256` 描述的是**我们发布的那个文件**，而
@@ -151,7 +151,7 @@ def candidate_sources(kind, name, version, arch, fields, source):
     对得上就用，对不上就换下一个。sha256 一直在校验，所以猜名字不降低安全性。
     """
     ext = extension_of(fields.get("file", ""))
-    tag = platforminfo.bottle_tag(arch)
+    tag = platforminfo.bottle_tag(arch, os_name=os_name)
     storage = [
         f"{name}@{version}.{arch}.tar.bz2",     # prepare_bottle 曾经产出的名字
         f"{name}@{version}.{tag}.tar.bz2",      # 0.1.0 改名之后
@@ -169,7 +169,7 @@ def candidate_sources(kind, name, version, arch, fields, source):
     return candidates
 
 
-def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
+def fetch(kind, name, version, arch, fields, work, source="auto", cache=None, os_name=None):
     """取一份「索引里写的 sha256」对应的字节。
 
     source=auto     ：先问我们自己的存储（按几个可能的名字试），再回记录里的 url。
@@ -183,7 +183,7 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
     if not expect:
         sys.exit(f"🌊 Error: record for {name}@{version} has no sha256; cannot verify")
 
-    candidates = candidate_sources(kind, name, version, arch, fields, source)
+    candidates = candidate_sources(kind, name, version, arch, fields, source, os_name=os_name)
     if not candidates:
         sys.exit(f"🌊 Error: no source for {name}@{version} "
                  f"(set SUMMERWAVE_BOTTLE_DOMAIN / SUMMERWAVE_DEPS_DOMAIN, or the record needs a url)")
@@ -208,7 +208,10 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
 
 # -------------------- 解包 / 打包 --------------------
 
-def extract(path, dest):
+def extract(path, dest, name_hint=None):
+    # name_hint 是记录里的 `file:`（上游发布名）。单文件产物必须按它落地：
+    # 下载缓存的临时名是 `<名>@<版本>.<arch>-<上游名>`，直接落盘会让用户看到
+    # `Shore/jq/1.8.2/jq@1.8.2.arm64-jq-linux-arm64` 这种东西。
     name = path.name
     # `.tgz` / `.tbz2` / `.txz` 是同一种东西的短写法，而 `tarfile` 按内容认格式、不看后缀，
     # 所以这里必须把后缀也列全：漏掉 `.tgz` 的后果是**整个压缩包被原样拷进 stage**，
@@ -247,11 +250,14 @@ def extract(path, dest):
                        (".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2"))), None)
     if single:
         dest.mkdir(parents=True, exist_ok=True)
+        base = name_hint or name
+        if base.endswith(single):
+            base = base[: -len(single)]
         opener = {".gz": gzip.open, ".xz": lzma.open, ".bz2": bz2.open}[single]
-        with opener(path, "rb") as src, open(dest / name[: -len(single)], "wb") as out:
+        with opener(path, "rb") as src, open(dest / base, "wb") as out:
             shutil.copyfileobj(src, out)
         return
-    shutil.copy2(path, dest / name)
+    shutil.copy2(path, dest / (name_hint or name))
 
 def parse_has_prefix(path):
     entries = []
@@ -366,8 +372,15 @@ def audit_archive(out_file, roots):
 
 def repack(version_dir, out_file):
     # 以版本目录的内容为根打包：客户端解包后就是 <版本目录>/bin/...、<版本目录>/lib/...
+    #
+    # `_RELOCATED` 不进产物。它原本是给 4.x 客户端看的「这棵树已经重定位过」的标记，
+    # 而 0.1.0 的客户端只做「下载 + 解包」，从不读它；留着反而有害：sorted() 让下划线
+    # 排在字母前面，于是单文件产物里它成了 tar 的第一个成员，而客户端在找不到与
+    # bin_name 同名的文件时会「用第一个」—— 那个「第一个」就是这行 13 字节的文本。
     with tarfile.open(out_file, "w:bz2") as archive:
         for entry in sorted(version_dir.iterdir()):
+            if entry.name == MARKER:
+                continue
             archive.add(entry, arcname=entry.name)
     return hashlib.sha256(out_file.read_bytes()).hexdigest()
 
@@ -439,9 +452,10 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
                                  current_version, os_name=os_name)
             target = stage_target(stage, current_kind, current_name, current_version)
             target.mkdir(parents=True, exist_ok=True)
-            payload, _ = fetch(current_kind, current_name, current_version, arch,
-                               fields, work, source=source, cache=cache)
-            extract(payload, target)
+            payload, upstream_name = fetch(current_kind, current_name, current_version, arch,
+                                           fields, work, source=source, cache=cache,
+                                           os_name=os_name)
+            extract(payload, target, upstream_name)
             # 记录里的 `url` 有时指向上游**源码**发布（那说明这条从来没发过 macOS 产物，
             # oniguruma 就是这样）。这种包重打没有意义：源码树搬过去也跑不起来。
             # 不拦的话产物里会躺着一棵源码树，而 relocate 只认 Mach-O，看不见它，
@@ -491,7 +505,14 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
 
         # 2.7 冒烟：真跑一次。上游产物把 /tmp 或构建机路径烘进了 load command、
         #     或者依赖闭包不全，静态检查都看不出来 —— dyld 要到执行那一刻才说话。
-        if smoke:
+        #
+        # 跨平台重打时跳过：在 macOS 上执行 Linux 的 ELF 必然 exec format error，
+        # 那不是产物坏了。真验证要在目标平台上跑（见 docs/ADD-PACKAGE-CHECKLIST）。
+        host_os = "macos" if platforminfo.IS_MAC else "linux"
+        if smoke and (os_name or host_os) != host_os:
+            print(f"🌊 smoke: skipped — the payload is for {os_name or host_os}, "
+                  f"this host is {host_os}")
+        elif smoke:
             results = stage_audit.smoke(stage)
             broken = [r for r in results if r["status"] in ("dyld-error", "exec-failed")]
             for item in broken:
