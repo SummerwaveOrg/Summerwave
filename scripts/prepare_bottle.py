@@ -208,6 +208,11 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None, os
 
 
 # GitHub release 资产的规范地址：`…/releases/download/<tag>/<file>`。
+# 取件的上限。必须设：`gh release download` 与 curl 都没有默认超时，一个卡住的
+# 连接会把整批重打永久挂在那里 —— 实测遇上过（flyctl 的包在 10 分钟里一动不动，
+# 而批处理只是「在等」）。
+FETCH_TIMEOUT = 900
+
 GH_RELEASE_RE = re.compile(
     r"^https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
     r"(?P<tag>[^/]+)/(?P<asset>.+)$")
@@ -226,18 +231,25 @@ def download_to(url, out):
     match = GH_RELEASE_RE.match(url)
     if match and shutil.which("gh"):
         asset = unquote(match.group("asset"))
-        result = subprocess.run(
-            ["gh", "release", "download", unquote(match.group("tag")),
-             "-R", f"{match.group('owner')}/{match.group('repo')}",
-             "-p", asset, "-D", str(out.parent), "--clobber"],
-            capture_output=True)
-        produced = out.parent / asset
-        if result.returncode == 0 and produced.is_file():
-            if produced != out:
-                produced.replace(out)
-            return True
+        try:
+            result = subprocess.run(
+                ["gh", "release", "download", unquote(match.group("tag")),
+                 "-R", f"{match.group('owner')}/{match.group('repo')}",
+                 "-p", asset, "-D", str(out.parent), "--clobber"],
+                capture_output=True, timeout=FETCH_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            print(f"🌊   gh timed out after {FETCH_TIMEOUT}s; falling back to curl",
+                  file=sys.stderr)
+            result = None
+        if result is not None and result.returncode == 0:
+            produced = out.parent / asset
+            if produced.is_file():
+                if produced != out:
+                    produced.replace(out)
+                return True
     return subprocess.run(
-        ["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode == 0
+        ["curl", "-fsSL", "--http1.1", "--retry", "3",
+         "--max-time", str(FETCH_TIMEOUT), "-o", str(out), url]).returncode == 0
 
 
 # -------------------- 解包 / 打包 --------------------
