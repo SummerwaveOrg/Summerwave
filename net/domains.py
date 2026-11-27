@@ -311,6 +311,30 @@ def resolve_payload(kind, name, version, arch, upstream_filename, upstream_url, 
 # 把「当前该装哪个版本」和「那个版本具体怎么装」混在一个文件里，就没法让装了
 # 旧版本的用户继续用他们那份说明 —— 而旧版本仍在运行。
 
+# 1.0 起「该装哪一版」不再来自 Selfupdate 仓库，而是**发布 tag 本身**：
+# tag 里带版本号与 UTC 构建时刻（`v<版本>@YYYY-MM-DDTHH:MMZ`），见 docs/CONVENTIONS.md。
+# 所以只需要两样东西：正式版的最新发布、以及预览渠道的发布列表。
+#
+# 用 releases 接口而不是 tags 接口：`/releases/latest` 会替我们把「预发布」排除掉，
+# 语义正好等于「正式渠道的最新版」，不用客户端自己筛。
+RELEASE_REPO = "SummerwaveOrg/Summerwave"
+
+
+def release_latest_url():
+    """正式渠道的最新发布（GitHub 会跳过 prerelease 与 draft）。"""
+    return f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
+
+
+def release_list_url(per_page=30):
+    """最近若干发布；预览渠道要在这份列表里挑最新的预发布。"""
+    return f"https://api.github.com/repos/{RELEASE_REPO}/releases?per_page={per_page}"
+
+
+def release_tarball_url(tag):
+    """某个 tag 的源码包。1.0 的安装/自更新就是「取这一份、整树同步」。"""
+    return f"https://github.com/{RELEASE_REPO}/archive/refs/tags/{quote(tag, safe='')}.tar.gz"
+
+
 def selfupdate_latest_url():
     return f"{selfupdate_domain()}/macwavedata/latest.toml"
 

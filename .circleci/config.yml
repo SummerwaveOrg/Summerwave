@@ -101,6 +101,7 @@ jobs:
             /bin/bash scripts/lock_test.sh
             /bin/bash scripts/migrate_index_layout_test.sh
             /bin/bash scripts/taginfo_test.sh
+            /bin/bash scripts/release_candidate_test.sh
           /bin/bash scripts/versions_index_test.sh
             /bin/bash scripts/relocate_test.sh
             /bin/bash scripts/apply_rebuilt_test.sh

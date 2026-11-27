@@ -2,6 +2,7 @@
 
 # selfupdate.py
 
+import json
 import os
 import re
 import subprocess
@@ -24,6 +25,7 @@ RESET = '\033[0m'
 from configpaths import (installed_build, installed_channel, installed_version,
                          internal_state_dir, load_base_dir)
 import domains
+import taginfo
 import versioncompare
 import tls
 
@@ -109,6 +111,48 @@ def fetch_text(url, budget, raws=()):
 
 def fetch_version_data(budget, raws=(), url=None):
     return fetch_text(url or domains.selfupdate_latest_url(), budget, raws)
+
+
+def release_candidate(channel, budget, raws=()):
+    """从 GitHub 的发布里挑出「该装的那一版」，返回与原来 latest.toml 同形的 dict。
+
+    正式渠道读 `/releases/latest`（GitHub 已经替我们跳过预发布）；
+    预览渠道读发布列表，取最新的预发布 tag。tag 的解析只走 lib/taginfo.py 一处。
+    """
+    url = (domains.release_list_url() if channel == versioncompare.CHANNEL_PREVIEW
+           else domains.release_latest_url())
+    text = fetch_text(url, budget, raws)
+    if text is None:
+        return None, url
+
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return None, url
+    releases = payload if isinstance(payload, list) else [payload]
+
+    tags = []
+    for item in releases:
+        if not isinstance(item, dict):
+            continue
+        if item.get("draft"):
+            continue
+        tag = item.get("tag_name") or ""
+        if channel != versioncompare.CHANNEL_PREVIEW and item.get("prerelease"):
+            continue        # 正式渠道不认预发布
+        tags.append(tag)
+
+    picked = taginfo.pick_latest(tags, include_prerelease=(channel == versioncompare.CHANNEL_PREVIEW))
+    if picked is None:
+        return None, url
+    tag, info = picked
+    data = {
+        "version": info.version,
+        "build_number": info.stamp,     # 构建时刻即构建号（UTC，分钟精度）
+        "tag": tag,
+        "prerelease": info.is_prerelease,
+    }
+    return data, url
 
 
 # 探针里的构建号字段名与已发布的 macwavedata/latest.toml 一致（`build_number`）。
@@ -316,23 +360,21 @@ def _handle_selfupdate_locked(input_string=""):
 
     print("🌊 Fetching the latest version...")
 
+    # 候选版本直接来自发布 tag（1.0 起没有 Selfupdate 仓库），见 docs/CONVENTIONS.md 第二节。
+    # 预览渠道先看预发布；没有更新的预发布就回去看正式版 —— 预发布收尾之后，
+    # 正式版就是出路。
     data = None
     crossed_stream = False
+    stable_url = domains.release_latest_url()
     if channel == versioncompare.CHANNEL_PREVIEW:
-        text = fetch_version_data(budget, timeout_raws,
-                                  domains.selfupdate_prerelease_latest_url())
-        if text is not None:
-            candidate = version_data(text)
-            if probe_is_newer(candidate, current, current_build):
-                data = candidate
-            # 否则预发布流没有更新的构建，接着看正式版 —— 预发布收尾之后，
-            # 正式版就是出路（走全量，见下面 MACWAVE_FULL_INSTALL）。
+        candidate, _ = release_candidate(channel, budget, timeout_raws)
+        if candidate is not None and probe_is_newer(candidate, current, current_build):
+            data = candidate
 
     if data is None:
-        stable_url = domains.selfupdate_latest_url()
-        text = fetch_version_data(budget, timeout_raws, stable_url)
-        if text is None:
-            print(f"{RED_BOLD}🌊 Error: Cannot reach the MacWave version data.{RESET}")
+        candidate, stable_url = release_candidate(versioncompare.CHANNEL_STABLE, budget, timeout_raws)
+        if candidate is None:
+            print(f"{RED_BOLD}🌊 Error: Cannot reach the release list.{RESET}")
             print(f"{RED_BOLD}🌊 {domains.redact_url(stable_url)}{RESET}")
             # 证书过期 / 自签 / 链不完整 / 主机名不匹配 / 纯网络：五种的下一步不同
             explained = tls.explain(LAST_ERROR, stable_url)
@@ -341,7 +383,7 @@ def _handle_selfupdate_locked(input_string=""):
                     prefix = "🌊 Next      " if index == 0 else "🌊           "
                     print(f"{RED_BOLD}{prefix}{line}{RESET}")
             sys.exit(1)
-        data = version_data(text)
+        data = candidate
         crossed_stream = (channel == versioncompare.CHANNEL_PREVIEW
                           and probe_is_newer(data, current, current_build))
     latest = data.get("version", "")
@@ -351,7 +393,7 @@ def _handle_selfupdate_locked(input_string=""):
         sys.exit(1)
 
     if channel == versioncompare.CHANNEL_PREVIEW:
-        print("🌊 Channel: preview — updates follow prerelease/latest.toml")
+        print("🌊 Channel: preview — updates follow the newest prerelease tag")
     else:
         print("🌊 Channel: stable")
     print(f"🌊 Latest version found: {latest}"
