@@ -1123,6 +1123,13 @@ esac
 
 BASE_URL="$CORE_URL/$MACWAVE_VERSION"
 
+# 整包地址。codeload.github.com 一次给出整棵 tag 的 tar.gz（约 1–2 MB），
+# 内嵌清单里的 90 条 sha256 照样逐条校验，所以「一次拿全部」不降低安全性。
+#
+# 为什么不是 raw.githubusercontent.com 逐文件：那条链路在校园网与家宽上十次有
+# 三次连不上，而安装要发 90 次请求 —— 一次失败整装就失败。codeload 一直通。
+CORE_ARCHIVE_URL="https://codeload.github.com/SummerwaveOrg/Summerwave/tar.gz/$MACWAVE_VERSION"
+
 # ==========================================
 # 显示欢迎信息
 # ==========================================
@@ -1575,6 +1582,40 @@ prepare_manifest() {
 
 # -------------------- 新轨（4.7 起）--------------------
 
+CORE_TREE=""
+
+stage_core_tree() {
+    # 一次性把整棵 tag 取回来。成功则 CORE_TREE 指向解开的树，sync_tree 里逐个文件
+    # 从它拷贝；失败（或压根不该走这条路）就留空，退回逐文件下载。
+    #
+    # 什么时候不走整包：BASE_URL 与 $CORE_URL/$MACWAVE_VERSION 不等，说明有人已经
+    # 指定了另一处逐文件的树 —— 沙箱（file:// 镜像）与自建镜像都是这种形态。
+    CORE_TREE=""
+    if mw_dry_run; then
+        mw_plan "🌊 Dry run: would fetch the whole $MACWAVE_VERSION tree as one archive." \
+            "🌊 试运行：会把 ${MACWAVE_VERSION} 的整棵代码树当一个压缩包取回。"
+        return 0
+    fi
+    [[ "$BASE_URL" == "$CORE_URL/$MACWAVE_VERSION" ]] || return 0
+
+    local work archive
+    work="$(mktemp -d)"
+    archive="$work/core.tar.gz"
+    mw_say "🌊 Fetching the $MACWAVE_VERSION tree (one archive, not 90 requests)..." \
+           "🌊 正在取 ${MACWAVE_VERSION} 的整棵代码树（一个压缩包，不是 90 次请求）……"
+    if mw_download "$CORE_ARCHIVE_URL" "$archive" 300 \
+       && mkdir -p "$work/tree" \
+       && tar -xzf "$archive" -C "$work/tree" --strip-components=1 2>/dev/null; then
+        rm -f "$archive"
+        CORE_TREE="$work/tree"
+        return 0
+    fi
+    rm -rf "$work"
+    mw_say "${YELLOW}🌊 Could not fetch the archive; falling back to per-file download.${RESET}" \
+           "${YELLOW}🌊 整包取不到，退回逐文件下载。${RESET}"
+    return 0
+}
+
 sync_tree() {
     # 按清单把安装树拉齐。**只下不一致的那些** —— 本地已有且 sha256 对得上的直接跳过，
     # 这就是「增量更新」：以前靠生成两张差异表（full / delta），现在靠比对。
@@ -1583,6 +1624,9 @@ sync_tree() {
     # 因为清单不齐的树会让 wave 起不来，而版本凭据还没写（写在那之后）。
     local path exec_flag expect_sha destination url digest
     local downloaded=0 kept=0 total=0
+    # CORE_TREE 非空 = 整包已经解开，逐个文件从本地拷，不再发 90 次 HTTP。
+
+    stage_core_tree
 
     while read -r path exec_flag expect_sha; do
         [[ -n "$path" ]] || continue
@@ -1611,15 +1655,21 @@ sync_tree() {
             continue
         fi
 
-        mw_say "🌊 Downloading $path..." "🌊 正在下载 ${path}……"
         mkdir -p "$(dirname -- "$destination")"
-        if ! mw_download "$url" "$destination" 60; then
+        if [[ -n "$CORE_TREE" && -f "$CORE_TREE/$path" ]]; then
+            # 整包那条路上不打 90 行「Downloading x」—— 没有信息量，只是噪音。
+            cp "$CORE_TREE/$path" "$destination"
+        else
+            mw_say "🌊 Downloading $path..." "🌊 正在下载 ${path}……"
+            if ! mw_download "$url" "$destination" 60; then
             echo -e "${RED_BOLD}🌊 Error: cannot download $path.${RESET}" >&2
             echo -e "${RED_BOLD}🌊   $(mw_redact "$url")${RESET}" >&2
             echo -e "${RED_BOLD}🌊 If every file fails like this, the mirror has not synced $MACWAVE_VERSION yet.${RESET}" >&2
             echo -e "${RED_BOLD}🌊 Run scripts/mirror-sync/mirror-sync.sh on the mirror (see docs/MIRROR-SETUP.md).${RESET}" >&2
             install_failure_notice 1
             exit 1
+        fi
+
         fi
 
         if [[ "$expect_sha" != "-" ]]; then

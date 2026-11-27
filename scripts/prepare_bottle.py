@@ -30,6 +30,7 @@ import bz2
 import gzip
 import hashlib
 import os
+import re
 import lzma
 import shutil
 import subprocess
@@ -38,7 +39,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 REPO = Path(__file__).resolve().parent.parent
 RELOCATE = REPO / "scripts" / "relocate_rpath.py"
@@ -196,7 +197,7 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None, os
                 return out, filename
             out.unlink()
         print(f"🌊 fetching {url[:120]}", flush=True)
-        if subprocess.run(["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode:
+        if not download_to(url, out):
             continue
         if hashlib.sha256(out.read_bytes()).hexdigest() == expect:
             return out, filename
@@ -204,6 +205,39 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None, os
 
     sys.exit(f"🌊 Error: none of the {len(candidates)} candidate(s) matched sha256 {expect[:12]}… "
              f"for {name}@{version}.{arch}")
+
+
+# GitHub release 资产的规范地址：`…/releases/download/<tag>/<file>`。
+GH_RELEASE_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/releases/download/"
+    r"(?P<tag>[^/]+)/(?P<asset>.+)$")
+
+
+def download_to(url, out):
+    """把 url 取到 out，成功返回 True。
+
+    GitHub 的 release 资产优先走 `gh release download`：它先打 api.github.com 拿重定向，
+    完全不碰 github.com 这个域名。实测同一条链路里 `github.com:443` 十次有三次超时
+    （校园网与家宽都会掐它），而 api 一直通 —— 批量重打时那三次就是一整批失败。
+
+    `gh` 不可用、或地址不是 GitHub release 形态时回落 curl，行为与以前完全一致。
+    """
+    out.parent.mkdir(parents=True, exist_ok=True)
+    match = GH_RELEASE_RE.match(url)
+    if match and shutil.which("gh"):
+        asset = unquote(match.group("asset"))
+        result = subprocess.run(
+            ["gh", "release", "download", unquote(match.group("tag")),
+             "-R", f"{match.group('owner')}/{match.group('repo')}",
+             "-p", asset, "-D", str(out.parent), "--clobber"],
+            capture_output=True)
+        produced = out.parent / asset
+        if result.returncode == 0 and produced.is_file():
+            if produced != out:
+                produced.replace(out)
+            return True
+    return subprocess.run(
+        ["curl", "-fsSL", "--http1.1", "--retry", "3", "-o", str(out), url]).returncode == 0
 
 
 # -------------------- 解包 / 打包 --------------------

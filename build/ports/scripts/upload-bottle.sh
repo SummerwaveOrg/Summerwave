@@ -34,6 +34,7 @@ while IFS= read -r artifact; do
     base="$(basename "$artifact")"
     name="${base%%@*}"
     key="${base%.macos-*}"          # <名>@<版本>
+    [[ "$key" == "$base" ]] && key="${base%.linux-*}"   # Linux 产物同一条通道
 
     # 只有传「重打的 prebuilt」时才按源码自建名单跳过；传 out/（源码自建本身）不跳
     if [[ "$(basename "$SRC")" != "out" ]] && have_source_build "$key"; then
