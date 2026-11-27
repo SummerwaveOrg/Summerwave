@@ -1215,7 +1215,6 @@ def _install_single_locked(input_string):
 
     sha_match = re.search(r'sha256:\s*"([^"]+)"', resp.text)
     file_match = re.search(r'file:\s*"([^"]+)"', resp.text)
-    url_match = re.search(r'url:\s*"([^"]+)"', resp.text)
     steplog.detail(f"200, {len(resp.text)} bytes; "
                    f"sha256 {'present' if sha_match else 'missing'}, "
                    f"file {'present' if file_match else 'missing'}")
@@ -1290,14 +1289,11 @@ def _install_single_locked(input_string):
     # 6. 从哪儿取、文件叫什么，交给 domains.resolve_payload 决定。
     #
     #    4.0 从 GHCR 取（一个包一个仓库名，版本即 tag，架构在 OCI index 里），
-    #    url 字段全程不读 —— 它留着是给人和 2.x-3.x 看的上游线索。
-    #    唯一的例外是 --install-from-source：绕开 registry 直接装上游那份。
+    #    url 字段全程不读 —— 它留着是给人和审计看的上游线索。
     steplog.begin("choose payload")
     payload = domains.resolve_payload(
         "bottle", ParsePkgName, ParsePkgVersion, ARCH,
-        upstream_filename=file_match.group(1) if file_match else "",
-        upstream_url=url_match.group(1) if url_match else "",
-        from_source=config.get("install_from_source", False))
+        upstream_filename=file_match.group(1) if file_match else "")
 
     # 文件名会被当路径用，来自远端数据，必须过白名单
     original_filename = require_safe_filename(payload["filename"], "file name")

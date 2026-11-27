@@ -256,33 +256,17 @@ def payload_url(kind, name, filename):
     return f"{require_domain(kind)}/{name}/{quote(filename)}"
 
 
-def resolve_payload(kind, name, version, arch, upstream_filename, upstream_url, from_source):
+def resolve_payload(kind, name, version, arch, upstream_filename):
     # 唯一决定「从哪儿取、文件叫什么」的地方，软件包与依赖共用。
     #
-    #   from_source=False（默认）：从我们自己的存储取，url 一个字都不看。
-    #   from_source=True（--install-from-source）：回到 3.x 的做法 ——
-    #                              读 url，直接回上游取，按 URL 末段命名。
-    if from_source:
-        if not upstream_url:
-            steplog.fail(
-                f"{name}@{version} has no url field, so --install-from-source cannot work",
-                hint="this is an index data defect; drop --install-from-source to use the mirror")
-
-        if not upstream_url.startswith("https://"):
-            if upstream_url.startswith("http://"):
-                print(f"{RED_BOLD}🌊 ParsePkgURL using HTTP! That's insecure, "
-                      f"Please contact the administrator.{RESET}")
-            else:
-                print(f"{RED_BOLD}🌊 ParsePkgURL Invalid, Please contact the administrator.{RESET}")
-            sys.exit(1)
-
-        return {"transport": "https", "url": upstream_url,
-                "filename": upstream_url.split("/")[-1]}
-
+    # **只从我们自己的存储取**：索引记录里的 `url` 全程不读 —— 它留着是给人和
+    # 审计看的上游线索，不是安装路径。3.x 的 `--install-from-source`（读 url 直接
+    # 回上游装）自 4.4 起从 CLI 下线，1.0 把下层的分支也一并删除：一条「绕开自己
+    # 的存储」的路，只要还在代码里，就会在某个时刻被重新接上。
     if not upstream_filename:
         print(f"{RED_BOLD}🌊 Error: No file field for {name}@{version}.{RESET}")
-        print(f"{RED_BOLD}🌊 MacWave 4.0 mirrors the upstream bytes verbatim, so the index "
-              f"must name the file to tell zip from tar.gz from a bare executable.{RESET}")
+        print(f"{RED_BOLD}🌊 The index must name the upstream file so we can tell zip from "
+              f"tar.gz from a bare executable, and keep the extension for the unpacker.{RESET}")
         print(f"{RED_BOLD}🌊 This is a data defect; please report it to the administrator.{RESET}")
         sys.exit(1)
 

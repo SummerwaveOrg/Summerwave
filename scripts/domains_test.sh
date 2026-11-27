@@ -120,7 +120,7 @@ else
 fi
 
 echo
-echo "========== 3. 默认从自己的存储取；from_source 分支仍在下层（CLI 已够不到） =========="
+echo "========== 3. 永远从自己的存储取（url 字段只是上游线索，不参与安装） =========="
 
 if PYTHONPATH="$PY_PATHS" python3 - << 'PY'
 import domains
@@ -139,9 +139,7 @@ def check(label, got, want):
 # 3.1 默认从我们自己的存储取，url 一个字都不读
 payload = domains.resolve_payload(
     "bottle", "jq", "1.7.1", "arm64",
-    upstream_filename="jq-macos-arm64",
-    upstream_url="https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64",
-    from_source=False)
+    upstream_filename="jq-macos-arm64")
 check("transport", payload["transport"], "https")
 check("文件名带平台标签", payload["filename"], "jq@1.7.1.macos-arm64")
 check("地址形状", payload["url"],
@@ -150,50 +148,46 @@ check("不出现上游主机", "github.com/jqlang" in payload["url"], False)
 
 # 3.2 两个架构不撞名（arm64 / amd64 是同名同版本的两条索引记录）
 amd = domains.resolve_payload("bottle", "jq", "1.7.1", "amd64",
-                              upstream_filename="jq-macos-arm64", upstream_url="",
-                              from_source=False)
+                              upstream_filename="jq-macos-arm64")
 check("amd64 文件名", amd["filename"], "jq@1.7.1.macos-amd64")
 check("两架构不同名", amd["filename"] != payload["filename"], True)
 
 # 3.3 扩展名跟随上游（字节原样搬运，落盘要带对后缀供解压器识别）
 payload = domains.resolve_payload("bottle", "jq", "1.7.1", "arm64",
-                                  upstream_filename="jq-1.7.1.zip", upstream_url="",
-                                  from_source=False)
+                                  upstream_filename="jq-1.7.1.zip")
 check("zip 后缀", payload["filename"], "jq@1.7.1.macos-arm64.zip")
 
 # 3.4 多段扩展名完整保留，不能被截成 .gz
 payload = domains.resolve_payload("deps", "libidn2", "2.3.7", "arm64",
-                                  upstream_filename="libidn2-darwin.tar.gz", upstream_url="",
-                                  from_source=False)
+                                  upstream_filename="libidn2-darwin.tar.gz")
 check("多段后缀", payload["filename"], "libidn2@2.3.7.macos-arm64.tar.gz")
 check("依赖专用仓库", payload["url"].split("/releases")[0],
       "https://github.com/SummerwaveOrg/Bottle")
 
 # 3.5 裸可执行文件没有扩展名，合法
 payload = domains.resolve_payload("bottle", "choma", "1.0", "amd64",
-                                  upstream_filename="ChOma", upstream_url="",
-                                  from_source=False)
+                                  upstream_filename="ChOma")
 check("裸二进制", payload["filename"], "choma@1.0.macos-amd64")
 
-# 3.6 --install-from-source 回到 3.x 的做法：读 url、按末段命名
-payload = domains.resolve_payload(
-    "bottle", "jq", "1.7.1", "arm64", upstream_filename="",
-    upstream_url="https://github.com/o/r/releases/download/1.7.1/jq.zip",
-    from_source=True)
-check("from-source url", payload["url"],
-      "https://github.com/o/r/releases/download/1.7.1/jq.zip")
-check("from-source 文件名", payload["filename"], "jq.zip")
+# 3.6 --install-from-source 已彻底删除：下层不再收 from_source 参数
+try:
+    domains.resolve_payload("bottle", "jq", "1.7.1", "arm64",
+                            upstream_filename="jq.zip", from_source=True)
+    check("from_source 参数已被拒绝", "接受", "拒绝（TypeError）")
+except TypeError:
+    pass
+check("resolve_payload 只收 5 个参数",
+      len(domains.resolve_payload.__code__.co_varnames[:5]), 5)
 
 # 3.7 重建后缀原样保留（多版本共存靠它区分同一版本的不同产物）
 payload = domains.resolve_payload("bottle", "jq", "1.7.1-1", "arm64",
-                                  upstream_filename="jq.tar.gz", upstream_url="",
-                                  from_source=False)
+                                  upstream_filename="jq.tar.gz")
 check("重建后缀", payload["filename"], "jq@1.7.1-1.macos-arm64.tar.gz")
 
 raise SystemExit(0 if ok else 1)
 PY
 then
-    pass "地址形状、架构不撞名、扩展名、from-source 全部符合预期"
+    pass "地址形状、架构不撞名、扩展名、from_source 已删除，全部符合预期"
 else
     fail "payload 规则不对"
 fi
@@ -204,8 +198,7 @@ echo "========== 4. 缺数据必须报错，不能悄悄回落 =========="
 # 没有 file 字段 → 报错（否则不知道压缩格式）
 if PYTHONPATH="$PY_PATHS" python3 - << 'PY' > /dev/null 2>&1
 import domains
-domains.resolve_payload("bottle", "jq", "1.7.1", "arm64", upstream_filename="",
-                        upstream_url="https://x/jq.tar.gz", from_source=False)
+domains.resolve_payload("bottle", "jq", "1.7.1", "arm64", upstream_filename="")
 PY
 then
     fail "缺 file 字段却继续了"
@@ -213,28 +206,16 @@ else
     pass "缺 file 字段 → 报错"
 fi
 
-# --install-from-source 但记录里没有 url → 报错
-if PYTHONPATH="$PY_PATHS" python3 - << 'PY' > /dev/null 2>&1
-import domains
-domains.resolve_payload("bottle", "jq", "1.7.1", "arm64", upstream_filename="jq.tar.gz",
-                        upstream_url="", from_source=True)
-PY
-then
-    fail "缺 url 却按 from-source 继续了"
-else
-    pass "--install-from-source 缺 url → 报错"
-fi
-
-# --install-from-source 照样拒绝明文 http
+# from_source 参数已经不存在：传了就应当 TypeError（不是被静默忽略）
 if PYTHONPATH="$PY_PATHS" python3 - << 'PY' > /dev/null 2>&1
 import domains
 domains.resolve_payload("bottle", "jq", "1.7.1", "arm64",
-                        upstream_filename="", upstream_url="http://x/jq.tar.gz", from_source=True)
+                        upstream_filename="jq.tar.gz", from_source=True)
 PY
 then
-    fail "from-source 接受了明文 http"
+    fail "from_source 被静默接受了"
 else
-    pass "--install-from-source 仍拒绝明文 http"
+    pass "from_source 已被彻底删除（TypeError）"
 fi
 
 # 默认值被清空时必须报错（防守性路径：正常使用不会走到，但代码里必须挡得住）
@@ -242,7 +223,7 @@ if PYTHONPATH="$PY_PATHS" python3 - << 'PY' > /dev/null 2>&1
 import domains
 domains.DEFAULTS["bottle"] = ""
 domains.resolve_payload("bottle", "jq", "1.7.1", "arm64",
-                        upstream_filename="jq.tar.gz", upstream_url="", from_source=False)
+                        upstream_filename="jq.tar.gz")
 PY
 then
     fail "没有可用域名却继续了"

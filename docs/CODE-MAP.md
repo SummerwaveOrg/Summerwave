@@ -227,7 +227,7 @@
 | `minos_test.sh` | `min_os`（实验性，4.3 转正）：版本串解析（位数不同也比）、低于声明才提醒、字段缺失必须静默、非交互往安全侧倒、`--force` 越过、info 三种格式里没有声明时不出现、回填脚本幂等。离线 |
 | `structure_test.sh` | 项目结构自检：`scripts/components.txt` 里的每个组件，`wave.py` 都建了 sys.path、`install.sh` 都建了目录、CI 都覆盖；并且脚本与 CI 里不许再手写一份「lib pkg surfboard」 |
 | `net_policy_test.sh` | 传输层契约（AST，不是 grep）：每个 `requests` 调用都带 `**tls.request_kwargs()`、每个 `urlopen` 都带 `**tls.urlopen_kwargs()`、每个 `curl` 都有超时且 SSL 旗标只来自 `tls.curl_flags()`、SSL 开关只出现在 `net/tls.py` |
-| `domains_test.sh` | 地址层：默认值、环境变量覆盖与校验、`url` 只在 `--install-from-source` 下被读、两份 shell 脚本的域名块与 `domains.py` 是否一致。纯离线，所以放在需联网的测试之前 |
+| `domains_test.sh` | 地址层：默认值、环境变量覆盖与校验、`url` 从不被读（`--install-from-source` 已在 1.0 彻底删除）、两份 shell 脚本的域名块与 `domains.py` 是否一致。纯离线，所以放在需联网的测试之前 |
 | `check_domain_defaults.py` | 只做一件事：比对 `config/envvar.py` 与两份 shell 脚本里的域名默认值 + pip 索引。shell 那两份是被 curl 下来直接执行的，没法 source，只能内联；三处同源靠脚本盯着。扫的是 `envvar.DOMAINS` 这张表，所以改名 / 加项不用改脚本；shell 里冒出表上没有的 `MACWAVE_*_DOMAIN` 也会红 |
 | `sync_payloads.py` | 把索引里登记的产物取回本地并按 4.0 的命名摆好，落盘前核对索引里的 sha256。`--source payload` 时从我们自己的 Release 取（给镜像站同步用） |
 | `publish_payloads.py` | 把上一步的结果发布到 `Bottle` / `Deps` 的 Release：tag 是包名，只增不删，同名同大小跳过 |

@@ -29,7 +29,7 @@
 | 3 | `SeaLane/README.md` 的 Supported Packages | 人 | 说明与事实不符 |
 | 4 | **`MacWave/README.md` + `README.zh-Hans.md`** | 人 | 同上，中英各一份 |
 | 5 | **`Pages/index.html`（summerwave.org）** | 人 | 官网清单少一个包 |
-| 6 | **`MacWaveOrg/Ports` 的 Release（tag = 包名）** | 人、审计、`--install-from-source` | 只有自建包才有这一处；缺了等于自建产物没有溯源（见[五之二](#五之二自建包上游不发-macos-产物怎么办)） |
+| 6 | **recipe 与产物**（1.0 起在 `SummerwaveOrg/Summerwave` 的 `build/ports/`；历史产物在 `MacWaveOrg/Ports` 的 Release） | 人、审计 | 只有自建包才有这一处；缺了等于自建产物没有溯源（见[五之二](#五之二自建包上游不发-macos-产物怎么办)） |
 
 第 3、4、5 处是**同一份清单的三个副本**，格式一字不差。改就要三处一起改，
 下面第 6 步给了自动核对的办法。第 6 处只对自建包存在 —— 上游发了 macOS 产物的
@@ -456,7 +456,7 @@ gh release list -R <owner>/<repo> --limit 40 --json tagName,publishedAt,isPrerel
 
 | 放哪 | 放什么 | 谁读 |
 | --- | --- | --- |
-| **`MacWaveOrg/Ports`** 的 Release（tag = 包名） | 原始产物 + 构建脚本 | 人、审计、`--install-from-source` |
+| **`build/ports/`**（1.0 起在本仓；历史产物在 `MacWaveOrg/Ports` 的 Release） | 构建脚本 + recipe | 人、审计 |
 | **`MacWaveOrg/Bottle`** 的 Release（tag = 包名） | 同样两个架构的产物，文件名按 `<包名>@<版本>.<架构>` | **客户端与镜像** |
 
 **这不是重复劳动，是硬约束。** 客户端的取件地址是拼出来的：
@@ -466,7 +466,7 @@ gh release list -R <owner>/<repo> --limit 40 --json tagName,publishedAt,isPrerel
 url = payload_url(kind, name, filename)      # <BOTTLE_DOMAIN>/<包名>/<文件>
 ```
 
-索引记录里的 `url` 字段**不参与默认下载**（只有 `--install-from-source` 才读它）。
+索引记录里的 `url` 字段**不参与下载**（`--install-from-source` 已在 1.0 删除，没有任何路径读它去下载）。
 `choma` 就是双份：`Sha0huaZhang/ChOma-macwave` 存原始产物，`MacWaveOrg/Bottle` 的
 `choma` release 供下载。2026-11-21 起原始产物那一份迁到了 `MacWaveOrg/Ports`。
 

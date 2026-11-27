@@ -225,7 +225,7 @@ def download_dependency(payload, dep_name, dep_version, arch, dep_display_name,
                         config, input_string):
 
     # 复用软件包的下载函数，进度条格式保持一致。
-    # payload 由 domains.resolve_payload 给出：要么从 GHCR 取，要么回上游取。
+    # payload 由 domains.resolve_payload 给出：永远从我们自己的存储取。
 
     from pkginstaller import download_file
 
@@ -410,13 +410,10 @@ def ensure_dependency(dep_ref, arch, config, input_string, depender, visited=Non
         print(f"{RED_BOLD}🌊 Expected 64 lowercase hexadecimal characters; refusing to install.{RESET}")
         sys.exit(1)
 
-    # 与软件包同一套规则：4.0 从 GHCR 取（版本即 tag，架构在 OCI index 里）；
-    # 只有 --install-from-source 才会去读 url（直接回上游装）。
+    # 与软件包同一套规则：只从我们自己的存储取，url 字段不读。
     payload = domains.resolve_payload(
         "deps", dep_name, dep_version, arch,
-        upstream_filename=get_field(version_fields, "file") or "",
-        upstream_url=get_field(version_fields, "url") or "",
-        from_source=config.get("install_from_source", False))
+        upstream_filename=get_field(version_fields, "file") or "")
 
     # 4. 先递归安装它自己的依赖：路径替换时这些库必须已经在磁盘上
     if dep_refs:
