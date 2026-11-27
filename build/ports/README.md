@@ -151,5 +151,5 @@ bash scripts/selfbuilt_check.sh out/x.tar.bz2 --arch arm64 --max-minos 15.0
 
 ## 许可
 
-本仓（脚本与补丁）采用 **Apache License 2.0**，见 [LICENSE](LICENSE) 与
-[NOTICE](NOTICE)。它编译出来的软件沿用各自上游的许可，不在 Apache-2.0 覆盖范围内。
+本仓（脚本与补丁）采用 **Apache License 2.0**，见 [LICENSE](../../LICENSE) 与
+[NOTICE](../../NOTICE)。它编译出来的软件沿用各自上游的许可，不在 Apache-2.0 覆盖范围内。
