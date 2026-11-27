@@ -1,0 +1,23 @@
+diff --git a/Sources/XcodeGenKit/SettingsBuilder.swift b/Sources/XcodeGenKit/SettingsBuilder.swift
+index 043e965..0c45667 100644
+--- a/Sources/XcodeGenKit/SettingsBuilder.swift
++++ b/Sources/XcodeGenKit/SettingsBuilder.swift
+@@ -224,10 +224,18 @@ extension SettingsPresetFile {
+         }
+         let bundlePath = Path(Bundle.main.bundlePath)
+         let relativePath = Path("SettingPresets/\(path).yml")
++        // MacWave 把可执行文件装进 bin/<名>@<版本>/，再软链 links/<名> 过去。
++        // _NSGetExecutablePath() 返回的是**软链的路径**，于是 bundlePath 成了
++        // links/ 目录、"../share/xcodegen" 也就落到 links/../share 上，预设全找不到
++        // （生成的工程会缺 base/config/platform 的默认构建设置）。这里先把软链解析掉。
++        let realBundlePath = Path(URL(fileURLWithPath: Bundle.main.bundlePath)
++            .resolvingSymlinksInPath().path)
+         var possibleSettingsPaths: [Path] = [
+             relativePath,
+             bundlePath + relativePath,
+             bundlePath + "../share/xcodegen/\(relativePath)",
++            realBundlePath + relativePath,
++            realBundlePath + "../share/xcodegen/\(relativePath)",
+             Path(#file).parent().parent().parent() + relativePath,
+         ]
+ 

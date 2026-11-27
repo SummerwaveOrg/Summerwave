@@ -1,0 +1,28 @@
+--- a/exec-cmd.c
++++ b/exec-cmd.c
+@@ -138,12 +138,21 @@
+ static int git_get_exec_path_darwin(struct strbuf *buf)
+ {
+ 	char path[PATH_MAX];
++	char resolved[PATH_MAX];
+ 	uint32_t size = sizeof(path);
+-	if (!_NSGetExecutablePath(path, &size)) {
++
++	/*
++	 * _NSGetExecutablePath() returns the path that was exec'd, which is the
++	 * symlink when the binary is reached through one (MacWave links
++	 * links/git -> bin/git@<version>/bin/git). Resolve it, otherwise the
++	 * runtime prefix cannot be derived and Git falls back to the build-time
++	 * prefix, which does not exist on the user's machine.
++	 */
++	if (!_NSGetExecutablePath(path, &size) && realpath(path, resolved)) {
+ 		trace_printf(
+-			"trace: resolved executable path from Darwin stack: %s\n",
+-			path);
+-		strbuf_addstr(buf, path);
++			"trace: resolved executable path from Darwin stack: %s",
++			resolved);
++		strbuf_addstr(buf, resolved);
+ 		return 0;
+ 	}
+ 	return -1;
