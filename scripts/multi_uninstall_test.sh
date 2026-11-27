@@ -62,21 +62,21 @@ printf "MACWAVE_VERSION='4.5.0'\n" > "$BASE/var/config.sh"
 make_pkg() {
     local name="$1" version="$2" dir
     dir="$WORK/src-$name-$version"
-    mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/pkg/pkginfo/$name"
+    mkdir -p "$dir" "$MIRROR/bottle/$name" "$MIRROR/infosource/$name"
     printf '#!/bin/sh\necho %s %s\n' "$name" "$version" > "$dir/$name"
     chmod 755 "$dir/$name"
     tar czf "$MIRROR/bottle/$name/$name@$version.$BOTTLE_TAG.tar.gz" -C "$dir" "$name"
 
     local sha
     sha=$(shasum -a 256 "$MIRROR/bottle/$name/$name@$version.$BOTTLE_TAG.tar.gz" | cut -d' ' -f1)
-    [ -f "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" ] || cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@common" <<EOF
+    [ -f "$MIRROR/infosource/$name/_$name@common" ] || cat > "$MIRROR/infosource/$name/_$name@common" <<EOF
 bin_name: "$name"
 des: "multi-uninstall probe"
 hom: "https://example.invalid/"
 lic: "MIT"
 aut: "probe"
 EOF
-    cat > "$MIRROR/infosource/pkg/pkginfo/$name/_$name@$version.$BOTTLE_TAG" <<EOF
+    cat > "$MIRROR/infosource/$name/_$name@$version.$BOTTLE_TAG" <<EOF
 sha256: "$sha"
 file: "${name}_${ARCH}.tar.gz"
 url: "http://127.0.0.1:$PORT/bottle/$name/$name%40$version.$BOTTLE_TAG.tar.gz"
@@ -96,7 +96,7 @@ make_pkg three 1.0
 SERVER_PID=$!
 sleep 1
 if curl -s -o /dev/null -w '%{http_code}' \
-        "http://127.0.0.1:$PORT/infosource/pkg/pkginfo/versions" | grep -q 200; then
+        "http://127.0.0.1:$PORT/infosource/versions" | grep -q 200; then
     pass "本地镜像起来了（${PORT}）"
 else
     fail "本地镜像没起来"
