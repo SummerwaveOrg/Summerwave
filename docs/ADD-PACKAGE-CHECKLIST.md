@@ -26,7 +26,7 @@
 | --- | --- | --- | --- |
 | 1 | `infosource/pkg/pkginfo/<包名>/` | `wave install` / `search` / `info` | 装不上，或装到一半 404 |
 | 2 | **Bottle 仓库的 Release（tag = 包名）** | `wave install` 的下载步骤 | 索引有记录但下不到文件 |
-| 3 | `infosource/README.md` 的 Supported Packages | 人 | 说明与事实不符 |
+| 3 | `SeaLane/README.md` 的 Supported Packages | 人 | 说明与事实不符 |
 | 4 | **`MacWave/README.md` + `README.zh-Hans.md`** | 人 | 同上，中英各一份 |
 | 5 | **`Pages/index.html`（macwave.org）** | 人 | 官网清单少一个包 |
 | 6 | **`MacWaveOrg/Ports` 的 Release（tag = 包名）** | 人、审计、`--install-from-source` | 只有自建包才有这一处；缺了等于自建产物没有溯源（见[五之二](#五之二自建包上游不发-macos-产物怎么办)） |
@@ -271,7 +271,7 @@ wave uninstall <包名>          # 卸得掉，不带版本号的链接被清掉
 
 ### 第 6 步：把包加到四份清单（包含官网）
 
-**这一步最容易漏，因为它不在 `infosource` 里。**
+**这一步最容易漏，因为它不在 `SeaLane` 里。**
 
 四份副本，**两种格式**：
 
@@ -283,7 +283,7 @@ wave uninstall <包名>          # 卸得掉，不带版本号的链接被清掉
 
 | 文件 | 位置 |
 | --- | --- |
-| `infosource/README.md` | `# 🌊 Supported Packages` → `(Listed in alphabetical order)` 之后的代码块 |
+| `SeaLane/README.md` | `# 🌊 Supported Packages` → `(Listed in alphabetical order)` 之后的代码块 |
 | `MacWave/README.md` | `## 🌊 Supported Packages` → `(Listed in alphabetical order)` 之后 |
 | `MacWave/README.zh-Hans.md` | `## 🌊 支持的软件包` → `（按字母顺序排列）` 之后 |
 | **`Pages/index.html`** | `Supported Packages` 标题之后 `<div class="pkg-list">` 与它对应的 `</div>` 之间的 `<span>` 列表 |
@@ -292,7 +292,7 @@ wave uninstall <包名>          # 卸得掉，不带版本号的链接被清掉
 用索引把**两份内容一次生成**：
 
 ```bash
-cd ~/Projects/MacWaveOrg/infosource
+cd ~/Projects/MacWaveOrg/SeaLane
 python3 - <<'PY'
 import re, pathlib
 
@@ -348,7 +348,7 @@ def site_rows(path):
 readmes = {
     "MacWave/README.md": readme_rows("MacWave/README.md", "(Listed in alphabetical order)"),
     "MacWave/README.zh-Hans.md": readme_rows("MacWave/README.zh-Hans.md", "（按字母顺序排列）"),
-    "infosource/README.md": readme_rows("infosource/README.md", "(Listed in alphabetical order)"),
+    "SeaLane/README.md": readme_rows("SeaLane/README.md", "(Listed in alphabetical order)"),
 }
 ref_name, ref = next(iter(readmes.items()))
 for name, got in readmes.items():
@@ -371,7 +371,7 @@ PY
 
 ```bash
 # 索引 + 它的 README
-cd ~/Projects/MacWaveOrg/infosource && git add -A && git commit -m "Add <包名>" && git push origin main
+cd ~/Projects/MacWaveOrg/SeaLane && git add -A && git commit -m "Add <包名>" && git push origin main
 
 # MacWave 的两份 README
 cd ~/Projects/SummerwaveOrg/Summerwave && git add README.md README.zh-Hans.md && git commit -m "List <包名>" && git push origin <分支>
@@ -407,7 +407,7 @@ curl -s https://macwave.org/ | grep -c "<包名>"
 
 ### 3. 不要把测试包留进清单
 
-`infosource` 里有 `test_001`、`test_bin_*`、`test_no_sha256`、`test_wrong_sha256`
+`SeaLane` 里有 `test_001`、`test_bin_*`、`test_no_sha256`、`test_wrong_sha256`
 这些**故意存在**的测试记录（`test_wrong_sha256` 的哈希就该是错的）。
 它们必须留在索引里（测试要用），但**绝不能出现在四份 Supported Packages 清单里**。
 第 6 步的生成脚本已经用 `startswith("test_")` 排除。
@@ -624,7 +624,7 @@ $ /opt/macwave/bin/git --exec-path
 
 发现某个版本确实不能用时，按这个顺序，别改历史：
 
-1. 删掉 `infosource` 里那条版本记录（客户端立刻看不到它）；
+1. 删掉 `SeaLane` 里那条版本记录（客户端立刻看不到它）；
 2. 把包名写进 `scripts/known-bad-records.txt` —— 镜像同步会跳过它，不会把坏产物复制出去
    （`ldid` 现在就在这份名单里）；
 3. Release 上留一句说明（`choma` 那种「已由 X 取代」），不要删资产：删了就没法复核。
@@ -664,7 +664,7 @@ Options: …            ← 跑起来了
 
 ```bash
 # 索引里的记录数与产物数应当对得上
-ls ~/Projects/MacWaveOrg/infosource/pkg/pkginfo | grep -vc "^test_"
+ls ~/Projects/MacWaveOrg/SeaLane/pkg/pkginfo | grep -vc "^test_"
 gh release list -R MacWaveOrg/Bottle --limit 100 | wc -l
 ```
 

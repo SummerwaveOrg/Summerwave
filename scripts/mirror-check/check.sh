@@ -213,7 +213,7 @@ alias_probe() {   # alias_probe 相对路径
            "两边相等（alias 指的是另一棵树？）"
     fi
 }
-alias_probe "MacWave/infosource/HEAD/README.md"
+alias_probe "MacWave/sealane/HEAD/README.md"
 
 # ─────────────────────────────────────────────────────────────
 section "7. 真实产物内容长度（确认不是空壳 200）"

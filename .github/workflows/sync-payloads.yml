@@ -29,7 +29,7 @@ on:
         type: boolean
         default: true
       infosource_ref:
-        description: "Branch or tag of MacWaveOrg/infosource to read (empty = main)"
+        description: "Branch or tag of MacWaveOrg/SeaLane to read (empty = main)"
         default: ""
       probe_sha:
         description: "Report the real sha256 of records whose sha256 is all zeros"
@@ -58,9 +58,9 @@ jobs:
       - name: Checkout infosource
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/infosource
+          repository: MacWaveOrg/SeaLane
           ref: ${{ github.event.inputs.infosource_ref || 'main' }}
-          path: infosource-data
+          path: SeaLane-data
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -100,7 +100,7 @@ jobs:
           python3 - <<'PY'
           import hashlib, os, pathlib, re, urllib.request
 
-          root = pathlib.Path("infosource-data/pkg")
+          root = pathlib.Path("SeaLane-data/pkg")
           only = {n.strip() for n in (os.environ.get("ONLY") or "").split(",") if n.strip()}
           SHA = re.compile(r'^sha256:\s*"([0-9a-f]{64})"\s*$', re.M)
           URL = re.compile(r'^url:\s*"([^"]+)"\s*$', re.M)
@@ -140,7 +140,7 @@ jobs:
       - name: Fetch upstream payloads and verify checksums
         run: |
           python3 scripts/sync_payloads.py \
-            --infosource infosource-data \
+            --infosource SeaLane-data \
             --out staging \
             --kinds "${{ steps.opts.outputs.kinds }}" \
             --only "${{ steps.opts.outputs.only }}" \
@@ -168,7 +168,7 @@ jobs:
         if: steps.opts.outputs.publish == 'true'
         run: |
           python3 scripts/sync_payloads.py \
-            --infosource infosource-data \
+            --infosource SeaLane-data \
             --out verified \
             --kinds "${{ steps.opts.outputs.kinds }}" \
             --only "${{ steps.opts.outputs.only }}" \

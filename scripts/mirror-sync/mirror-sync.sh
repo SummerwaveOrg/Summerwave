@@ -2,7 +2,7 @@
 # 镜像站同步：在服务器上把 MacWave/ 对齐到上游
 #
 # 五类东西来源不同，不能一把梭：
-#   infosource / core/<分支> / selfupdate / python  ← git 分支
+#   SeaLane / core/<分支> / selfupdate / python  ← git 分支
 #   bottle / deps                                   ← 我们自己的 Release（不碰上游）
 # 同步完还要重建 versions 清单 —— 客户端「列出版本」全靠它，漏了会表现为「没有版本可装」。
 #
@@ -30,8 +30,8 @@ ROOT=${ROOT:-/www/wwwroot/mirror.repohub.top}
 DEST=$ROOT/MacWave
 
 # 站点的目录形状有两种（实测都见过），产物树不一定在 MacWave/ 下面：
-#   A. <ROOT>/MacWave/{bottle,deps,infosource,core,selfupdate,python}
-#   B. <ROOT>/{bottle,deps}, MacWave/{infosource,core,selfupdate,python}
+#   A. <ROOT>/MacWave/{bottle,deps,sealane,core,selfupdate,python}
+#   B. <ROOT>/{bottle,deps}, MacWave/{sealane,core,selfupdate,python}
 # 下面这几个步骤（产物同步的 --out、清单重建的 --mirror）都要指向**真正有
 # bottle/ 的那一层**，选错就会出现「同步全绿、客户端却读不到新包」，
 # 或者在最后一步才炸出 `does not look like a mirror root (no bottle/)`。
@@ -259,24 +259,24 @@ note "当前发布线 ${CUR}，额外保留 ${KEEP_BRANCHES:-（无）}"
 
 hr
 mw_say "第 2/6 步 · 同步三棵主干"
-# infosource 要铺进一层 `HEAD/`：客户端默认地址是
-# `…/MacWaveOrg/infosource/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
+# SeaLane（索引仓）要铺进一层 `HEAD/`：客户端默认地址是
+# `…/MacWaveOrg/SeaLane/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
 # `pkg/pkginfo/…`（1.0 起不再按架构分目录，平台标签编在记录名里）。站点上那层
-# HEAD 是真实目录（nginx 只做 `alias /…/MacWave/infosource/`），所以数据必须落在 HEAD 里。
+# HEAD 是真实目录（nginx 只做 `alias /…/MacWave/sealane/`），所以数据必须落在 HEAD 里。
 infosource_publish() {
-    tree infosource infosource main "$DEST/infosource/HEAD" || return 1
+    tree sealane SeaLane main "$DEST/sealane/HEAD" || return 1
 
-    # 旧版脚本把同一份内容铺在上一级（`$DEST/infosource/pkg/…`）。留着有两个坏处：
+    # 旧版脚本把同一份内容铺在上一级（`$DEST/sealane/pkg/…`）。留着有两个坏处：
     # 一是占空间，二是排查时容易对着那份没人读的副本找问题。
     local stale
     for stale in pkg docs scripts deps .github README.md LICENSE .gitignore \
                  fill_deps.py versions; do
-        [[ -e "$DEST/infosource/$stale" ]] || continue
+        [[ -e "$DEST/sealane/$stale" ]] || continue
         if (( DRY_RUN )); then
-            note "演练模式：会删掉旧布局 $DEST/infosource/$stale"
+            note "演练模式：会删掉旧布局 $DEST/sealane/$stale"
         else
-            rm -rf "${DEST:?}/infosource/$stale"
-            note "已清掉旧布局 $DEST/infosource/$stale"
+            rm -rf "${DEST:?}/sealane/$stale"
+            note "已清掉旧布局 $DEST/sealane/$stale"
         fi
     done
     return 0
@@ -418,7 +418,7 @@ else
     fi
 
     out=$(python3 "$SRC/tools/scripts/sync_payloads.py" \
-            --infosource "$DEST/infosource/HEAD" \
+            --infosource "$DEST/sealane/HEAD" \
             --out "$MIRROR_ROOT" \
             --source payload \
             --skip "$skip" \
@@ -438,17 +438,17 @@ if (( DRY_RUN )); then
     note "演练模式：跳过"
 else
     out=$(python3 "$SRC/tools/scripts/build_versions_index.py" \
-            --infosource "$DEST/infosource/HEAD" \
+            --infosource "$DEST/sealane/HEAD" \
             --mirror "$MIRROR_ROOT" 2>&1)
     rc=$?
     mw_say "$out" | tail -4
     if (( rc == 0 )); then
-        ok "清单" "$(find "$DEST/infosource/HEAD" -name versions -type f | wc -l | tr -d ' ') 个"
+        ok "清单" "$(find "$DEST/sealane/HEAD" -name versions -type f | wc -l | tr -d ' ') 个"
     else
         no "清单" "重建失败 —— 客户端会表现为「没有版本可装」"
     fi
     # 索引仓库自带的 .git 不该留在站点根下
-    rm -rf "$DEST/infosource/HEAD/.git"
+    rm -rf "$DEST/sealane/HEAD/.git"
 fi
 
 hr

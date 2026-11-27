@@ -163,7 +163,7 @@ tag    = 包名
 
 ### 扩展名不统一，这是重点
 
-`infosource` 里 99 条记录的实际格式分布：
+`SeaLane` 里 99 条记录的实际格式分布：
 
 | 后缀 | 条数 | 说明 |
 | --- | --- | --- |
@@ -250,7 +250,7 @@ GitHub 那 45 个走 `gh api -H "Accept: application/octet-stream"` 取，实测
 
 ### 灌数据的流程（可复现）
 
-1. 拉 `infosource`，解析每条记录的 `sha256` / `url`；
+1. 拉 `SeaLane`，解析每条记录的 `sha256` / `url`；
 2. 按来源分流：GitHub 走 `gh api`，conda 走 `curl`；
 3. 每个文件下完立刻比对索引里的 `sha256`，不一致就丢弃并记账；
 4. 以 `<包名>@<版本>.<os>-<arch><扩展名>` 命名，推进 `Bottle` / `Deps` 的 Release；

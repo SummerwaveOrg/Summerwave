@@ -838,7 +838,7 @@ def fetch_common_fields(package_name, timeout=DEFAULT_TIMEOUT):
                 request=url,
                 response=f"HTTP {response.status_code}",
                 hint=[f"check the package exists: `wave search {package_name}`",
-                      "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/infosource/HEAD"])
+                      "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
     except SystemExit:
         raise
     except Exception as e:
@@ -889,7 +889,7 @@ def _explain_missing_version_list(package_name, api_url, timeout):
         steplog.fail(
             f"cannot reach the package list, so {package_name} cannot be checked",
             request=api_url,
-            hint=["check MACWAVE_API_DOMAIN points at <mirror>/MacWave/infosource/HEAD",
+            hint=["check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD",
                   "if every package fails this way, the mirror has no versions lists "
                   "yet (see docs/MIRROR-SETUP.md)",
                   "check the network and any --proxy setting, then retry"])
@@ -1198,7 +1198,7 @@ def _install_single_locked(input_string):
                     request=pkg_version_url,
                     response="404 Not Found",
                     hint=[f"run `wave search {ParsePkgName}` to see the available versions",
-                          "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/infosource/HEAD"])
+                          "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
             else:
                 steplog.fail(
                     "could not read the version record",

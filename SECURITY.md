@@ -29,7 +29,7 @@ vulnerability:
 
 | Guarantee | Where it lives |
 |---|---|
-| **The download matches what the index says.** Every payload is verified against the `sha256` in `infosource` before it is unpacked. A record without a checksum is refused, not trusted. | `pkg/pkginstaller.py`, `lib/domains.py` |
+| **The download matches what the index says.** Every payload is verified against the `sha256` in `SeaLane` before it is unpacked. A record without a checksum is refused, not trusted. | `pkg/pkginstaller.py`, `lib/domains.py` |
 | **Only the mirror is contacted.** The `url` field in the index is not followed during a normal install — payloads come from MacWave's own store, which the mirror serves. `--install-from-source` is the deliberate exception. | `lib/domains.py` (`resolve_payload`) |
 | **Package-controlled names cannot escape their directory.** Package names, versions and `bin_name` come from remote data but are used as path components, so they pass a whitelist and a containment check. | `lib/configpaths.py` |
 | **Credentials do not appear in output.** Mirror URLs carry a user and password; anything printed or logged is redacted first. | `lib/domains.py` (`redact_url`) |
@@ -140,7 +140,7 @@ Regression: `scripts/dir_guard_test.sh`.
 
 - **A package is malicious.** MacWave verifies that a payload matches the index,
   not that the software is benign. Report that to the upstream project.
-- **The `test_*` packages in `infosource` have wrong checksums.** They are
+- **The `test_*` packages in `SeaLane` have wrong checksums.** They are
   negative test fixtures and are supposed to be broken. `test_no_sha256` has no
   checksum; `test_wrong_sha256` has a wrong one.
 - **You ran `--install-from-source` and got an upstream file.** That flag

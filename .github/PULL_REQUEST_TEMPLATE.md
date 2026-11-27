@@ -25,7 +25,7 @@
 - [ ] 动了 `lib/selfupdate.sh` 或 `Selfupdate/macwavedata/**`
 - [ ] 动了 `.github/workflows/**`
 - [ ] 改了 `update_commands.sh` 会下载哪些文件
-- [ ] 改了索引格式（`infosource`）
+- [ ] 改了索引格式（`SeaLane`）
 - [ ] 都没有 —— 只影响单条命令
 
 ## 升级路径

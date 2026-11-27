@@ -111,8 +111,8 @@ mirror.repohub.top    A    <服务器公网 IP>
 >
 > ```bash
 > nginx -T 2>/dev/null | grep -A2 'location .*MacWave' | grep -E 'location|alias'
-> curl -sI https://mirror.repohub.top/MacWave/infosource/HEAD/README.md | grep -i content-length
-> ls -l "$ROOT/MacWave/infosource/HEAD/README.md"    # 大小要与上一条一致
+> curl -sI https://mirror.repohub.top/MacWave/sealane/HEAD/README.md | grep -i content-length
+> ls -l "$ROOT/MacWave/sealane/HEAD/README.md"    # 大小要与上一条一致
 > ```
 >
 > 自查一律走 `https://` 或带 `Host` 头：`http://127.0.0.1/…` 在开了「强制 HTTPS」的
@@ -166,7 +166,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 ```
 
 **只有 `infosource/` 在地址里多一层 ref，其余都没有。** 这不是设计不一致而是跟着上游
-地址走的：`infosource` 的默认地址是 `…/MacWaveOrg/infosource/HEAD`（`HEAD` 是默认分支的
+地址走的：`SeaLane` 的默认地址是 `…/MacWaveOrg/SeaLane/HEAD`（`HEAD` 是默认分支的
 别名），`selfupdate` / `python` 的默认地址以 `/main` 结尾、客户端拼路径时不再接 ref，
 `core` 拼的是分支名。
 
@@ -174,8 +174,8 @@ mirror.repohub.top    A    <服务器公网 IP>
 
 | 做法 | 做法细节 |
 | --- | --- |
-| A. 铺进真实目录（**`mirror-sync.sh` 从 4.4 起默认这么做**） | `rsync` 目标就是 `$DEST/infosource/HEAD/`，站点只写一条 `alias /…/MacWave/infosource/` 即可 |
-| B. nginx 别名 / 符号链接 | 数据放 `$DEST/infosource/`，用 `location ~ ^/MacWave/infosource/HEAD/(.*)$ { alias …/MacWave/infosource/$1; }` 顶上（早先的服务器是这么做的） |
+| A. 铺进真实目录（**`mirror-sync.sh` 从 4.4 起默认这么做**） | `rsync` 目标就是 `$DEST/sealane/HEAD/`，站点只写一条 `alias /…/MacWave/infosource/` 即可 |
+| B. nginx 别名 / 符号链接 | 数据放 `$DEST/infosource/`，用 `location ~ ^/MacWave/sealane/HEAD/(.*)$ { alias …/MacWave/infosource/$1; }` 顶上（早先的服务器是这么做的） |
 
 两种都能用，**但别名指错地方的后果很隐蔽**：客户端照样 200、`wave install` 却发现
 某个新包「不在索引里」，因为 `/HEAD` 指向的是一份没人再更新的旧拷贝。判断办法是比
@@ -183,7 +183,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 
 ```bash
 curl -sI "$MACWAVE_API_DOMAIN/README.md" | grep -iE 'content-length|last-modified'
-ls -l /www/wwwroot/mirror.repohub.top/MacWave/infosource/README.md
+ls -l /www/wwwroot/mirror.repohub.top/MacWave/SeaLane/README.md
 # 两行不一致 = /HEAD 没有指向同步出来的那棵树
 ```
 
@@ -207,7 +207,7 @@ ls /www/wwwroot/mirror.repohub.top/MacWave/
 
 ```bash
 git clone --depth 1 https://github.com/SummerwaveOrg/Summerwave /tmp/summerwave-src
-git clone --depth 1 https://github.com/MacWaveOrg/infosource /tmp/infosource
+git clone --depth 1 https://github.com/MacWaveOrg/SeaLane /tmp/infosource
 
 python3 /tmp/macwave-src/scripts/sync_payloads.py \
   --infosource /tmp/infosource \
@@ -313,14 +313,14 @@ curl -o /dev/null -w '速度 %{speed_download} B/s\n' \
 ```bash
 # A. 带 Host 头，让 nginx 用对 server 块（http 会 301，所以用 https）
 curl -sk --resolve mirror.repohub.top:443:127.0.0.1 \
-     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/versions | wc -l
+     https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/versions | wc -l
 
 # B. 直接走域名（最省事）
-curl -s https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/versions | wc -l
+curl -s https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/versions | wc -l
 
 # C. 只看状态码时记得跟随跳转
 curl -sL -o /dev/null -w '%{http_code}\n' \
-     https://mirror.repohub.top/MacWave/infosource/HEAD/pkg/pkginfo/columbula/versions
+     https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/columbula/versions
 ```
 
 另外 `nginx -T` 里还有一个 `server_name 127.0.0.1` 的监控块（只放 `nginx_status`），
@@ -387,7 +387,7 @@ MACWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
 `infosource/` 底下那层 ref **必须写在变量值里**（MacWave 用 `HEAD`）：
 
 ```
-export MACWAVE_API_DOMAIN=https://<根>/MacWave/infosource/HEAD   ← 正确
+export MACWAVE_API_DOMAIN=https://<根>/MacWave/sealane/HEAD   ← 正确
 export MACWAVE_API_DOMAIN=https://<根>/MacWave/infosource        ← 错误，全部 404
 ```
 
@@ -505,7 +505,7 @@ rm -rf /www/wwwroot/mirror.repohub.top/MacWave/python/.git
 
 | 目标 | 来源 | 处理 |
 | --- | --- | --- |
-| `infosource/HEAD/` | `MacWaveOrg/infosource` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
+| `infosource/HEAD/` | `MacWaveOrg/SeaLane` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
 | `selfupdate/` | `MacWaveOrg/Selfupdate` 的 `main` | 同上 |
 | `python/` | `MacWaveOrg/Python` 的 `main` | 同上 |
 | `core/<分支>/` | `SummerwaveOrg/Summerwave` 的对应分支 | 同上；分支表 = `configdata` 的当前发布线 + `KEEP_BRANCHES` |
@@ -660,7 +660,7 @@ def python_archive_url(version, filename):
 > `core`、`selfupdate`、`python`、`bottle`、`deps` 根本没有自己的 location ——
 > 它们落到通用的 `location /`，由它的 `root` 从 `/www/wwwroot/…` 取。
 > 于是「把 `/www` 下那几份没人读的代码树挪走」直接让 `wave install` 全线 404，
-> 而 `infosource` 照旧 200，看着像只坏了一半。
+> 而 `SeaLane` 照旧 200，看着像只坏了一半。
 >
 > 所以动手前**逐条**核对，两件事都要做：
 >
@@ -710,13 +710,13 @@ done
 1. **必须 `https://`**（或带 `Host` 头）：`http://127.0.0.1` 只给 301；
 2. **必须带凭据**：`selfupdate`、`python`、`core`、`bottle`、`deps` 这些路径都开了
    HTTP 基本认证，**认证在碰文件系统之前发生** —— 不带 `-u` 时永远是 `401`，
-   哪怕目录被删光了也还是 `401`，等于什么都没验；只有 `infosource` 是公开的；
+   哪怕目录被删光了也还是 `401`，等于什么都没验；只有 `SeaLane` 是公开的；
 3. 口令从密码文件读进变量，**不要 `echo`**：
 
 ```bash
 MP=$(awk '$1=="REPOHUBUSER1"{print $2; exit}' /root/macwave-passwords.txt)
 for u in \
-  /MacWave/infosource/HEAD/pkg/pkginfo/versions \
+  /MacWave/sealane/HEAD/pkg/pkginfo/versions \
   /MacWave/selfupdate/macwavedata/latest.toml \
   /MacWave/python/pythondata/latest.toml \
   /MacWave/core/4.4/lib/wave.py \

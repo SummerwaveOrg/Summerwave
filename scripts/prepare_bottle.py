@@ -22,7 +22,7 @@
 # 只下载、重打、打印结果；**不上传、不改索引**。打印出来的就是需要写进记录的三行：
 #   sha256、file、relocated: "loader_path"（外加 install: "tree"）。
 #
-# 索引记录默认从本地 infosource 检出读（--infosource 指定，默认 ~/Projects/MacWaveOrg/infosource），
+# 索引记录默认从本地 infosource 检出读（--infosource 指定，默认 ~/Projects/MacWaveOrg/SeaLane），
 # 产物默认从镜像站取（与客户端同一组环境变量）。
 
 import argparse

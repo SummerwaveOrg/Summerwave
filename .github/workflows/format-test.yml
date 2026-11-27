@@ -30,9 +30,9 @@ jobs:
       - name: Checkout infosource data
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/infosource
+          repository: MacWaveOrg/SeaLane
           ref: main
-          path: infosource-data
+          path: SeaLane-data
 
       - name: Setup Python
         if: matrix.python-version != '3.15'
@@ -217,7 +217,7 @@ jobs:
 
       - name: Audit dependency data
         run: |
-          python3 scripts/audit_deps.py data --data-dir infosource-data
+          python3 scripts/audit_deps.py data --data-dir SeaLane-data
 
       - name: Run format tests
         run: |
@@ -225,7 +225,7 @@ jobs:
 
       - name: Run dependency chain test
         run: |
-          /bin/bash scripts/deps_test.sh --infosource infosource-data
+          /bin/bash scripts/deps_test.sh --infosource SeaLane-data
 
       # 离线：假镜像起在 localhost，只验「报错说清楚了该怎么办」
       - name: Run message test
@@ -336,9 +336,9 @@ jobs:
       - name: Checkout infosource data
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/infosource
+          repository: MacWaveOrg/SeaLane
           ref: main
-          path: infosource-data
+          path: SeaLane-data
 
       - name: Setup Python
         if: matrix.python-version != '3.15'
@@ -375,7 +375,7 @@ jobs:
         timeout-minutes: 165
         run: |
           python3 -u scripts/random_test.py \
-            --infosource infosource-data \
+            --infosource SeaLane-data \
             --time-budget 145 \
             --log-file "$RUNNER_TEMP/random-test-${{ matrix.python-version }}.log"
 

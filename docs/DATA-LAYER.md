@@ -23,7 +23,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 
 | 环境变量 | 内容 | 默认值 |
 | --- | --- | --- |
-| `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/MacWaveOrg/infosource/HEAD` |
+| `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD` |
 | `MACWAVE_BOTTLE_DOMAIN` | 预编译二进制包 | `github.com/MacWaveOrg/Bottle/releases/download` |
 | `MACWAVE_DEPS_DOMAIN` | 依赖二进制 | `github.com/MacWaveOrg/Deps/releases/download` |
 | `MACWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/SummerwaveOrg/Summerwave` |
@@ -76,7 +76,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 ### 3.2 索引（infosource）
 
 ```
-<MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/MacWaveOrg/infosource/HEAD
+<MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD
     pkg/                        注意：ref 段（HEAD）在域名里，不在这里
         pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>   一条记录一个文件
         pkginfo/versions                           一行一个包名（镜像生成）
@@ -238,7 +238,7 @@ amd64_sha256 = "600c..."
 | --- | --- | --- |
 | `MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle` | `MacWave/bottle/<包名>/<文件>` | `Bottle` 仓库的全部 Release 资产 |
 | `MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps` | `MacWave/deps/<包名>/<文件>` | `Deps` 仓库的全部 Release 资产 |
-| `MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource` | `MacWave/infosource/pkg/...` | `infosource` 仓库内容 |
+| `MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource` | `MacWave/infosource/pkg/...` | `SeaLane` 仓库内容 |
 | `MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate` | `MacWave/selfupdate/macwavedata/...` | `Selfupdate` 仓库内容 |
 | `MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python` | `MacWave/python/pythondata/...` | `Python` 仓库内容 |
 | `MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core` | `MacWave/core/<分支>/lib/...` | `MacWave` 仓库各分支 |

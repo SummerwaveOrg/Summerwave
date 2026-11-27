@@ -35,7 +35,7 @@ MacWave is a **package manager for macOS**, built to distribute the command-line
 3. **Versioned by design.** Every binary lives under `package@version`, so several versions coexist and none of them shadow a system tool.
 4. **Optional unversioned links.** `wave link <package>` creates a plain `package` shortcut that points at the highest installed version and re-points itself whenever versions are installed or removed.
 5. **Isolated by construction.** Everything MacWave installs stays inside its own directories; it never overwrites or links against macOS system libraries, so even a major macOS upgrade leaves it intact.
-6. **No stale metadata.** Package data is read from the `MacWaveOrg/infosource` repository at request time.
+6. **No stale metadata.** Package data is read from the `MacWaveOrg/SeaLane` repository at request time.
 7. **Ten archive formats, covered by CI.** Extensionless binaries, `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.gz`, `.xz`, `.bz2`, and `.conda`.
 8. **Checksum before extraction.** A package whose SHA256 is missing or does not match is refused, never installed with a warning.
 9. **Resumable downloads.** An interrupted transfer continues with `-C`.
@@ -143,7 +143,7 @@ Those two lines only cover the bulk downloads. When `github.com` and `raw.github
 ```bash
 export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource/HEAD
+export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
 export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
@@ -152,12 +152,12 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 
 `MACWAVE_PIP_INDEX` is the odd one out: it only affects the three Python dependencies (`requests`, `toml`, `colorama`) that `pip` installs once, so it can point at any PyPI mirror. The other six are paths under one mirror host, which is why a single account covers all of them.
 **The trailing `/HEAD` in `MACWAVE_API_DOMAIN` is required.** A mirror lays files out
-as `<org>/<repo>/<ref>/…`, and `infosource` is a git repository, so the ref has to be a
+as `<org>/<repo>/<ref>/…`, and `SeaLane` is a git repository, so the ref has to be a
 real directory level:
 
 ```
-…/MacWave/infosource/HEAD/pkg/pkginfo_arm64/versions   ← correct
-…/MacWave/infosource/pkg/pkginfo_arm64/versions        ← wrong, 404
+…/MacWave/sealane/HEAD/pkg/pkginfo_arm64/versions   ← correct
+…/MacWave/sealane/pkg/pkginfo_arm64/versions        ← wrong, 404
 ```
 
 Without it **every** package fails to install (`wave install` stops at "cannot read the
@@ -175,7 +175,7 @@ cat >> ~/.zshrc <<'MWMIRROR'
 # MacWave mirror — delete this block to go back to the official addresses
 export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource/HEAD
+export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
 export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
@@ -221,7 +221,7 @@ The same credentials go into each of the six paths when you want the full set �
 | --- | --- | --- |
 | `MACWAVE_BOTTLE_DOMAIN` | prebuilt packages | GitHub Releases |
 | `MACWAVE_DEPS_DOMAIN` | dependency libraries | GitHub Releases |
-| `MACWAVE_API_DOMAIN` | package index (**the ref segment is required**, e.g. `/HEAD`) | `infosource` on raw.githubusercontent |
+| `MACWAVE_API_DOMAIN` | package index (**the ref segment is required**, e.g. `/HEAD`) | `SeaLane` on raw.githubusercontent |
 | `MACWAVE_SELFUPDATE_DOMAIN` | self-update data | `Selfupdate` on raw.githubusercontent |
 | `MACWAVE_PYTHON_DOMAIN` | the bundled interpreter | `Python` on raw.githubusercontent |
 | `MACWAVE_CORE_DOMAIN` | MacWave's own files | `MacWave` on raw.githubusercontent |
@@ -400,7 +400,7 @@ See [docs.macwave.org](https://docs.macwave.org/)
 ## 🌊 Supported Packages
 (Listed in alphabetical order)
 
-The same list appears in `infosource/README.md` and on [macwave.org](https://macwave.org). Adding a package means updating all of them — see [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md).
+The same list appears in `SeaLane/README.md` and on [macwave.org](https://macwave.org). Adding a package means updating all of them — see [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md).
 
 ```
 
@@ -583,7 +583,7 @@ install a throwaway copy under a temporary root, or run the scripts in
 | Repository | Holds |
 | --- | --- |
 | `SummerwaveOrg/Summerwave` | The program itself |
-| `MacWaveOrg/infosource` | The package index, one directory per package and architecture |
+| `MacWaveOrg/SeaLane` | The package index, one directory per package and architecture |
 | `MacWaveOrg/configdata` | The published version, the updater's file list, and the bundled interpreter |
 
 ### Source layout
@@ -610,7 +610,7 @@ All Mach-O rewriting is confined to `surfboard/`.
 
 ### Adding a package
 
-Records live in `infosource` under `pkg/pkginfo_<arch>/<name>/`, in two forms:
+Records live in `SeaLane` under `pkg/pkginfo_<arch>/<name>/`, in two forms:
 
 - `_<name>@common` — metadata shared by every version: `des`, `hom`, `lic`,
   `aut`, and `bin_name`, the name the binary is installed as.

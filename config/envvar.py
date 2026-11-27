@@ -42,7 +42,7 @@ class Domain:
 DOMAINS = {
     "api": Domain(
         "MACWAVE_API_DOMAIN",
-        "https://raw.githubusercontent.com/MacWaveOrg/infosource/HEAD",
+        "https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD",
         "package and dependency index"),
     # 默认指向 GitHub Releases：它的下载路径 /<tag>/<资产> 与静态镜像的 /<包名>/<文件>
     # 同形，所以国内镜像站只要 rsync 出同一棵树即可。指向仓库文件会被 git 的

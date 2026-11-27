@@ -395,12 +395,12 @@ def locate_infosource(explicit):
         candidates.append(Path(explicit))
     if os.environ.get("INFOSOURCE_DIR"):
         candidates.append(Path(os.environ["INFOSOURCE_DIR"]))
-    candidates += [REPO_DIR / "infosource-data", REPO_DIR / "infosource"]
+    candidates += [REPO_DIR / "SeaLane-data", REPO_DIR / "infosource"]
     for candidate in candidates:
         if (candidate / "pkg").is_dir():
             return candidate
     raise RuntimeError("找不到 infosource 数据（试过 --infosource、$INFOSOURCE_DIR、"
-                       "infosource-data/、infosource/）")
+                       "SeaLane-data/、infosource/）")
 
 
 def detect_arch():

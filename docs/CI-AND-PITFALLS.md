@@ -31,7 +31,7 @@ README、注释）不要单独推一次，攒到下一次真正改代码时一�
 | `random-test` | 随机化端到端回归（`scripts/random_test.py`） |
 
 `format-test` 里的**依赖链测试**（`scripts/deps_test.sh`）是覆盖最宽的一环：
-它会扫 `infosource` 里所有声明了 `deps:` 的包，各取最高版本，逐个跑
+它会扫 `SeaLane` 里所有声明了 `deps:` 的包，各取最高版本，逐个跑
 「装 → 二进制能跑 → 没有未解析库引用 → 写了引用计数标记 → 卸 → 整条依赖链被级联清理」。
 当前是 `btop`、`htop`、`ncdu`、`tmux`、`wget` 五个。
 
@@ -139,9 +139,9 @@ Warning: 1 library reference(s) exist in this installation but could not be link
 ### 5. 依赖数据：`--ver` / 版本 / 路径全链路
 
 - 依赖产物 URL 曾经在 `surfboard/depsinfo_<arch>/` 下，3.0 起搬到独立仓库
-  `MacWaveOrg/infosource` 的 `deps/depsinfo/`（1.0 起不再按架构分目录）。
+  `MacWaveOrg/SeaLane` 的 `deps/depsinfo/`（1.0 起不再按架构分目录）。
   **改数据前先确认改的是哪个仓库** ——
-  我在这上面推错过一次（MacWave 仓库里还留着一个旧结构的 `infosource` 分支镜像）。
+  我在这上面推错过一次（MacWave 仓库里还留着一个旧结构的 `SeaLane` 分支镜像）。
 - `tmux@3.6` 的二进制需要 `_tiparm_s`，而 infosource 里的 `ncurses@6.4`（只有
   `_tiparm`）和 conda-forge 的 `6.6`（两个都没有）都**不导出**它 ——
   `_tiparm_s` 其实是 defaults 渠道 `ncurses@6.5` 的 **`libtinfow.6.dylib`** 导出的，
@@ -193,7 +193,7 @@ CI 传 145 分钟，step timeout 165 分钟只当兜底。
 **现象**：CI 日志里 `install wget@1.25.0` 永远只有它一个。
 **根因**：`deps_test.sh` 只接**一个**位置参数，默认值是 `wget@1.25.0`，
 而 workflow 调它时**不带参数**。跟包体积、跟 40MB 上限都无关。
-**修法**：不带参数时自动扫 `infosource` 找出所有带依赖的包，逐个跑，一个失败不中断其它的。
+**修法**：不带参数时自动扫 `SeaLane` 找出所有带依赖的包，逐个跑，一个失败不中断其它的。
 
 ### 9. GitHub API 限流
 

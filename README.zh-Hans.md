@@ -34,7 +34,7 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 3. **版本化存储。** 每个二进制文件都存放在 `package@version` 之下，多个版本可以共存，且都不会遮蔽系统工具。
 4. **可选的免版本号链接。** `wave link <软件包>` 会创建一个不带版本号的 `软件包` 快捷方式，指向已安装的最高版本；安装或卸载版本时，它会自动改指。
 5. **天然隔离。** MacWave 安装的一切都留在自己的目录中，绝不覆盖或链接 macOS 系统库，因此即使跨越大版本升级 macOS，环境依然完整可用。
-6. **元数据不会过期。** 软件包数据在请求时从 `MacWaveOrg/infosource` 仓库读取。
+6. **元数据不会过期。** 软件包数据在请求时从 `MacWaveOrg/SeaLane` 仓库读取。
 7. **十种归档格式，均由 CI 覆盖。** 无扩展名二进制文件、`.zip`、`.tar.gz`、`.tar.bz2`、`.tar.xz`、`.tar`、`.gz`、`.xz`、`.bz2` 与 `.conda`。
 8. **先校验，后解压。** 缺少 SHA256 或校验不符的软件包会被拒绝，绝不「给出警告后照常安装」。
 9. **支持断点续传。** 传输中断后可用 `-C` 继续。
@@ -136,7 +136,7 @@ export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 ```bash
 export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource/HEAD
+export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
 export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
@@ -145,11 +145,11 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 
 `MACWAVE_PIP_INDEX` 是唯一不一样的那个：它只影响 `pip` 安装的三个 Python 依赖（`requests`、`toml`、`colorama`），所以可以指向任意 PyPI 镜像。其余六个都是同一个镜像域名下的路径，因此一个账号就能覆盖全部。
 **`MACWAVE_API_DOMAIN` 末尾的 `/HEAD` 不能省。** 镜像按 `<组织>/<仓库>/<ref>/…`
-布局，`infosource` 是一个 git 仓库，所以 ref 那一段必须真实存在一层目录：
+布局，`SeaLane` 是一个 git 仓库，所以 ref 那一段必须真实存在一层目录：
 
 ```
-…/MacWave/infosource/HEAD/pkg/pkginfo_arm64/versions   ← 正确
-…/MacWave/infosource/pkg/pkginfo_arm64/versions        ← 错误，404
+…/MacWave/sealane/HEAD/pkg/pkginfo_arm64/versions   ← 正确
+…/MacWave/sealane/pkg/pkginfo_arm64/versions        ← 错误，404
 ```
 
 少了它的症状是**所有**软件包都装不上（`wave install` 停在「读不到版本清单」，
@@ -167,7 +167,7 @@ cat >> ~/.zshrc <<'MWMIRROR'
 # MacWave mirror — 删掉这一块就恢复官方地址
 export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource/HEAD
+export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
 export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
@@ -211,7 +211,7 @@ export MACWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/
 | --- | --- | --- |
 | `MACWAVE_BOTTLE_DOMAIN` | 预编译软件包 | GitHub Releases |
 | `MACWAVE_DEPS_DOMAIN` | 依赖库 | GitHub Releases |
-| `MACWAVE_API_DOMAIN` | 软件包索引（**末尾要带 ref 段**，如 `/HEAD`） | raw.githubusercontent 上的 `infosource` |
+| `MACWAVE_API_DOMAIN` | 软件包索引（**末尾要带 ref 段**，如 `/HEAD`） | raw.githubusercontent 上的 `SeaLane` |
 | `MACWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | raw.githubusercontent 上的 `Selfupdate` |
 | `MACWAVE_PYTHON_DOMAIN` | 自带解释器 | raw.githubusercontent 上的 `Python` |
 | `MACWAVE_CORE_DOMAIN` | MacWave 自身文件 | raw.githubusercontent 上的 `MacWave` |
@@ -388,7 +388,7 @@ wave latest --all                  Same, for every installed package
 ## 🌊 支持的软件包
 （按字母顺序排列）
 
-同一份清单还出现在 `infosource/README.md` 与 [macwave.org](https://macwave.org)。加一个软件包要四处一起改，见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md)。
+同一份清单还出现在 `SeaLane/README.md` 与 [macwave.org](https://macwave.org)。加一个软件包要四处一起改，见 [`docs/ADD-PACKAGE-CHECKLIST.md`](./docs/ADD-PACKAGE-CHECKLIST.md)。
 
 ```
 
@@ -565,7 +565,7 @@ shallow clone 会报：
 | 仓库 | 存放内容 |
 | --- | --- |
 | `SummerwaveOrg/Summerwave` | 程序本体 |
-| `MacWaveOrg/infosource` | 软件包索引，每个软件包、每种架构各一个目录 |
+| `MacWaveOrg/SeaLane` | 软件包索引，每个软件包、每种架构各一个目录 |
 | `MacWaveOrg/configdata` | 已发布的版本、自更新的文件清单、自带的解释器 |
 
 ### 源码结构
@@ -582,7 +582,7 @@ shallow clone 会报：
 
 ### 收录一个软件包
 
-记录放在 `infosource` 的 `pkg/pkginfo_<架构>/<软件包名>/` 下，分两类文件：
+记录放在 `SeaLane` 的 `pkg/pkginfo_<架构>/<软件包名>/` 下，分两类文件：
 
 - `_<软件包名>@common` —— 所有版本共用的元数据：`des`、`hom`、`lic`、`aut`，
   以及 `bin_name`，即二进制文件安装后的名字。

@@ -11,7 +11,7 @@
 #
 # 用法：
 #   python3 scripts/apply_rebuilt_records.py --tsv ~/bottle-1.0/records.tsv \
-#       --prebuilt ~/bottle-1.0/prebuilt --infosource ~/Projects/MacWaveOrg/infosource
+#       --prebuilt ~/bottle-1.0/prebuilt --infosource ~/Projects/MacWaveOrg/SeaLane
 #   …… 加上 --apply 才真的写；默认只报告。
 #
 # 安装形态的判据：

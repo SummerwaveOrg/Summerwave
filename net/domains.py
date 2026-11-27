@@ -154,7 +154,7 @@ def index_list_url(package_name=None):
 
     # ref=HEAD 而不是 ref=main：HEAD 解析为默认分支，改默认分支名不必回来改这里。
     # 返回的是 contents API 的 JSON 数组，与镜像那份纯文本由 listing_names 统一。
-    url = f"https://api.github.com/repos/MacWaveOrg/infosource/contents/{path}?ref=HEAD"
+    url = f"https://api.github.com/repos/MacWaveOrg/SeaLane/contents/{path}?ref=HEAD"
     steplog.detail("listing source: GitHub API (MACWAVE_API_DOMAIN not set)")
     return url
 

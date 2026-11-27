@@ -160,7 +160,7 @@ Mach-O 重定位。所以 **Intel 的理论地板是 10.15，实测下限是 12.
 | 遗产 | 当时 | 现在 |
 | --- | --- | --- |
 | `wave.py` | 雏形 `Version: 1.0.0`；被删时已长到 **1237 行** | [`lib/wave.py`](../lib/wave.py)，306 行，重写后的 |
-| `repo.json` | `packages: [{name: test_001, version: 1.0.0, releases: [{os, arch, ...}]}]` | `infosource` 的 `pkg/pkginfo_*/` 的直系祖先 |
+| `repo.json` | `packages: [{name: test_001, version: 1.0.0, releases: [{os, arch, ...}]}]` | `SeaLane` 的 `pkg/pkginfo_*/` 的直系祖先 |
 
 那 1237 行没有一行进到今天的代码里，是两次不同的实现。但架构判断留下来了：
 客户端要有入口、独立解析器、独立安装器、独立帮助模块。
@@ -193,7 +193,7 @@ Mach-O 重定位。所以 **Intel 的理论地板是 10.15，实测下限是 12.
 
 `legacy-MacWave` 是 3.0 分仓前的完整只读快照，除 `gh-pages` 外还留着
 `1.0.0` / `1.1.0-beta` / `2.0.0-beta` / `2.0.0-dev` / `2.1.0` / `2.2.0` / `2.3` /
-`2.4` / `2.5` / `3.0` / `configdata` / `infosource` / `main` 共 14 个分支与 47 个 tag。
+`2.4` / `2.5` / `3.0` / `configdata` / `SeaLane` / `main` 共 14 个分支与 47 个 tag。
 查这段历史不必克隆它——本仓库的 `ghpages/*` tag 已经把这 292 个提交对象带过来了。
 需要看分支原貌时再取：
 
