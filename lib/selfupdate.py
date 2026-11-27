@@ -149,7 +149,29 @@ def release_candidate(channel, budget, raws=()):
         "tag": tag,
         "prerelease": info.is_prerelease,
     }
+    data.update(_pointer_from_notes(tag, releases))
     return data, url
+
+
+POINTER_KEYS = ("selfupdate", "selfupdate_reason")
+
+
+def _pointer_from_notes(tag, releases):
+    """发布说明里可以写 `selfupdate = "blocked"` 与 `selfupdate_reason = "..."`。
+
+    旧渠道里这两个键在 latest.toml 里；换轨之后指针只有 GitHub 的发布本身，于是随
+    发布说明走 —— 它对人可见、可复核，也不需要多一个签名文件。
+    """
+    for item in releases:
+        if not isinstance(item, dict) or item.get("tag_name") != tag:
+            continue
+        found = {}
+        for line in str(item.get("body") or "").splitlines():
+            match = re.match(r"\s*(\w+)\s*=\s*\"?([^\"\n]*)\"?\s*$", line)
+            if match and match.group(1) in POINTER_KEYS:
+                found[match.group(1)] = match.group(2).strip()
+        return found
+    return {}
 
 
 # 探针里的构建号字段名与已发布的 macwavedata/latest.toml 一致（`build_number`）。
@@ -216,7 +238,7 @@ def _asset_ids(tag):
     github.com/…/releases/download/…，而那个域名在校园网与家宽上十次有三次连不上。
     api 这条一直通，且拿到 id 之后可以用 octet-stream 直接取字节。
     """
-    url = f"https://api.github.com/repos/{RELEASE_REPO}/releases/tags/{tag}"
+    url = f"{domains.release_api_base()}/releases/tags/{tag}"
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -224,10 +246,24 @@ def _asset_ids(tag):
 
 
 def _download_asset(asset_id, destination):
-    url = f"https://api.github.com/repos/{RELEASE_REPO}/releases/assets/{asset_id}"
+    """下载一个发布资产到 destination。
+
+    先写 .part 再 rename：中途断网不能留下半个 install.sh —— 下一次 `wave selfupdate`
+    会把它当成完好的脚本执行。
+    """
+    url = f"{domains.release_api_base()}/releases/assets/{asset_id}"
     request = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
-    with urllib.request.urlopen(request, timeout=600) as response, open(destination, "wb") as out:
-        shutil.copyfileobj(response, out)
+    part = destination + ".part"
+    try:
+        with urllib.request.urlopen(request, timeout=600) as response, open(part, "wb") as out:
+            shutil.copyfileobj(response, out)
+        os.replace(part, destination)
+    except BaseException:
+        try:
+            os.unlink(part)
+        except OSError:
+            pass
+        raise
 
 
 def _trusted_pub():
@@ -242,18 +278,27 @@ def _trusted_pub():
     override = os.environ.get("MACWAVE_RSA_PUB")
     if override and os.path.isfile(override):
         return override
-    script = os.path.join(load_base_dir(), "lib", "install.sh")
-    try:
-        with open(script, encoding="utf-8") as handle:
-            text = handle.read()
-    except OSError:
-        return None
-    match = re.search(r"-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----", text, re.S)
-    if match is None:
+    candidates = (
+        os.path.join(load_base_dir(), "lib", "install.sh"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh"),
+    )
+    # 逐个候选找 PEM：老安装树里的 install.sh 可能还没有这一块，不能读到就停
+    pem = None
+    for script in candidates:
+        try:
+            with open(script, encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        match = re.search(r"-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----", text, re.S)
+        if match is not None:
+            pem = match.group(0)
+            break
+    if pem is None:
         return None
     handle, path = tempfile.mkstemp(prefix="macwave-pub-", suffix=".pem")
     with os.fdopen(handle, "w") as stream:
-        stream.write(match.group(0) + "\n")
+        stream.write(pem + "\n")
     return path
 
 
@@ -400,7 +445,7 @@ def report_dry_run(current, latest, data, options, overall_timeout,
     raws = ", ".join(f"{flag} {value}" for flag, value in options.timeout_raws.items())
     line("timeouts", f"connect {budget.connect:g}s, content {budget.content:g}s, "
                      f"total {budget.total:g}s" + (f" (from {raws})" if raws else " (defaults)"))
-    line("script", f"a temporary copy of lib/selfupdate.sh, overall timeout {overall_timeout}s")
+    line("script", f"the release install.sh for this version, overall timeout {overall_timeout}s")
 
     print(f"{GREEN}🌊 Nothing was downloaded and nothing was changed.{RESET}")
 
@@ -465,6 +510,10 @@ def _handle_selfupdate_locked(input_string=""):
                 for index, line in enumerate([explained[0]] + explained[1]):
                     prefix = "🌊 Next      " if index == 0 else "🌊           "
                     print(f"{RED_BOLD}{prefix}{line}{RESET}")
+            elif LAST_ERROR:
+                # 分诊表没认出来时也要把底层原因交出来，否则「连不上」三个字
+                # 什么也说明不了（DNS？代理？假站点没起？）
+                print(f"{RED_BOLD}🌊 Reason    {LAST_ERROR}{RESET}")
             sys.exit(1)
         data = candidate
         crossed_stream = (channel == versioncompare.CHANNEL_PREVIEW
@@ -567,7 +616,7 @@ def _handle_selfupdate_locked(input_string=""):
         print(f"{RED_BOLD}🌊 Error: The update command failed (exit code {result.returncode}).{RESET}")
         sys.exit(1)
 
-    # 下载由 update_commands.sh 完成，它可能在某些路径上吞掉非零退出码，
+    # 下载由发布里的 install.sh 完成，它可能在某些路径上吞掉非零退出码，
     # 所以这里以树内状态（var/config.sh）的实际内容为准，避免误报成功
     final = installed_version()
     final_build = installed_build()

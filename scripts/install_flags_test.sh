@@ -302,7 +302,7 @@ else
     fail "--en 没能压过中文 locale（rc=${RC}）"
 fi
 
-# MACWAVE_LANG 是调用方（update_commands.sh / CI）给的，优先级最高
+# MACWAVE_LANG 是调用方（CI / 用户）给的，优先级最高
 OUT=$(env -u LC_ALL -u LC_MESSAGES LANG=en_US.UTF-8 MACWAVE_LANG=zh \
       MACWAVE_TEST="$WORK/lang-env" \
       SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \

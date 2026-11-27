@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""把 Keys/macwave-rsa.pub.pem 嵌进两个 shell 脚本。
+"""把 Keys/macwave-rsa.pub.pem 嵌进 lib/install.sh。
 
-`lib/install.sh` 与 `lib/selfupdate.sh` 是被 curl 下来直接执行的，没法 source，
-所以验 latest.toml 签名时用的公钥只能是脚本里自带的一份。公钥变了（轮换）
-就跑这个脚本重嵌一次，别手工改 —— 少一个字符就是验不过，而验不过是**警告**，
-很容易上线之后才发现。
+`lib/install.sh` 是被 curl 下来直接执行的，没法 source，所以自更新验签时用的
+公钥只能是脚本里自带的一份（lib/selfupdate.py 从它里面抠出来当锚点）。公钥变了
+（轮换）就跑这个脚本重嵌一次，别手工改 —— 少一个字符就是验不过，验不过就不装，
+用户当场卡住。
 
     python3 scripts/embed_rsa_pub.py           # 重嵌
     python3 scripts/embed_rsa_pub.py --check   # 只检查是否同步（测试用）
@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBKEY = ROOT / "Keys" / "macwave-rsa.pub.pem"
-TARGETS = (ROOT / "lib" / "install.sh", ROOT / "lib" / "selfupdate.sh")
+TARGETS = (ROOT / "lib" / "install.sh",)
 
 BEGIN = "# >>> RSA public key"
 END = "# <<< RSA public key"

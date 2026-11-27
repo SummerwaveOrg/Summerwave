@@ -26,7 +26,6 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/components.sh"
 WAVE_BIN="$REPO_DIR/lib/wave.py"
 SELFUPDATE_PY="$REPO_DIR/lib/selfupdate.py"
-SELFUPDATE_SH="$REPO_DIR/lib/selfupdate.sh"
 
 if [[ ! -f "$WAVE_BIN" ]]; then
     echo -e "${RED_BOLD}🌊 Error: wave.py not found at $WAVE_BIN${RESET}"
@@ -72,55 +71,72 @@ write_state_version "4.0.0"
 FAILED=0
 
 # ==========================================
-# 0. 本地自更新数据（下面 2、3、6、7 四段都靠它，全程离线）
+# 0. 本地假发布站点（下面几段都靠它，全程离线）
 # ==========================================
 #
-# 4.0 起的自更新数据只有两样东西，按版本平铺：
-#   macwavedata/latest.toml                  哪个版本是最新的
-#   macwavedata/<版本>/update_commands.sh    那一版下什么、放哪里
-# 这里在临时目录里造一份同大版本、比 4.0.0 高一档的数据，用 file:// 指给客户端。
-# 这样测试既离线、又不依赖线上已发布的版本号（线上换版本不会让这里变红）。
+# 换轨之后，「该装哪一版」只有一处来源：GitHub 的发布接口。测试把它整体换成
+# file:// 上的几个 JSON 与文件，客户端走的仍是真代码（探针解析、版本比较、取件、
+# 验签、执行）。这样既离线，又不依赖线上已发布的版本号。
 
 SU_WORK="$(mktemp -d)"
-trap 'rm -rf "$SU_WORK" "$SU_ROOT"' EXIT
+trap 'kill "$SU_SERVER_PID" 2>/dev/null; wait "$SU_SERVER_PID" 2>/dev/null; rm -rf "$SU_WORK" "$SU_ROOT"' EXIT
 
+SU_RELEASE_ROOT="$SU_WORK/release"
+SU_TAG="v4.0.1@2026-01-01T00:00Z"
 SU_VERSION="4.0.1"
-SU_BRANCH="4.0"
-mkdir -p "$SU_WORK/selfupdate/macwavedata/$SU_VERSION" "$SU_WORK/core"
+mkdir -p "$SU_RELEASE_ROOT/releases/tags" "$SU_RELEASE_ROOT/releases/assets"
 
-cat > "$SU_WORK/selfupdate/macwavedata/latest.toml" <<EOF
-version = "$SU_VERSION"
-release_date = "2026-01-01"
-build_number = "TEST"
-branch = "$SU_BRANCH"
-EOF
+# 安装器本体：被执行就留下一个标记文件，供断言「到底跑没跑」
+INSTALLER_MARKER="$SU_WORK/installer-ran"
+{
+    printf '#!/bin/bash\n'
+    printf 'touch "%s"\n' "$INSTALLER_MARKER"
+} > "$SU_RELEASE_ROOT/releases/assets/1"
+: > "$SU_RELEASE_ROOT/releases/assets/2"     # .sig：文件头放开了验签，内容不重要
 
-# 代码树：<core>/<branch>/<路径>，用软链接指回仓库，省一次复制
-ln -s "$REPO_DIR" "$SU_WORK/core/$SU_BRANCH"
+# 造一次「发布了 <tag>」：latest 指针 + tag 详情 + 两个资产
+create_release() {
+    # create_release <tag> [body]
+    local tag="$1" body="${2:-}"
+    python3 - "$tag" "$body" "$SU_RELEASE_ROOT" <<'PY'
+import json
+import pathlib
+import sys
 
-# 用仓库自己的生成器产出这一版的 update_commands.sh。清单取自工作区实际文件，
-# 而不是 --ref HEAD：本地 HEAD 可能落后于工作区，那样会漏掉新加的文件。
-SU_FILES=()
-for dir in $(sed -e 's/#.*//' "$SCRIPT_DIR/components.txt") \
-           $(sed -e 's/#.*//' "$SCRIPT_DIR/assets.txt"); do
-    for file in "$REPO_DIR/$dir"/*; do
-        [[ -f "$file" ]] || continue
-        rel="$dir/$(basename "$file")"
-        case "$rel" in
-            lib/wave|lib/install.sh|lib/uninstall.sh) continue ;;
-        esac
-        SU_FILES+=("$rel")
-    done
+tag, body, root = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
+item = {"tag_name": tag, "prerelease": False, "draft": False, "body": body}
+(root / "releases" / "latest").write_text(json.dumps(item))
+(root / "releases" / "tags" / tag).write_text(json.dumps(dict(item, assets=[
+    {"name": "install.sh", "id": 1},
+    {"name": "install.sh.sig", "id": 2},
+])))
+PY
+}
+
+create_release "$SU_TAG"
+
+# 假站点起在 loopback 上：curl 带 --proto '=https'（TLS 收紧那段），file:// 会被拒，
+# 而明文 http 只对回环放行 —— 正好是给离线测试留的那条缝。
+SU_PORT="$(python3 -c 'import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()')"
+python3 -m http.server "$SU_PORT" --bind 127.0.0.1 --directory "$SU_RELEASE_ROOT" \
+    > /dev/null 2>&1 &
+SU_SERVER_PID=$!
+for _ in $(seq 100); do
+    curl -fsS "http://127.0.0.1:$SU_PORT/releases/latest" > /dev/null 2>&1 && break
+    sleep 0.1
 done
 
-python3 "$SCRIPT_DIR/build_update_commands.py" \
-    --version "$SU_VERSION" \
-    --branch "$SU_BRANCH" \
-    --files "${SU_FILES[@]}" \
-    --out "$SU_WORK/selfupdate/macwavedata/$SU_VERSION/update_commands.sh" > /dev/null
+export SUMMERWAVE_RELEASE_DOMAIN="http://127.0.0.1:$SU_PORT"
 
-export SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SU_WORK/selfupdate"
-export SUMMERWAVE_CORE_DOMAIN="file://$SU_WORK/core"
+# 假站点必须真的能应答，否则后面每一段都会以「连不上」变红，分不清是谁的问题
+if ! curl -fsS "$SUMMERWAVE_RELEASE_DOMAIN/releases/latest" > /dev/null; then
+    echo "fixture error: the fake release site is not answering" >&2
+    exit 1
+fi
 # 解释器数据不存在时安装器会警告并回退到系统 python3，安装不中断
 export SUMMERWAVE_PYTHON_DOMAIN="file://$SU_WORK/python"
 
@@ -237,8 +253,8 @@ cat "$LOG_FILE"
 DRY_OK=yes
 grep -q 'Dry run: MacWave would be updated from 4.0.0 to 4.0.1' "$LOG_FILE" || DRY_OK=no
 grep -q 'Nothing was downloaded and nothing was changed' "$LOG_FILE" || DRY_OK=no
-# 真更新才会打印这句（run_script 的第一行）
-grep -q 'Preparing the update script' "$LOG_FILE" && DRY_OK=no
+# 真更新才会打印这句（run_installer 的第一行）
+grep -q 'Downloading the installer' "$LOG_FILE" && DRY_OK=no
 if [[ "$RC" -eq 0 && "$DRY_OK" == "yes" ]]; then
     echo -e "${GREEN}🌊 OK: dry run reports the plan and exits 0${RESET}"
 else
@@ -260,8 +276,7 @@ rm -f "$LOG_FILE"
 # ==========================================
 #
 # 新版确实存在，但不能用自更新装进去（布局变更到 prune 也不敢自动删、需要新解释器、
-# 换了仓库/分支、给老版本线的回溯修复包）。两条入口都要拦：wave selfupdate 走
-# selfupdate.py，直接 bash 走 selfupdate.sh。
+# 换了仓库/分支、给老版本线的回溯修复包）。入口只有一个：wave selfupdate。
 
 echo "========== a blocked release is not self-updated =========="
 
@@ -270,10 +285,9 @@ cp "$STATE_FILE" "$SU_WORK/config.sh.bak"
 INSTALLED_VERSION_FOR_BLOCK="4.0.0"
 write_state_version "$INSTALLED_VERSION_FOR_BLOCK"
 
-# 让本地自更新数据把目标版本声明成 blocked
-BLOCKED_DATA="$SU_WORK/selfupdate/macwavedata/latest.toml"
-cp "$BLOCKED_DATA" "$SU_WORK/latest.toml.bak"
-printf 'selfupdate = "blocked"\nselfupdate_reason = "layout changed"\n' >> "$BLOCKED_DATA"
+# 让这次发布的说明把目标版本声明成 blocked
+create_release "$SU_TAG" 'selfupdate = "blocked"
+selfupdate_reason = "layout changed"'
 
 LOG_FILE="$(mktemp)"
 RC=0
@@ -294,20 +308,6 @@ else
 fi
 rm -f "$LOG_FILE"
 
-# shell 那条入口：直接执行 lib/selfupdate.sh（文件头写着这条路）
-LOG_FILE="$(mktemp)"
-RC=0
-MACWAVE_UPDATE_VERSION="$SU_VERSION" MACWAVE_UPDATE_BRANCH=main \
-    /bin/bash "$SELFUPDATE_SH" > "$LOG_FILE" 2>&1 || RC=$?
-cat "$LOG_FILE"
-if [[ "$RC" -eq 0 ]] && grep -q 'cannot be installed with selfupdate' "$LOG_FILE"; then
-    echo -e "${GREEN}🌊 OK: lib/selfupdate.sh refuses a blocked release too${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: lib/selfupdate.sh did not refuse a blocked release (exit $RC)${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-rm -f "$LOG_FILE"
-
 if [[ "$(state_version)" == "$INSTALLED_VERSION_FOR_BLOCK" ]]; then
     echo -e "${GREEN}🌊 OK: state untouched by the refusal${RESET}"
 else
@@ -315,347 +315,11 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-cp "$SU_WORK/latest.toml.bak" "$BLOCKED_DATA"
+create_release "$SU_TAG"
 cp "$SU_WORK/config.sh.bak" "$STATE_FILE"
 
 # ==========================================
 # 3.6 协议更新：装的是 4.4.0 或更早时必须问一次
-# ==========================================
-#
-# 协议正文改在 2026-11-17（随 4.4.0），官网那节的落款就是这个日期。装得更早的人
-# 同意的是旧文本，所以升级前要问一句；不同意就中止，保持他现有的版本 —— 这正是
-# 协议第 2 条给的选项（放弃更新 / 继续用已同意的那一版）。
-#
-# 判定不需要网络，但**这条提示排在「确实要更新」之后**，所以这里把已装版本设成 4.0.0
-# （本地自更新数据里是 4.0.1）—— 比它低才走得下去，否则会先撞上「已是最新」的短路。
-
-echo "========== max-time duration parsing =========="
-
-if python3 - "$SELFUPDATE_PY" "$SELFUPDATE_SH" << 'PYEOF'
-import importlib.util
-import os
-import subprocess
-import sys
-import tempfile
-from pathlib import Path
-
-selfupdate_py, selfupdate_sh = Path(sys.argv[1]), Path(sys.argv[2])
-# 组件目录由 scripts/components.txt 决定；pkginstaller（共用时长规则）与它
-# 连带 import 的模块都在其中，selfupdate.py 自己在 lib/，一并加进来。
-sys.path[:0] = os.environ["MACWAVE_COMPONENT_PATHS"].split(os.pathsep) + [str(selfupdate_py.parent)]
-
-spec = importlib.util.spec_from_file_location('selfupdate_module', selfupdate_py)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-def timeouts_from(source):
-    """公共旗标只剩一个入口（cli/common.py），selfupdate 只是它的一层薄包装。
-
-    这里把返回值摆成旧有的 (raws, budget) 形状，好让下面的比对保持原样：
-    比的仍然是「Python 算出的秒数」与「shell 的 mw_seconds 算出的秒数」。
-    """
-    options = module.options_from(source)
-    return options.timeout_raws, options.timeouts
-
-# Python 侧：合法的原样留下，非法的当场拒绝。
-# 4.1.5 起是三档（连接 / 读数据 / 总额），不再只有 --max-time。
-raws, budget = timeouts_from("wave selfupdate --max-time=1min")
-assert raws == {"--max-time": "1min"}, raws
-assert budget.total == 60, budget
-raws, budget = timeouts_from("wave selfupdate --max-time 1min20s")
-assert raws == {"--max-time": "1min20s"}, raws
-assert budget.total == 80, budget
-assert timeouts_from("wave selfupdate")[0] == {}
-# 三档各给一个，互不串档
-raws, budget = timeouts_from(
-    "wave selfupdate --connect-timeout=2s --content-time=3s --max-time=4s")
-assert raws == {"--connect-timeout": "2s", "--content-time": "3s", "--max-time": "4s"}, raws
-assert (budget.connect, budget.content, budget.total) == (2, 3, 4), budget
-for bad in ("abc", "1x", "-5"):
-    for flag in ("--max-time", "--connect-timeout", "--content-time"):
-        try:
-            timeouts_from(f"wave selfupdate {flag}={bad}")
-        except SystemExit:
-            pass
-        else:
-            raise AssertionError(f"{flag}={bad} 本应被拒绝")
-
-# shell 侧：规则必须与 Python 一致（否则同一条命令两层会算出不同超时）
-script = r'''
-source /dev/stdin <<< "$(sed -n "/^mw_seconds()/,/^}/p" "$1")"
-shift
-for value in "$@"; do
-    if out="$(mw_seconds "$value")"; then printf "%s\n" "$out"; else printf "REJECT\n"; fi
-done
-'''
-cases = ["40", "0.5h", "1h", "1hr", "2hrs", "1.5h", "1h20s", "2h30min", "40s", "1min", "1min20s",
-         "1m30s", "2h", "250ms", "1.5min", "abc", "1x", "min", "h", "1hh", "0"]
-result = subprocess.run(["bash", "-c", script, "_", str(selfupdate_sh)] + cases,
-                        capture_output=True, text=True)
-assert result.returncode == 0, result.stderr
-got = result.stdout.split()
-assert len(got) == len(cases), result.stdout
-invalid = ("abc", "1x", "min", "h", "1hh", "0")
-for value, shell_value in zip(cases, got):
-    if value in invalid:
-        assert shell_value == "REJECT", f"{value}: shell 本应拒绝，实际 {shell_value}"
-        continue
-    raws, budget = timeouts_from(f"wave selfupdate --max-time={value}")
-    raw = raws.get("--max-time", "")
-    assert raw == value, f"{value}: 原始文本应原样往下传，实际 {raw!r}"
-    expected = str(module.curl_seconds(budget.total))
-    assert shell_value == expected, f"{value}: shell={shell_value} python={expected}"
-PYEOF
-then
-    echo -e "${GREEN}🌊 OK: --max-time parses identically in Python and in shell${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: --max-time duration parsing${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-echo "========== downloads retry and never leave half a file =========="
-
-if bash -s -- "$SELFUPDATE_SH" << 'SHEOF'
-set -u
-
-source_file="$1"
-helper="$(mktemp)"
-trap 'rm -f "$helper"' EXIT
-
-{
-    echo 'NEED_SUDO=false'
-    echo 'YELLOW=""; RESET=""; RED_BOLD=""'
-    sed -n '/^run_cmd() {/,/^}/p' "$source_file"
-    sed -n '/^direct() {/,/^}/p' "$source_file"
-    sed -n '/^FETCH_ATTEMPTS=/,/^RETRY_DELAY=/p' "$source_file"
-    sed -n '/^fetch_to_file() {/,/^}/p' "$source_file"
-} > "$helper"
-# shellcheck disable=SC1090
-source "$helper"
-
-work="$(mktemp -d)"
-trap 'rm -f "$helper"; rm -rf "$work"' EXIT
-
-# 成功路径：落地成目标文件，不留下 .macwave-part
-if ! fetch_to_file "file://$source_file" "$work/ok.sh" 5; then
-    echo "  ❌ 本地文件下载失败"
-    exit 1
-fi
-[[ -s "$work/ok.sh" ]] || { echo "  ❌ 目标文件为空"; exit 1; }
-[[ -z "$(find "$work" -name '*.macwave-part' -print -quit)" ]] || { echo "  ❌ 残留 .macwave-part"; exit 1; }
-
-# 失败路径：本地没有这个文件，重试用尽后放弃，且不能破坏原地已有的好文件
-echo "GOOD" > "$work/keep.sh"
-if fetch_to_file "file://$work/nope/none.sh" "$work/keep.sh" 5 >/dev/null 2>&1; then
-    echo "  ❌ 不存在的文件竟然下载成功"
-    exit 1
-fi
-[[ "$(cat "$work/keep.sh")" == "GOOD" ]] || { echo "  ❌ 失败时破坏了原文件"; exit 1; }
-[[ -z "$(find "$work" -name '*.macwave-part' -print -quit)" ]] || { echo "  ❌ 失败后残留 .macwave-part"; exit 1; }
-SHEOF
-then
-    echo -e "${GREEN}🌊 OK: downloads retry, stay atomic, and give up cleanly${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: download retry / atomic write${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-# ==========================================
-# 5. 自带解释器：两份脚本的布局归一化必须一致，且能真的定位到解释器
-# ==========================================
-
-echo "========== portable Python layout =========="
-
-if bash -s -- "$REPO_DIR" << 'SHEOF'
-set -u
-repo="$1"
-
-# sudo 无法执行 shell 函数。write_launcher 一旦被 run_cmd 带上去，
-# 只要安装目录不在 $HOME 下就会变成 "sudo: write_launcher: command not found"，
-# 而 CI 里恰好就是那种布局 —— 这条断言比等 CI 跑十分钟便宜得多。
-if grep -qE '^[[:space:]]*run_cmd write_launcher' "$repo/lib/install.sh" "$repo/lib/selfupdate.sh"; then
-    echo "  ❌ write_launcher 被 run_cmd 调用（sudo 无法执行 shell 函数）"
-    exit 1
-fi
-echo "  ✅ write_launcher 直接调用，没有经过 run_cmd"
-
-# 测试根的 HOME 重写必须是幂等的。config/configpaths.py 会先把 HOME 搬进测试根，
-# 若 shell 脚本再无条件套一层，HOME 会变成 "<根>/private/var/.../Users/<你>"，
-# 配置目录永远找不到 —— 这正是「用 MACWAVE_TEST 跑真实 selfupdate」失败的原因。
-# 脚本会把测试根解析成物理路径（macOS 上 /var 指向 /private/var），
-# 所以期望值也要用物理路径，否则这条断言会被符号链接本身骗过去。
-work_home_real="$(mktemp -d)"
-work_home="$(cd "$work_home_real" && pwd -P)"
-for source_file in "$repo/lib/install.sh" "$repo/lib/selfupdate.sh"; do
-    block="$(sed -n '/^SYS_ROOT=""/,/^fi$/p' "$source_file")"
-    # 第一遍：HOME 在外面，应当被搬进测试根
-    first="$(MACWAVE_TEST="$work_home_real" HOME=/Users/example bash -c "$block"$'\nprintf %s "$HOME"' 2>/dev/null | tail -1)"
-    case "$first" in
-        "$work_home"|"$work_home"/*) : ;;
-        *) echo "  ❌ $(basename "$source_file"): HOME 没有被搬进测试根（${first}）"; exit 1 ;;
-    esac
-    # 第二遍：HOME 已经在测试根里，不能再套一层
-    second="$(MACWAVE_TEST="$work_home_real" HOME="$first" bash -c "$block"$'\nprintf %s "$HOME"' 2>/dev/null | tail -1)"
-    if [ "$second" != "$first" ]; then
-        echo "  ❌ $(basename "$source_file"): HOME 被重复前缀（$first -> ${second}）"
-        exit 1
-    fi
-done
-rm -rf "$work_home_real"
-echo "  ✅ 测试根的 HOME 重写是幂等的"
-
-# install.sh 与 selfupdate.sh 各带一份同名实现（谁都不能依赖对方已下载），
-# 一旦漂移就会出现「装的时候行、自更新以后不行」。这里逐字比对。
-extract() {
-    sed -n '/^portable_python_arch() {/,/^}/p;/^portable_python_binary() {/,/^}/p;/^normalize_portable_python() {/,/^}/p' "$1"
-}
-if ! diff <(extract "$repo/lib/install.sh") <(extract "$repo/lib/selfupdate.sh") > /dev/null; then
-    echo "  ❌ install.sh 与 selfupdate.sh 的便携 Python 逻辑不一致"
-    exit 1
-fi
-echo "  ✅ 两份脚本的探测与归一化逻辑逐字一致"
-
-# 上游 install_only 的布局是 python/install/bin/python3，而启动器只认
-# python/current/bin/python3 —— 归一化就是这条断点的桥。
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-
-mkdir -p "$work/target/python/install/bin"
-ln -s "$(command -v python3)" "$work/target/python/install/bin/python3"
-
-eval "$(extract "$repo/lib/install.sh")"
-target="$work/target"
-py="$(portable_python_binary "$target")" || { echo "  ❌ 探测不到解释器"; exit 1; }
-case "$py" in
-    "$target/python/install/bin/python3") : ;;
-    *) echo "  ❌ 探测结果不对: $py"; exit 1 ;;
-esac
-
-normalize_portable_python "$target" "$py"
-ln -sfn target "$work/current"
-if [ ! -x "$work/current/bin/python3" ]; then
-    echo "  ❌ 归一化后启动器路径仍不可用"
-    exit 1
-fi
-echo "  ✅ 归一化后 python/current/bin/python3 可用"
-
-# 重复归一化不能把链接变成自我循环（portable_python_binary 会把 bin/python3 也报出来）
-py2="$(portable_python_binary "$target")"
-normalize_portable_python "$target" "$py2"
-if [ "$(readlink "$target/bin/python3")" = "bin/python3" ]; then
-    echo "  ❌ 归一化出现自我循环"
-    exit 1
-fi
-echo "  ✅ 重复归一化仍指向真实解释器"
-SHEOF
-then
-    echo -e "${GREEN}🌊 OK: the bundled interpreter is found and the launcher path works${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: portable Python layout${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-# ==========================================
-# 6. 同大版本的端到端自更新（真的会改动安装目录，放最后）
-# ==========================================
-
-echo "========== end-to-end selfupdate =========="
-
-if ! /bin/bash -n "$SELFUPDATE_SH"; then
-    echo -e "${RED_BOLD}🌊 FAIL: selfupdate.sh has a syntax error${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-# 目标版本取自上面那份本地数据（SU_VERSION，与 4.0.0 同大版本、高一档），
-# 于是这里真的会走一遍完整流程：取 <selfupdate>/macwavedata/<版本>/update_commands.sh
-# → 按它的 want 清单下载代码 → 全部到位后写 var/config.sh。
-INSTALLED="4.0.0"
-TARGET="$SU_VERSION"
-
-if [[ -z "$TARGET" ]]; then
-    echo -e "${RED_BOLD}🌊 FAIL: no target version in the local selfupdate data${RESET}"
-    FAILED=$((FAILED + 1))
-else
-    write_state_version "$INSTALLED"
-
-    LOG_FILE="$(mktemp)"
-    RC=0
-    # 走真实命令（selfupdate.py + selfupdate.sh 两层都覆盖）。
-    # selfupdate.py 会把 latest.toml 里的 version / branch 通过环境变量传下去；
-    # 直接调 selfupdate.sh 就得自己拼这些变量，测的就不是用户实际走的那条路了。
-    python3 "$WAVE_BIN" selfupdate > "$LOG_FILE" 2>&1 || RC=$?
-    cat "$LOG_FILE"
-
-    if [[ "$RC" -ne 0 ]]; then
-        echo -e "${RED_BOLD}🌊 FAIL: selfupdate.sh exited with $RC${RESET}"
-        FAILED=$((FAILED + 1))
-    fi
-    rm -f "$LOG_FILE"
-
-    # 状态文件里的版本号必须变成目标版本（这一步同时证明 selfupdate.sh 真的跑过）。
-    if [[ "$(state_version)" == "$TARGET" ]]; then
-        echo -e "${GREEN}🌊 OK: end-to-end selfupdate ($INSTALLED -> $TARGET)${RESET}"
-    else
-        echo -e "${RED_BOLD}🌊 FAIL: the state file was not updated to $TARGET${RESET}"
-        FAILED=$((FAILED + 1))
-    fi
-fi
-
-# ==========================================
-# 7. 清单里列出的文件必须都落到了安装目录
-#    2.4 就是漏在这一点上：代码里加了 pkg/linker.py，
-#    但 selfupdate.sh 自带的文件清单没同步，自更新后 wave link 直接 ImportError。
-# ==========================================
-
-echo "========== every listed file landed =========="
-
-# 安装根写死，状态文件不再记录它 —— 这里只确认自更新把状态写进了树内。
-BASE_DIR="$SANDBOX_BASE"
-if [[ ! -f "$SANDBOX_BASE/var/config.sh" ]]; then
-    echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not write the in-tree state file${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-if [[ -f "$SANDBOX_BASE/var/config.sh" ]]; then
-    echo -e "${GREEN}🌊 OK: in-tree var/config.sh written${RESET}"
-else
-    echo -e "${RED_BOLD}🌊 FAIL: selfupdate did not write in-tree var/config.sh${RESET}"
-    FAILED=$((FAILED + 1))
-fi
-
-FILES_INFO_TMP="$SU_WORK/selfupdate/macwavedata/$SU_VERSION/update_commands.sh"
-
-if [[ ! -f "$FILES_INFO_TMP" ]]; then
-    echo -e "${RED_BOLD}🌊 FAIL: the generated update_commands.sh is missing${RESET}"
-    FAILED=$((FAILED + 1))
-else
-    # 清单就是脚本里的 `want <路径> <是否 +x>` 调用 —— 测的是这一版真正会下载的东西。
-    FILE_COUNT=0
-    MISSING=0
-    while read -r repo_path; do
-        if [[ -z "$repo_path" ]]; then
-            continue
-        fi
-        FILE_COUNT=$((FILE_COUNT + 1))
-        if [[ ! -e "$BASE_DIR/$repo_path" ]]; then
-            echo -e "${RED_BOLD}🌊 FAIL: $repo_path was not installed${RESET}"
-            MISSING=$((MISSING + 1))
-        fi
-    done < <(sed -n 's/^[[:space:]]*want \([^[:space:]]*\).*/\1/p' "$FILES_INFO_TMP" | sort -u)
-
-    if [[ "$FILE_COUNT" -eq 0 ]]; then
-        echo -e "${RED_BOLD}🌊 FAIL: the file list parsed to nothing${RESET}"
-        FAILED=$((FAILED + 1))
-    elif [[ "$MISSING" -gt 0 ]]; then
-        echo -e "${RED_BOLD}🌊 FAIL: $MISSING of $FILE_COUNT listed file(s) are missing${RESET}"
-        FAILED=$((FAILED + 1))
-    else
-        echo -e "${GREEN}🌊 OK: all $FILE_COUNT listed file(s) landed${RESET}"
-    fi
-fi
-
-# ==========================================
-# 8. wave.py 里每个命令都要有对应的模块文件
-#    这一条独立于清单：即使清单漏写，只要 wave.py 引用了就会报出来
 # ==========================================
 
 echo "========== every command resolves to a module =========="
