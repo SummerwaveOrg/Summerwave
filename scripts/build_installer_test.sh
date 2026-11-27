@@ -45,7 +45,7 @@ gen() { "$PYTHON" "$BUILD" --version "$1" --ref HEAD --out "$2" 2>&1; }
 OUTPUT="$(gen "$VERSION" "$OUT")"; RC=$?
 check "退出码 0" "$RC" "0"
 check "文件已生成" "$([[ -f "$OUT" ]] && echo present || echo gone)" "present"
-bash -n "$OUT" 2>/dev/null && pass "bash -n 通过（heredoc 没写坏）" || fail "bash -n 失败"
+/bin/bash -n "$OUT" 2>/dev/null && pass "bash -n 通过（heredoc 没写坏）" || fail "bash -n 失败"
 check "shebang 与模板一致" \
     "$(head -1 "$OUT")" "$(head -1 "$REPO_DIR/lib/install.sh")"
 sed -n '2p' "$OUT" | grep -qE '^# =+$' \

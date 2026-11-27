@@ -665,7 +665,7 @@ usage() {
     mw_say "      --print-usage       Show this help, then continue (install or dry run)." \
            "      --print-usage       显示本帮助后继续（真的安装，或继续试运行）。"
     mw_say ""
-    # 这里不能用 $BASE_DIR：用法在参数解析阶段就打，那时安装根还没算出来。
+    # 这里不能用安装根变量（BASE_DIR）：用法在参数解析阶段就打，那时它还没算出来。
     mw_say "Install target: fixed per platform — /opt/macwave on macOS,\n\
                           /home/linuxwave/.linuxwave on Linux." \
            "安装位置：按平台写死 —— macOS 是 /opt/macwave，\n\
@@ -1187,6 +1187,107 @@ CURRENT_USER=$(whoami)
 #
 # setgid 必须加在目录上：否则组员（管理员）新建的文件会落回他自己的主组，
 # 下一个管理员就写不进去了 —— 与 LinuxWave 的共享安装同一条理由。
+# -------------------- Linux：共享安装账户 --------------------
+#
+# Linux 的安装根是 /home/linuxwave/.linuxwave —— 路径里就有个账户名，所以那棵树
+# 必须属于它，否则「家目录」只是个普通目录，而 root 拥有一个别人的家目录会让
+# ssh、scp、备份工具全部困惑。
+#
+# 做法沿用 LinuxWave 4.x（那份实现是踩过坑的，改动前先读这里的注释）：
+#
+#   1. 建 linuxwave 账户与同名组（useradd -m -d /home/linuxwave）；
+#   2. 树交给 linuxwave:linuxwave，打开组写位，目录加 setgid；
+#   3. 把调用者加进 linuxwave 组 —— 于是 `wave install` 不需要 sudo。
+#
+# 与 macOS 的 root:<管理员组> 是同一个心智（「谁能写这棵树」= 一个组），只是
+# macOS 那侧没人为这个组命名，Linux 这侧正好有个现成的账户名。
+linux_shared_user() {
+    echo "linuxwave"
+}
+
+prepare_linux_shared_account() {
+    [[ "$(mw_platform)" == "linux" ]] || return 0
+    local user home
+    user="$(linux_shared_user)"
+    home="/home/$user"
+
+    if mw_dry_run; then
+        mw_plan "🌊 Dry run: would create the '$user' account (if missing) and open $home to all users." \
+            "🌊 试运行：将创建 '$user' 账户（如果不存在），并把 ${home} 开放给所有用户。"
+        return 0
+    fi
+
+    if id "$user" >/dev/null 2>&1; then
+        mw_say "🌊 Account '$user' already exists." "🌊 账户 '$user' 已存在。"
+    else
+        mw_say "🌊 Creating the '$user' account..." "🌊 正在创建账户 '$user'……"
+        if command -v useradd >/dev/null 2>&1; then
+            as_privileged useradd -m -d "$home" -s /bin/bash "$user" || return 1
+        else
+            # Alpine 这类只有 BusyBox 的 adduser，没有 useradd
+            as_privileged adduser -D -h "$home" -s /bin/sh "$user" || return 1
+        fi
+    fi
+
+    # useradd -m 建出的家目录默认 750，别的用户连进都进不去
+    as_privileged chmod 755 "$home" || return 1
+    return 0
+}
+
+hand_over_linux_install() {
+    # Linux 的最终属主：linuxwave:linuxwave，775（目录 setgid）。
+    local dir="$1" user gid
+    user="$(linux_shared_user)"
+
+    if mw_dry_run; then
+        mw_plan "🌊 Dry run: would hand $dir over to $user:$user with mode 775 (directory setgid), and add $CURRENT_USER to the '$user' group." \
+            "🌊 试运行：将把 ${dir} 交给 ${user}:${user}，权限 775（目录带 setgid），并把 ${CURRENT_USER} 加进 '$user' 组。"
+        return 0
+    fi
+    [[ -d "$dir" ]] || return 0
+
+    as_privileged chown -R "$user:$user" "$dir" || return 1
+    as_privileged chmod -R u+rwX,g+rwX,o+rX,o-w "$dir" || return 1
+    # setgid 只给目录：文件上的 setgid 是强制锁，含义完全不同。
+    as_privileged find "$dir" -type d -exec chmod g+s {} + || return 1
+
+    # 组共享。三个坑（都是 LinuxWave 实测过的）：
+    #   * `groupadd -f` 幂等 —— useradd -m 通常已经建了同名组，但装到已有账户的
+    #     机器上时组可能不在；
+    #   * 拿 gid 用 getent，非 glibc（Alpine/musl）没有它，所以必须 `|| true`，
+    #     否则在 `set -eE` 下会把「查不到组」报成「安装失败」；
+    #   * `id -G <用户名>` 查的是 /etc 数据库（要不要 usermod），不带参数的 `id -G`
+    #     读的是**当前会话**的进程组（要不要重新登录）—— 两者混用会把「已写进
+    #     /etc/group、但这个 shell 还没有该组」谎报成已生效。
+    as_privileged groupadd -f "$user" || true
+    gid="$(getent group "$user" 2>/dev/null | cut -d: -f3 || true)"
+
+    if [[ "$CURRENT_USER" != "$user" ]]; then
+        if [[ -n "$gid" ]] && id -G "$CURRENT_USER" 2>/dev/null | tr ' ' '\n' | grep -qx "$gid"; then
+            : # 已经在组里，什么都不用做
+        else
+            # usermod 失败不该让整个安装失败：树已经装好、也仍然可用，用户只是
+            # 还得按提示用 sudo 装包。说清楚，不吞掉。
+            if as_privileged usermod -aG "$user" "$CURRENT_USER" 2>/dev/null; then
+                :
+            else
+                mw_say "${YELLOW}🌊 Could not add '$CURRENT_USER' to '$user' automatically.${RESET}" \
+                       "${YELLOW}🌊 没能自动把 '$CURRENT_USER' 加进 '$user' 组。${RESET}"
+                mw_say "🌊 Run it by hand: sudo usermod -aG $user $CURRENT_USER" \
+                       "🌊 请手工执行：sudo usermod -aG ${user} ${CURRENT_USER}"
+                return 0
+            fi
+        fi
+        # 权限位立即生效，只有「个人的组身份」要等新的登录会话
+        if ! id -G 2>/dev/null | tr ' ' '\n' | grep -qx "$gid"; then
+            mw_say "${YELLOW}🌊 Group '$user' is set up; re-login (or run 'newgrp $user') so that" \
+                   "${YELLOW}🌊 installing packages no longer needs sudo.${RESET}" \
+                   "${YELLOW}🌊 '$user' 组已配置好；重新登录（或执行 newgrp ${user}）之后装包就不再需要 sudo。${RESET}"
+        fi
+    fi
+    return 0
+}
+
 admin_group() {
     # 只在「当前用户确实是这个组的成员」时才用它。
     #
@@ -1243,6 +1344,13 @@ hand_over_system_install() {
     # bin/ 里的链接」。
     local dir="$1" group
     [[ -n "$dir" ]] || return 0
+
+    # Linux 走自己的那一套：属主是 linuxwave 账户，不是 root。
+    if [[ "$(mw_platform)" == "linux" ]]; then
+        hand_over_linux_install "$dir"
+        return $?
+    fi
+
     if mw_dry_run; then
         # 目录此刻还不存在（试运行不建），所以判断要放在 -d 检查之前。
         mw_plan "🌊 Dry run: would hand $dir over to root:$(admin_group) with mode 775 (directory setgid)." \
@@ -1680,6 +1788,10 @@ install_failed() {
 }
 trap install_failed ERR
 
+# Linux 上先把 /home/linuxwave 准备好（建账户、开权限），再往里建树 ——
+# 反过来的话 mkdir -p 会以 root 建出一个属主不对的家目录。
+prepare_linux_shared_account
+
 run_cmd mkdir -p "$INSTALL_DIR"
 run_cmd mkdir -p "$LINKS_DIR"
 run_cmd mkdir -p "$SHORE_DIR"
@@ -1886,8 +1998,21 @@ ensure_portable_python() {
         return 1
     fi
 
-    url="$(sed -n "s/^[[:space:]]*${arch}_url[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
-    sha="$(sed -n "s/^[[:space:]]*${arch}_sha256[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
+    # 键名先试 <os>_<arch>（macos_arm64_url / linux_amd64_url），再回落到 <arch>。
+    #
+    # 为什么要有 <os>_ 这一层：python-build-standalone 的产物按平台分开命名
+    # （cpython-3.14.x-aarch64-apple-darwin-… vs …-aarch64-unknown-linux-gnu-…）。
+    # 只有 arm64_url 的话，Linux 会下到 macOS 的那一份 —— 校验通过、解包成功，然后
+    # portable_python_binary 找不到可执行文件，静默退到系统 python3。
+    #
+    # 回落是刻意的：python_url.toml 目前还没有 Linux 条目，改了数据才真的生效；
+    # 在那之前行为与现在完全一致。
+    local os_key
+    os_key="$(mw_platform)"
+    url="$(sed -n "s/^[[:space:]]*${os_key}_${arch}_url[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
+    [[ -n "$url" ]] || url="$(sed -n "s/^[[:space:]]*${arch}_url[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$url_file" | head -n 1)"
+    sha="$(sed -n "s/^[[:space:]]*${os_key}_${arch}_sha256[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$url_file" | head -n 1)"
+    [[ -n "$sha" ]] || sha="$(sed -n "s/^[[:space:]]*${arch}_sha256[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\\1/p" "$url_file" | head -n 1)"
     rm -f "$url_file"
 
     if [[ -z "$url" || -z "$sha" ]]; then
@@ -1911,7 +2036,9 @@ ensure_portable_python() {
         echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$archive_url")${RESET}" >&2
         return 1
     fi
-    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+    # 用 mw_sha256（openssl）而不是 shasum：Linux 上通常没有 shasum（那是 perl 脚本），
+    # 只有 sha256sum；openssl 两个平台都有，与文件里其它校验走同一条路。
+    actual="$(mw_sha256 "$archive")"
     if [[ "$actual" != "$sha" ]]; then
         rm -f "$archive"
         echo -e "${RED_BOLD}🌊 Error: the bundled Python download failed its checksum check.${RESET}" >&2

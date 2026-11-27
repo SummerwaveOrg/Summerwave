@@ -72,6 +72,11 @@ offenders = []
 for path in sorted(repo.rglob("*.sh")):
     if ".git" in path.parts:
         continue
+    _top = path.relative_to(repo).parts[0]
+    if _top.startswith("release-") or _top == "build":
+        # release-*/ 是发版资产的扁平副本；build/ 是内部构建工具集。
+        # 理由同下面 say 那一处：它们不会被用户粘贴到终端。
+        continue
     text = path.read_text(encoding="utf-8", errors="replace")
     for lineno, line in enumerate(text.splitlines(), 1):
         for match in pattern.finditer(line):
@@ -141,6 +146,14 @@ hits = 0
 for path in sorted(repo.rglob("*.sh")):
     if ".git" in path.parts or path in SKIP:
         continue
+    # release-*/ 是 scripts/build_release_assets.sh 的产出（.gitignore 里就有它）：
+    # 里面是某个旧版本快照的扁平副本，lint 它既没意义、又会让这里永远红。
+    _top = path.relative_to(repo).parts[0]
+    if _top.startswith("release-") or _top == "build":
+        # release-*/ 是发版资产的扁平副本；build/ 是内部构建工具集
+        # （build/ports/*/build.sh 与 scripts/），不会被用户粘贴到终端。
+        # 让它们守「不许 call say」这条没有收益，纳入规范是另一件事。
+        continue
     for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
         stripped = line.lstrip()
         if stripped.startswith("#"):
@@ -204,14 +217,15 @@ echo "========== 5. 一律用 /bin/bash，不要裸 bash =========="
 BARE_BASH=$(cd "$REPO_DIR" && grep -rnE '(^[[:space:]]*|&&[[:space:]]*|\|\|[[:space:]]*|[;&|(){}!][[:space:]]*|\$\([[:space:]]*)bash([[:space:]]|$)' \
     --include=*.sh --include=*.py --include=*.yml --include=*.md --include=*.mdc . 2>/dev/null \
     | grep -v '^\./\.git/' \
+    | grep -v '^\./release-' \
+    | grep -v '^\./build/' \
     | grep -v 'shell_lint\.sh:' \
     | grep -vE ':[0-9]+:[[:space:]]*#' \
     | grep -vE ':[0-9]+:[[:space:]]*[a-z0-9._+-]+[[:space:]]{2,}by[[:space:]]' \
-    | grep -v '^\./platform/linux/' \
     || true)
-# 为什么排除 platform/linux：那一整棵树是**原封不动**搬进来的 LinuxWave 副本
-# （带自己的 CI 与 lint），这里改它等于让两边分叉、下次同步就冲突。等模块一个
-# 一个真合并进主树时，改一个就把上面那条例外收窄一处；全部合完，这行该消失。
+# 曾经这里要排除 platform/linux/ —— 那一整棵树是原封不动搬进来的 LinuxWave 副本。
+# 2026-11-27 它被删掉了：安装器已经原生支持 Linux，留着那套 4.6 代码只会让人以为
+# 「Linux 支持在那里」。现在整仓只有一棵树，例外一个都不需要。
 
 if [[ -z "$BARE_BASH" ]]; then
     pass "没有裸 bash 调用（一律 /bin/bash）"

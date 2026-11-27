@@ -164,7 +164,7 @@ scenario_install() {
         "$([[ -f "$TREE/var/config.sh" ]] && echo yes || echo no)" "yes"
     check "状态里的版本就是脚本自带的那个 tag" "$(state_version)" "$SANDBOX_VERSION"
     check "状态里带构建号（从 tag 的时间部分派生）" "$(state_build)" "2026-01-01T00:00Z"
-    # 只看安装树：赝品镜像里也有仓库的副本，里面有 platform/linux 的模板 config.json
+    # 只看安装树：赝品镜像里有整个仓库的副本，直接 find 整棵树会数到那边的文件
     check "安装树里没有 config.json（不再靠配置文件）" \
         "$(find "$TREE" -name config.json 2>/dev/null | wc -l | tr -d ' ')" "0"
     check "入口可执行" \
