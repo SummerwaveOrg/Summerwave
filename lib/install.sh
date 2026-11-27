@@ -520,9 +520,10 @@ home_to_homevar() {
 # 安装位置
 # ==========================================
 #
-# 位置是写死的：macOS 只有 /opt/macwave（Linux 由 LinuxWave 装在
-# /home/linuxwave/.linuxwave）。这里不提供菜单、候选目录或自定义目录 ——
-# 一台机器一棵树，路径一变，排查问题时日志里的路径就对不上。
+# 位置是写死的，按平台各一处：macOS 是 /opt/macwave，Linux 是
+# /home/linuxwave/.linuxwave（唯一来源是 config/platforminfo.py 的
+# DEFAULT_BASE_DIR）。这里不提供菜单、候选目录或自定义目录 —— 一台机器一棵树，
+# 路径一变，排查问题时日志里的路径就对不上。
 #
 # 为什么是 /opt（而不是 ~/.local 之类）：
 #   - 依赖只有一份：Shore/ 动辄几百 MB，多个用户各装一份 ~/.local 就是 N 份；
@@ -618,9 +619,9 @@ usage() {
     mw_say ""
     mw_say "Options:" "选项："
     mw_say "      --ci, --CI          No interaction at all: no confirmation, no questions.\n\
-                          Installs into /opt/macwave, so it needs passwordless\n\
-                          sudo or root." \
-           "      --ci, --CI          完全不交互：不确认、不提问。装到 /opt/macwave，\n\
+                          Installs into the fixed location, so it needs\n\
+                          passwordless sudo or root." \
+           "      --ci, --CI          完全不交互：不确认、不提问。装到固定位置，\n\
                           因此需要免密 sudo 或以 root 运行。"
     mw_say "      --dry-run           Print what the installer would do and change\n\
                           nothing: no download, no sudo, no directory\n\
@@ -664,8 +665,11 @@ usage() {
     mw_say "      --print-usage       Show this help, then continue (install or dry run)." \
            "      --print-usage       显示本帮助后继续（真的安装，或继续试运行）。"
     mw_say ""
-    mw_say "Install target: /opt/macwave (fixed; there is no option to change it)." \
-           "安装位置：/opt/macwave（写死，没有别的选项）。"
+    # 这里不能用 $BASE_DIR：用法在参数解析阶段就打，那时安装根还没算出来。
+    mw_say "Install target: fixed per platform — /opt/macwave on macOS,\n\
+                          /home/linuxwave/.linuxwave on Linux." \
+           "安装位置：按平台写死 —— macOS 是 /opt/macwave，\n\
+                           Linux 是 /home/linuxwave/.linuxwave。"
     mw_say ""
     mw_say "Examples:" "示例："
     mw_say "  install.sh --ci" "  install.sh --ci"
@@ -817,19 +821,19 @@ case "$0" in
         ;;
 esac
 
-# -------------------- 平台守卫：MacWave 只装 macOS 软件 --------------------
+# -------------------- 平台守卫：只装 macOS 与 Linux --------------------
 #
-# 再往下就会撞上 macOS 专属的东西：/opt 的属主、管理员组、Mach-O 重定位、
-# codesign 与 Xcode 命令行工具检查。与其装到一半报「otool: command not
-# found」，不如第一句就说清楚该去哪 —— Linux 由兄弟项目 LinuxWave 覆盖，两边的
-# 安装命令是同一个形状（releases/latest/download/install.sh）。
+# 两个平台的运行时布局完全一致（Shore/<名>/<版本>/），所以同一份安装器都管；
+# 不同的只有安装根（见上面「安装位置」）与各自的权限模型。
 #
-# 只认内核：Darwin 就是 macOS，Linux 交给 LinuxWave，其它照 uname -s 的原值报出来。
+# 客户端**不需要** otool / install_name_tool / codesign / patchelf：Mach-O 与 ELF
+# 的路径改写全在打包时做完（scripts/relocate_rpath.py），客户端只下载 + 解包。
+#
+# 只认内核：Darwin 是 macOS，Linux 是 Linux，其它照 uname -s 的原值报出来。
 # 越狱的 iPhone、Android 上的 Termux、ChromeOS 的容器**一概不单独识别** ——
-# 这些设备上装不装得成，由用户自己保证，见 docs/DEVELOPING.md「平台判断」。
+# 这些设备上装不装得成，由用户自己保证，见 config/platforminfo.py 的文件头。
 #
-# MACWAVE_TEST 下不判：那是在「把某个目录当作 /」的沙箱里跑同一份脚本，宿主是
-# Linux 完全正常（CircleCI 的 Linux 容器就是这么跑的）。
+# MACWAVE_TEST 下不判：那是在「把某个目录当作 /」的沙箱里跑同一份脚本。
 mw_platform() {
     # macos / linux / unknown
     local kernel
@@ -899,45 +903,33 @@ mw_macos_version_ok() {
     return 1
 }
 
-mw_require_macos() {
-    local platform linuxwave_cmd
-    # 指路用的命令只写一份。超时也一起带上：这条是打印给用户抄去执行的，
-    # 没有超时就会一直挂着 —— 与 lib/selfupdate.py 里那条重装命令同一个理由，
-    # net_policy_test 也是逐条检查 curl 的。
-    linuxwave_cmd='🌊   /bin/bash -c "$(curl -fsSL --max-time 60 https://github.com/LinuxWaveOrg/LinuxWave/releases/latest/download/install.sh)"'
+mw_require_supported_platform() {
     if [[ -n "${MACWAVE_TEST:-}" ]]; then
         return 0
     fi
+    local platform
     platform="$(mw_platform)"
-    if [[ "$platform" == "macos" ]]; then
-        if ! mw_macos_version_ok; then
-            mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} on ${ARCH} is too old — Apple Silicon needs macOS ${MW_MIN_MACOS_ARM64} (Sequoia), Intel needs macOS ${MW_MIN_MACOS_X86_64} (Monterey)." \
-                   "🌊 ${ARCH} 上的 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— Apple Silicon 需要 macOS ${MW_MIN_MACOS_ARM64}（Sequoia），Intel 需要 macOS ${MW_MIN_MACOS_X86_64}（Monterey）或更高。"
-            mw_say "🌊 Nothing was changed. Upgrade macOS, then run this installer again." \
-                   "🌊 什么都没改。升级 macOS 之后再跑一次这个安装脚本。"
-            exit 2
-        fi
-        return 0
-    fi
-
     case "$platform" in
-        linux)
-            mw_say "🌊 Summerwave installs macOS software; this machine is Linux." \
-                   "🌊 Summerwave 装的是 macOS 软件 —— 这台机器是 Linux。"
-            mw_say "🌊 For Linux, use LinuxWave: https://linuxwave.org" \
-                   "🌊 Linux 请改用 LinuxWave：https://linuxwave.org"
-            mw_say "$linuxwave_cmd"
+        macos)
+            # 版本地板只在 macOS 有意义（Linux 那边看的是 glibc，交给发行版自己保证）。
+            if ! mw_macos_version_ok; then
+                mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} on ${ARCH} is too old — Apple Silicon needs macOS ${MW_MIN_MACOS_ARM64} (Sequoia), Intel needs macOS ${MW_MIN_MACOS_X86_64} (Monterey)." \
+                       "🌊 ${ARCH} 上的 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— Apple Silicon 需要 macOS ${MW_MIN_MACOS_ARM64}（Sequoia），Intel 需要 macOS ${MW_MIN_MACOS_X86_64}（Monterey）或更高。"
+                mw_say "🌊 Nothing was changed. Upgrade macOS, then run this installer again." \
+                       "🌊 什么都没改。升级 macOS 之后再跑一次这个安装脚本。"
+                exit 2
+            fi
+            return 0
             ;;
-        *)
-            mw_say "🌊 Summerwave installs macOS software; this platform was not recognised." \
-                   "🌊 Summerwave 装的是 macOS 软件 —— 认不出这个平台。"
-            mw_say "🌊 uname -s says: $(uname -s 2>/dev/null || echo unknown)" \
-                   "🌊 uname -s 报的是：$(uname -s 2>/dev/null || echo unknown)"
-            mw_say "🌊 On Linux use LinuxWave: https://linuxwave.org" \
-                   "🌊 在 Linux 上用 LinuxWave：https://linuxwave.org"
-            mw_say "$linuxwave_cmd"
+        linux)
+            return 0
             ;;
     esac
+
+    mw_say "🌊 Summerwave runs on macOS and Linux; this platform was not recognised." \
+           "🌊 Summerwave 只装 macOS 与 Linux —— 认不出这个平台。"
+    mw_say "🌊 uname -s says: $(uname -s 2>/dev/null || echo unknown)" \
+           "🌊 uname -s 报的是：$(uname -s 2>/dev/null || echo unknown)"
     mw_say "🌊 Nothing was changed on this machine; this is an environment mismatch, not a half-install." \
            "🌊 这台机器上什么都没改 —— 这是环境不对，不是装了一半。"
     mw_say "🌊 Set MACWAVE_TEST=<dir> if you meant to run this in a sandbox." \
@@ -946,7 +938,7 @@ mw_require_macos() {
     exit 2
 }
 
-mw_require_macos
+mw_require_supported_platform
 
 # -------------------- 测试根（隔离） --------------------
 # MACWAVE_TEST 指向一个目录时，把它当作 /：HOME 和所有系统路径都挂到它下面，
@@ -1004,7 +996,10 @@ fi
 # 升级模式与全新安装走同一条路：都装到 /opt/macwave。调用方（wave selfupdate）
 # 传不传 MACWAVE_INSTALL_DIR 都一样 —— 位置不是参数。
 
-DEFAULT_BASE_DIR="$SYS_ROOT/opt/macwave"
+case "$(mw_platform)" in
+    linux) DEFAULT_BASE_DIR="$SYS_ROOT/home/linuxwave/.linuxwave" ;;
+    *)     DEFAULT_BASE_DIR="$SYS_ROOT/opt/macwave" ;;
+esac
 
 if [[ "$SELFUPDATE_MODE" == "true" ]]; then
     if [[ -n "${MACWAVE_INSTALL_DIR:-}" && "${MACWAVE_INSTALL_DIR}" != "$DEFAULT_BASE_DIR" ]]; then
@@ -1024,51 +1019,15 @@ fi
 DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
 
 # ==========================================
-# 4.x 的安装：拒绝原地升级，要求重装
+# 不检测旧的安装
 # ==========================================
 #
-# 4.6 允许自定义安装目录（`--dir-option`），而 0.1.0 把安装根写死成 /opt/macwave。
-# 于是 0.1.0 的安装器**不知道旧的那一份在哪** —— 既不能 prune 也不能复用，硬装的结果
-# 是同一台机器上两套并行：PATH 里的 wave 指着一套，Shore/ 在另一套，而且谁都说不清
-# 哪套在生效。
+# Summerwave 是一个新软件，不是 MacWave / LinuxWave 的升级版：它不猜旧版本装在
+# 哪里，不迁移旧目录，也不为旧版本留兼容分支。装到写死的位置，用新布局重来。
 #
-# 判定只认「明显是 MacWave 的版本线」（2.x / 3.x / 4.x）。0.1.0 自己的版本是时间戳
-# 形态（`2026.11.26-15:52:43`）或带 `@<UTC>` 的 tag，不会落进这三个前缀。
-check_no_legacy_install() {
-    mw_dry_run && return 0
-
-    local state="$BASE_DIR/var/config.sh" old_version=""
-    if [[ -f "$state" ]]; then
-        old_version="$(sed -n "s/^MACWAVE_VERSION='\(.*\)'$/\1/p" "$state" | head -n 1)"
-    fi
-
-    local legacy=""
-    if [[ "$old_version" =~ ^(2|3|4)\.[0-9] ]]; then
-        legacy="版本 $old_version"
-    elif [[ -d "$BASE_DIR/links" || -d "$BASE_DIR/deps" || -d "$BASE_DIR/pkg/pkginfo" ]]; then
-        legacy="4.x 的目录布局（links/、deps/ 或 pkg/pkginfo/）"
-    fi
-    [[ -n "$legacy" ]] || return 0
-
-    echo -e "${RED_BOLD}🌊 Error: an older MacWave installation was found at $BASE_DIR${RESET}" >&2
-    echo -e "${RED_BOLD}🌊   ($legacy)${RESET}" >&2
-    echo -e "${YELLOW}🌊 Summerwave 0.1.0 cannot upgrade it in place: 4.x allowed custom install${RESET}" >&2
-    echo -e "${YELLOW}🌊 directories, so this installer has no way to know where the old copy is.${RESET}" >&2
-    echo -e "${YELLOW}🌊 Uninstall the old version first, then run this installer again:${RESET}" >&2
-    echo -e "${YELLOW}🌊   $BASE_DIR/lib/uninstall.sh${RESET}" >&2
-    echo -e "${YELLOW}🌊   (if 4.6 was installed elsewhere, run that copy's uninstall.sh)${RESET}" >&2
-    exit 1
-}
-
-check_no_legacy_install
-
-# 自定义目录装的 4.x 我们找不到，只能在常见的默认位置提一句（只提示，不阻止）。
-for _legacy_root in "$HOME/.local/macwave" "/usr/local/macwave"; do
-    if [[ -f "$_legacy_root/var/config.sh" && "$_legacy_root" != "$BASE_DIR" ]]; then
-        mw_say "${YELLOW}🌊 Note: another (older) installation exists at $_legacy_root; it is not touched by this installer.${RESET}" \
-               "${YELLOW}🌊 注意：$_legacy_root 下还有一份（旧的）安装，本次安装不会动它。${RESET}"
-    fi
-done
+# 曾经这里有一段「发现 2.x/3.x/4.x 就拒绝安装」的判定。删掉的理由：4.6 允许
+# `--dir-option=N=DIR` 装到任意目录，写死几个候选位置永远扫不全，而扫不到的后果
+# 就是「以为拦住了、其实两套并行」。既然没有存量用户，这一整类问题不值得维护。
 
 # ==========================================
 # 动手之前确认：装到这个位置，继续吗？
@@ -1739,18 +1698,6 @@ run_cmd mkdir -p "$STATE_DIR"
 
 # 状态文件（<base>/var/config.sh）不在这里写：它是「装好了」的凭据，必须等
 # 文件真的下完才落盘 —— 见下面「写入版本凭据」一节。
-
-# ==========================================
-# 检查动态库路径替换所需的工具
-# ==========================================
-
-if command -v otool > /dev/null 2>&1 && command -v install_name_tool > /dev/null 2>&1 && command -v codesign > /dev/null 2>&1; then
-    mw_say "🌊 Xcode Command Line Tools detected (otool / install_name_tool / codesign)." "🌊 已检测到 Xcode Command Line Tools（otool / install_name_tool / codesign）。"
-else
-    mw_say "${YELLOW}🌊 Warning: Xcode Command Line Tools not found.${RESET}" "${YELLOW}🌊 警告：未检测到 Xcode Command Line Tools。${RESET}"
-    mw_say "${YELLOW}🌊 Dependency libraries cannot be relocated, so some packages may fail to run.${RESET}" "${YELLOW}🌊 依赖库无法重定位，部分软件包可能运行不起来。${RESET}"
-    mw_say "🌊 You can install them later with: xcode-select --install" "🌊 之后可用这条命令安装：xcode-select --install"
-fi
 
 # ==========================================
 # ==========================================

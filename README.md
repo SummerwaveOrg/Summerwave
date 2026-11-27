@@ -151,7 +151,7 @@ export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 ```
 Everything else keeps using the official addresses, so a mirror only needs to carry what it mirrors.
 
-The `MacWave/` segment keeps a mirror's domain shareable: LinuxWave can later live at `/LinuxWave` on the same host without either product owning the root.
+The `MacWave/` segment keeps a mirror's domain shareable: one host can serve several products' mirrors under distinct top-level paths without any of them owning the root.
 
 ### Mirror everything
 Those two lines only cover the bulk downloads. When `github.com` and `raw.githubusercontent.com` are **blocked** rather than slow, the files that let Summerwave work at all still come from GitHub: the package index, the bundled interpreter and Summerwave's own code (the installer itself comes from a release asset). Point all of them at the mirror:

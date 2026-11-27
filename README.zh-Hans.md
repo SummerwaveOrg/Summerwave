@@ -141,7 +141,7 @@ export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 ```
 其余地址继续用官方源，所以镜像站只需要镜像它承载的那部分内容。
 
-路径里的 `MacWave/` 是为了让一个镜像域名能共用：以后 LinuxWave 可以放在同一台机器的 `/LinuxWave`，两边都不独占域名根。
+路径里的 `MacWave/` 是为了让一个镜像域名能共用：同一台机器可以给多个产品的镜像各留一个顶级目录，谁都不独占域名根。
 
 ### 全量镜像
 

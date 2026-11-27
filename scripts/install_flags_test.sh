@@ -180,14 +180,12 @@ else
     fail "未知选项没有报错（rc=${RC}）"
 fi
 
-# -------------------- 7. 平台守卫：非 macOS 请去 LinuxWave --------------------
+# -------------------- 7. 平台守卫：macOS 与 Linux 放行 --------------------
 #
-# 用替身 uname 摆出「宿主是 Linux」：这个脚本里有太多 macOS 专属步骤
-# （/usr/local 菜单项、SIP 与系统卷密封、csrutil、Xcode 工具），在 Linux 上装到
-# 一半才报错是最差的形态。
+# 两个平台的运行时布局一致（Shore/<名>/<版本>/），所以安装器在 Linux 上继续走完
+# 流程，只是安装根换成 /home/linuxwave/.linuxwave。用替身 uname 摆出 Linux 宿主。
 #
-# 这里**故意不设 MACWAVE_TEST** —— 那正是被绕过的条件（沙箱里宿主是不是 Linux
-# 无所谓，CircleCI 的容器就这么跑）。
+# 这里**故意不设 MACWAVE_TEST** —— 那正是绕过平台判断的条件。
 
 STUB_BIN="$WORK/bin"
 mkdir -p "$STUB_BIN"
@@ -202,7 +200,6 @@ chmod +x "$STUB_BIN/uname"
 
 mklinux() {
     # mklinux [参数...]：在「Linux 宿主」下跑一次，输出进 OUT，退出码进 RC
-    rm -rf "$WORK/linux-root"
     OUT=$(PATH="$STUB_BIN:$PATH" \
           SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
@@ -210,40 +207,37 @@ mklinux() {
 }
 
 mklinux --dry-run
-if [[ "$RC" -eq 2 ]] \
-   && has "$OUT" "LinuxWave" \
-   && has "$OUT" "https://linuxwave.org" \
-   && has "$OUT" "https://github.com/LinuxWaveOrg/LinuxWave/releases/latest/download/install.sh"; then
-    pass "非 macOS：请用户去 LinuxWave，给出官网与完整安装命令（rc=2）"
+if [[ "$RC" -eq 0 ]] && has "$OUT" "/home/linuxwave/.linuxwave"; then
+    pass "Linux 放行，安装根切到 /home/linuxwave/.linuxwave（rc=0）"
 else
-    fail "非 macOS 的提示不对（rc=${RC}）：$(printf '%s' "$OUT" | head -2)"
+    fail "Linux 没被放行或安装根不对（rc=${RC}）：$(printf '%s' "$OUT" | head -2)"
 fi
 
-if [[ ! -e "$WORK/linux-root" ]] && [[ -z "$(find "$WORK" -maxdepth 1 -name 'linux-*' 2>/dev/null)" ]]; then
-    pass "非 macOS：拒绝发生在任何安装动作之前（没有测试根、没有产物）"
+if hasnt "$OUT" "/opt/macwave"; then
+    pass "Linux 的输出里不出现 /opt/macwave"
 else
-    fail "非 macOS 时还是动了文件"
+    fail "Linux 上仍报出 /opt/macwave"
 fi
 
-mklinux --zh
-if [[ "$RC" -eq 2 ]] && has "$OUT" "请改用 LinuxWave"; then
-    pass "非 macOS --zh：提示是中文的"
+mklinux --zh --dry-run
+if [[ "$RC" -eq 0 ]] && has "$OUT" "安装位置"; then
+    pass "Linux --zh：提示是中文的"
 else
-    fail "非 macOS --zh 没有中文提示（rc=${RC}）"
+    fail "Linux --zh 没有中文提示（rc=${RC}）"
 fi
 
-mklinux --raw
-if [[ "$RC" -eq 2 ]] && [[ "$(printf '%s\n' "$OUT" | grep -c '^🌊')" -eq 0 ]]; then
-    pass "非 macOS --raw：行首无 🌊（走的是同一个过滤器）"
+mklinux --raw --dry-run
+if [[ "$RC" -eq 0 ]] && [[ "$(printf '%s\n' "$OUT" | grep -c '^🌊')" -eq 0 ]]; then
+    pass "Linux --raw：行首无 🌊（走的是同一个过滤器）"
 else
-    fail "非 macOS --raw 的输出不干净（rc=${RC}）"
+    fail "Linux --raw 的输出不干净（rc=${RC}）"
 fi
 
 mklinux --help
-if [[ "$RC" -eq 0 ]] && has "$OUT" "Usage:" && hasnt "$OUT" "LinuxWave"; then
-    pass "非 macOS --help：照常打用法，不被平台守卫拦住"
+if [[ "$RC" -eq 0 ]] && has "$OUT" "Usage:"; then
+    pass "Linux --help：照常打用法，不被平台守卫拦住"
 else
-    fail "非 macOS --help 被拦住了（rc=${RC}）"
+    fail "Linux --help 被拦住了（rc=${RC}）"
 fi
 
 # 沙箱里宿主是 Linux 完全正常：MACWAVE_TEST 一设，守卫就放行。
@@ -252,7 +246,7 @@ OUT=$(MACWAVE_TEST="$WORK/linux-sandbox" \
       PATH="$STUB_BIN:$PATH" \
       /bin/bash "$INSTALL_SH" --dry-run < /dev/null 2>&1)
 RC=$?
-if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "not macOS"; then
+if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run"; then
     pass "MACWAVE_TEST 下不判平台（沙箱里宿主是 Linux 也照跑）"
 else
     fail "MACWAVE_TEST 下被平台守卫拦住了（rc=${RC}）"
@@ -323,8 +317,8 @@ fi
 # -------------------- 7b. 平台判断：只看内核 --------------------
 #
 # iOS / iPadOS / Android / ChromeOS 一概不单独识别 —— 这些设备上装不装得成由用户
-# 自己保证（见 docs/DEVELOPING.md「平台判断」）。这里只钉三件事：Darwin 放行、
-# Linux 指向 LinuxWave、其它报出 uname -s 的原值。
+# 自己保证（见 config/platforminfo.py 的文件头）。这里只钉三件事：Darwin 放行、
+# Linux 放行且安装根换成 /home/linuxwave/.linuxwave、其它报出 uname -s 的原值。
 write_uname() {
     # write_uname <sys> [machine]：-m 也要能伪造，否则「按架构分的地板」测不出来
     printf '#!/bin/sh

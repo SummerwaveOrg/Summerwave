@@ -195,7 +195,9 @@ scenario_cli_errors() {
     reset_state
     install_run --help
     check "--help 退出码为 0" "$?" "0"
-    contains "--help 里写明安装位置写死" "$OUT" "/opt/macwave (fixed"
+    contains "--help 里写明安装位置按平台写死" "$OUT" "fixed per platform"
+    contains "--help 里给出 macOS 的安装位置" "$OUT" "/opt/macwave on macOS"
+    contains "--help 里给出 Linux 的安装位置" "$OUT" "/home/linuxwave/.linuxwave on Linux"
 }
 
 scenario_mid_failure() {
@@ -380,7 +382,7 @@ fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
     echo -e "${RED_BOLD}🌊 Error: this harness relies on macOS sandbox-exec.${RESET}"
-    echo "🌊 On Linux use the unshare-based harness from LinuxWave instead."
+    echo "🌊 A Linux sandbox (unshare-based) is not implemented yet; this harness is macOS-only."
     exit 1
 fi
 
