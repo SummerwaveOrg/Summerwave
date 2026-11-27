@@ -115,6 +115,7 @@ jobs:
           /bin/bash scripts/taginfo_test.sh
           /bin/bash scripts/release_candidate_test.sh
           /bin/bash scripts/versions_index_test.sh
+          /bin/bash scripts/build_installer_test.sh
 
       # 重打后回填索引：file/sha256 换成新产物、安装形态按归档形状决定、其它字段保留。
       - name: Run apply-rebuilt-records test

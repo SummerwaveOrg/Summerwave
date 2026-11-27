@@ -103,6 +103,7 @@ jobs:
             /bin/bash scripts/taginfo_test.sh
             /bin/bash scripts/release_candidate_test.sh
           /bin/bash scripts/versions_index_test.sh
+            /bin/bash scripts/build_installer_test.sh
             /bin/bash scripts/relocate_test.sh
             /bin/bash scripts/apply_rebuilt_test.sh
             /bin/bash scripts/prepare_bottle_test.sh

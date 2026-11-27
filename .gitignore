@@ -72,3 +72,6 @@ LOCAL-*
 
 # 发版资产（scripts/build_release_assets.sh 的产物）
 release-*/
+
+# 发布产物（scripts/build_installer.py 的输出）
+dist/
