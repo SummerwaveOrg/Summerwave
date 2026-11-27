@@ -71,8 +71,17 @@ git switch -c 4.2 main
 ```
 
 ```bash
-date +%Y.%m.%d-%H:%M:%S      # 这就是新版本号，别手写
+TZ=UTC date +%Y.%m.%d-%H:%M:%S      # 这就是新版本号，别手写（一律 UTC）
 ```
+
+**tag 的形状**（完整约定见 [`CONVENTIONS.md`](./CONVENTIONS.md) 第一节）：
+
+```
+v2026.11.26-15:52:43@2026-11-26T15:52Z          正式版
+v2026.11.26-15:52:43-rc.1@2026-11-26T15:52Z     候选版
+```
+
+解析/挑选的唯一实现是 `lib/taginfo.py`，回归测试 `scripts/taginfo_test.sh`。
 
 三条规则：
 

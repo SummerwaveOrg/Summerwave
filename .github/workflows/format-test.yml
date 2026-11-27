@@ -112,6 +112,7 @@ jobs:
       # 镜像 versions 清单：两个架构进同一份、缺产物不进清单、幂等、清空即清空。
       - name: Run versions index test
         run: |
+          /bin/bash scripts/taginfo_test.sh
           /bin/bash scripts/versions_index_test.sh
 
       # 重打后回填索引：file/sha256 换成新产物、安装形态按归档形状决定、其它字段保留。
