@@ -343,7 +343,7 @@ def _handle_selfupdate_locked(input_string=""):
     # 早退一步就少一次「Fetching the latest version...」之后的失败。
     #
     # 渠道是**这棵树跟的是哪条流**，记在 <base>/var/config.sh 的 MACWAVE_CHANNEL 里。
-    # 1.0 起版本号是发布时刻，没有再能从版本串推出渠道的后缀。
+    # 0.1.0 起版本号是发布时刻，没有再能从版本串推出渠道的后缀。
     current = installed_version()
     current_build = installed_build()
     channel = versioncompare.normalize_channel(installed_channel())
@@ -356,7 +356,7 @@ def _handle_selfupdate_locked(input_string=""):
 
     print("🌊 Fetching the latest version...")
 
-    # 候选版本直接来自发布 tag（1.0 起没有 Selfupdate 仓库），见 docs/CONVENTIONS.md 第二节。
+    # 候选版本直接来自发布 tag（0.1.0 起没有 Selfupdate 仓库），见 docs/CONVENTIONS.md 第二节。
     # 预览渠道先看预发布；没有更新的预发布就回去看正式版 —— 预发布收尾之后，
     # 正式版就是出路。
     data = None

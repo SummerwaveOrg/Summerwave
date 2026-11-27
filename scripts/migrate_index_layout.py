@@ -2,14 +2,14 @@
 
 # migrate_index_layout.py
 #
-# 把 infosource 的旧索引布局（4.x）搬到 1.0 的布局上。
+# 把 infosource 的旧索引布局（4.x）搬到 0.1.0 的布局上。
 #
 #   旧：pkg/pkginfo_arm64/<包名>/_<包名>@<版本>          （每个架构一个目录）
 #       deps/depsinfo_amd64/<依赖名>/_<依赖名>@<版本>
 #   新：pkg/pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>    （单目录，标签在名字里）
 #       deps/depsinfo/<依赖名>/_<依赖名>@<版本>.<os>-<arch>
 #
-# 为什么需要：1.0 的客户端只认新形状（见 net/domains.payload_filename 与
+# 为什么需要：0.1.0 的客户端只认新形状（见 net/domains.payload_filename 与
 # sync_payloads.records）。旧目录在新客户端眼里**不存在** —— 不是报错，是「没有这个包」，
 # 故障位置离原因太远，所以这里先把索引搬过去。
 #
@@ -316,7 +316,7 @@ def emit_gh_script(path, plan, keep_old):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Migrate an infosource checkout to the 1.0 index layout.")
+        description="Migrate an infosource checkout to the 0.1.0 index layout.")
     parser.add_argument("--infosource", required=True, type=Path,
                         help="path to a checkout of SummerwaveOrg/SeaLane (modified in place with --apply)")
     parser.add_argument("--os", default="macos", choices=list(platforminfo.BOTTLE_OSES),
@@ -348,7 +348,7 @@ def main():
     conflicts += payload_conflicts
 
     if not moves and not payloads:
-        print("🌊 Nothing to migrate — this checkout is already in the 1.0 layout.")
+        print("🌊 Nothing to migrate — this checkout is already in the 0.1.0 layout.")
         return 0
 
     records = [m for m in moves if m[1] is not None]

@@ -24,7 +24,7 @@ SHELL_FILES = ("lib/install.sh", "lib/selfupdate.sh")
 # shell 里「变量名 + 默认值」的写法：${SUMMERWAVE_CORE_DOMAIN:-https://…}
 DEFAULT_RE = r'\$\{%s:-([^}"]*)\}'
 # 任何 SUMMERWAVE_*_DOMAIN 的出现（用来发现表上没有的名字）。
-# 用户 export 的那一层是品牌名（1.0 起从 MACWAVE_ 改成 SUMMERWAVE_）；路径与
+# 用户 export 的那一层是品牌名（0.1.0 起从 MACWAVE_ 改成 SUMMERWAVE_）；路径与
 # /opt/macwave 这类**不归用户输入**的名字仍然是 macwave，两者刻意不一致。
 ANY_DOMAIN_RE = re.compile(r"SUMMERWAVE_[A-Z0-9_]*_DOMAIN")
 

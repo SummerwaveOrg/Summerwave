@@ -105,7 +105,7 @@ jobs:
           SHA = re.compile(r'^sha256:\s*"([0-9a-f]{64})"\s*$', re.M)
           URL = re.compile(r'^url:\s*"([^"]+)"\s*$', re.M)
 
-          # 1.0 起索引不再按架构分目录：记录名是 _<名>@<版本>.<os>-<arch>，
+          # 0.1.0 起索引不再按架构分目录：记录名是 _<名>@<版本>.<os>-<arch>，
           # 架构（也就是 PROBE 行最后一段）从标签里剥出来。
           VOCAB = (("macos", "linux"), ("arm64", "amd64"))
           todo = []

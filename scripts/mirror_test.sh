@@ -64,7 +64,7 @@ if [[ "$OUT" == *"https://github.com/SummerwaveOrg/Bottle/releases/download"* ]]
 else
     fail "default for bottle missing"
 fi
-# 1.0 起每个数据源都有内置默认值，所以「没设环境变量」的行显示的是默认地址，
+# 0.1.0 起每个数据源都有内置默认值，所以「没设环境变量」的行显示的是默认地址，
 # 而不是占位文字 —— 断言改成「每一行都指向一个 https 地址」。
 if [[ "$(printf '%s\n' "$OUT" | grep -c 'https://')" -ge 6 ]]; then
     pass "unset entries fall back to the built-in default (never blank)"

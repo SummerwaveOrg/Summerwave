@@ -94,7 +94,7 @@ def is_position_independent(path, file_path=None):
         if file_path is None:
             return True
         # 「相对」不等于「对得上」：4.x 的产物写的是
-        # @loader_path/../../../deps/ncurses/ncurses@6.6/lib/…，而 1.0 的依赖在
+        # @loader_path/../../../deps/ncurses/ncurses@6.6/lib/…，而 0.1.0 的依赖在
         # Shore/ncurses/6.6/lib/ 下 —— 前缀没错，但那棵树已经不存在了。
         # 旧瓶子重编时就是靠这一条才不会被当成「已经就位」放过。
         target = os.path.normpath(os.path.join(
@@ -203,7 +203,7 @@ def references(path):
 
 
 def package_root(path, root):
-    """1.0 起只有一种：<根>/Shore/<名>/<版本>（包与依赖同构）。
+    """0.1.0 起只有一种：<根>/Shore/<名>/<版本>（包与依赖同构）。
 
     4.x 的 bin/<名>@<版本> 与 deps/<名>/<名>@<版本> 也认，好让旧 bottle 还能跑
     一遍重定位；判据是路径开头那一段。

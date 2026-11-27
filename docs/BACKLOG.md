@@ -5,11 +5,11 @@
 
 ---
 
-## 1.0
+## 0.1.0
 
 ### 数据侧切换：索引搬家 + 产物改名（已备好工具，未执行）
 
-**现状。** 1.0 的代码只认新布局（`pkg/pkginfo/<包>/_<包>@<版本>.<os>-<arch>`、
+**现状。** 0.1.0 的代码只认新布局（`pkg/pkginfo/<包>/_<包>@<版本>.<os>-<arch>`、
 产物名 `jq@1.8.2.macos-arm64.tar.gz`），但真实的 `SeaLane` 还是
 `pkg/pkginfo_arm64/` + `jq@1.8.2.arm64.tar.gz`。于是 `wave install <任何包>` 报「没有这个包」——
 不是 bug，是数据还没搬。
@@ -28,7 +28,7 @@
 
 ### `Selfupdate` 缺 `prerelease/` 探针（卡在签名口令）
 
-**现状。** 1.0 的 `preview` 渠道读 `Selfupdate/prerelease/latest.toml`，仓库里只有
+**现状。** 0.1.0 的 `preview` 渠道读 `Selfupdate/prerelease/latest.toml`，仓库里只有
 `macwavedata/` 与 `rcdata/`（后者的头部还在解释 `channel_for`，那个函数已经删了）。
 验签是强制的（`.sig` 缺失或不对 → 拒绝安装），而私钥带口令，脚本代签不了。
 

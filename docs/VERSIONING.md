@@ -1,6 +1,6 @@
 # 版本、渠道与自更新的三个标识
 
-> 决策备忘（2026-11-26）。1.0 起：**客户端版本 = 发布时刻**。
+> 决策备忘（2026-11-26）。0.1.0 起：**客户端版本 = 发布时刻**。
 > 相关代码：`lib/versioncompare.py`、`lib/selfupdate.py`、`config/configpaths.py`、
 > `net/domains.py`。
 

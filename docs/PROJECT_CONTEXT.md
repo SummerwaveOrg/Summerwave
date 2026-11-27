@@ -1,6 +1,6 @@
 # 🌊 MacWave 项目结构
 
-> ✅ **已按 1.0（Summerwave 合并线）复核**：安装位置写死、没有配置文件、没有
+> ✅ **已按 0.1.0（Summerwave 合并线）复核**：安装位置写死、没有配置文件、没有
 > `--dir-option`；状态只有 `<base>/var/config.sh`；运行时布局是 `Shore/<名>/<版本>/`
 > 加 `bin/` 无版本软链；索引不再分架构，瓶子标签写进记录名；客户端只下载 + 解包，
 > 重定位在打包时做；渠道只有 `stable` / `preview`，客户端版本号是发布时刻。
@@ -41,7 +41,7 @@ MacWave 的配置只有这一处：**用哪些环境变量、默认值是什么�
 | 文件 | 作用 |
 | --- | --- |
 | `envvar.py` | **环境变量名单、默认值与说明的唯一来源**：`DOMAINS`（七个 `MACWAVE_*_DOMAIN`，各带默认值与一句话说明）、`PIP_INDEX` / `PIP_DEFAULT`、`TEST_ROOT` / `TEST_ROOT_EXPORT`，以及 `name()` / `default()` / `description()` / `raw()`。只有数据：协议校验与拼 URL 在 `net/domains.py`。两份 shell 脚本里的同名默认值（它们是 `curl \| bash`，没法 source）由 `scripts/check_domain_defaults.py` 与本表逐项比对 |
-| `configpaths.py` | **安装根与运行时布局的唯一来源**：`load_base_dir()` 直接返回 `rooted(DEFAULT_BASE_DIR)`（1.0 起安装根写死，没有配置文件、没有候选目录），另有 `payload_root()` / `bin_dir()` / `pkg_dir()` / `dep_dir()` 拼运行时路径。测试根（`MACWAVE_TEST`）是唯一旁路 |
+| `configpaths.py` | **安装根与运行时布局的唯一来源**：`load_base_dir()` 直接返回 `rooted(DEFAULT_BASE_DIR)`（0.1.0 起安装根写死，没有配置文件、没有候选目录），另有 `payload_root()` / `bin_dir()` / `pkg_dir()` / `dep_dir()` 拼运行时路径。测试根（`MACWAVE_TEST`）是唯一旁路 |
 | `configerror.py` | 启动前的环境自检：安装根里有 `var/config.sh` 就放行；没有且在 git 仓库里时，报错并提示用 `lib/install.sh` 正式安装 |
 
 ### lib/ —— 入口与帮助
@@ -91,9 +91,9 @@ ChromeOS 一概不单独识别 —— 这些设备上装不装得成，由用户
 | --- | --- |
 | `depsinstaller.py` | **依赖安装编排（Python）**。校验/解析依赖引用 → 拉 `_依赖名@common` 取 `dep_name` → 拉 `_依赖名@版本号` 取 `url` / `sha256` / `deps` → 复用 `pkginstaller.download_file` 下载（进度条与软件包一致）→ 调 `depsinstaller.sh` → 递归安装子依赖；依赖已安装时只补标记（走 `tagger.sh` 命令行） |
 | `depsinstaller.sh` | **依赖安装入口（tree 模式）**：`source depsmanager.sh` → 调 `mw_install_artifact` → 在依赖目录里创建 `.depped_pkg_*` / `.depped_dep_*` 标记 |
-| `depsmanager.sh` | **通用安装核心**（被 `pkginstaller.sh` 与 `depsinstaller.sh` source，不单独执行）：定位下载到的原文件、SHA256 校验、解压、落盘（`binary` / `tree` 两种形态，1.0 起两者都落在 `Shore/<名>/<版本>/`）、创建 `bin/` 软链接、写 `Note` 收据、标记文件辅助函数。`mw_extract_binary` 与 `mw_extract_all` 里各有一串扩展名，**加新格式时两处都得补**，漏一个就会出现“把压缩包当二进制装下去”的静默错误 |
+| `depsmanager.sh` | **通用安装核心**（被 `pkginstaller.sh` 与 `depsinstaller.sh` source，不单独执行）：定位下载到的原文件、SHA256 校验、解压、落盘（`binary` / `tree` 两种形态，0.1.0 起两者都落在 `Shore/<名>/<版本>/`）、创建 `bin/` 软链接、写 `Note` 收据、标记文件辅助函数。`mw_extract_binary` 与 `mw_extract_all` 里各有一串扩展名，**加新格式时两处都得补**，漏一个就会出现“把压缩包当二进制装下去”的静默错误 |
 | `tagger.sh` | `.depped_*` 标记文件原语：`tagger_create` / `tagger_delete` / `tagger_has_any`，既可 `bash tagger.sh <动作> …` 调用，也可被 source |
-| *（`transfer.sh` 已于 1.0 删除）* | 运行时不再改字节：重定位改在**打包时**做，见 `scripts/relocate_rpath.py`（判据与 4.6 的 `transfer.sh --check` 同一套）。客户端只剩「下载 + 解包」 |
+| *（`transfer.sh` 已于 0.1.0 删除）* | 运行时不再改字节：重定位改在**打包时**做，见 `scripts/relocate_rpath.py`（判据与 4.6 的 `transfer.sh --check` 同一套）。客户端只剩「下载 + 解包」 |
 | `querier.py` | 查询依赖是否已安装：`Shore/{引用名}/{版本号}/` 存在**且含 `Note` 收据**才算安装完成（避免中途失败留下的空目录被误判）；依赖引用解析（强制 `依赖名@版本号`，名字与版本都过路径白名单，如 `parse_dep_ref`）也在这里 |
 
 ### scripts/ 与 CI
@@ -138,7 +138,7 @@ BASE_DIR/{man,info,Keys}/                     手册、info、验签公钥
 BASE_DIR/var/config.sh                        已安装的版本与渠道（唯一的状态）
 ```
 
-4.x 的 `bin/<名>@<版本>/`、`deps/…`、`links/` 已经不存在；1.0 的 `apply_migrations`
+4.x 的 `bin/<名>@<版本>/`、`deps/…`、`links/` 已经不存在；0.1.0 的 `apply_migrations`
 只做一件事：把这些旧目录搬进 `Shore/`。
 
 ## 四、数据源（`SummerwaveOrg/SeaLane` 仓库）
@@ -175,7 +175,7 @@ deps: "gettext@0.21.0"
 
 ## 五、目录迁移与自更新边界
 
-1.0 起**没有任何配置目录**，状态只有 `<base>/var/config.sh` 一份，于是 4.x 那套
+0.1.0 起**没有任何配置目录**，状态只有 `<base>/var/config.sh` 一份，于是 4.x 那套
 「`updatedata/{版本}/dir_structure_change` + `transfer_commands`」的数据驱动迁移
 连同 `MACWAVE_INSTALL_DIR` 注入一起删掉了 —— 结构再变也只有一个方向：往新布局搬。
 
@@ -207,7 +207,7 @@ links/*           → bin/（无版本号的软链接）
    - `.depped_dep_{依赖名}@{版本号}`：被某个依赖依赖
    - 卸载时先删掉自己的标记；某依赖已无任何标记，才连同它自己的依赖一起级联删除，多个依赖者共享时不会被误删
 5. **递归**：依赖自身的 `deps` 会被继续安装（先装下层、再装自己）
-6. **动态库路径（构建端完成）**：依赖包里的库不会自动被 dyld 找到（conda 包的 install name 是 `@rpath/xxx.dylib`，自带 rpath 只有 `@loader_path/`，跨目录必然失败）。1.0 起这道改写由 `scripts/relocate_rpath.py` 在**打包时**统一做完（先处理依赖再处理软件包，因为声明顺序与实际库依赖顺序未必一致——例如 `wget` 的 `deps` 里 `libidn2` 排在 `libunistring` 前面，而 `libidn2.0.dylib` 恰好引用 `libunistring.5.dylib`），客户端装完不再扫产物。判据与 4.6 的 `transfer.sh --check` 相同：`@rpath/<名>` 不能无条件算数
+6. **动态库路径（构建端完成）**：依赖包里的库不会自动被 dyld 找到（conda 包的 install name 是 `@rpath/xxx.dylib`，自带 rpath 只有 `@loader_path/`，跨目录必然失败）。0.1.0 起这道改写由 `scripts/relocate_rpath.py` 在**打包时**统一做完（先处理依赖再处理软件包，因为声明顺序与实际库依赖顺序未必一致——例如 `wget` 的 `deps` 里 `libidn2` 排在 `libunistring` 前面，而 `libidn2.0.dylib` 恰好引用 `libunistring.5.dylib`），客户端装完不再扫产物。判据与 4.6 的 `transfer.sh --check` 相同：`@rpath/<名>` 不能无条件算数
 7. **收据**：`Shore/<名>/<版本>/Note` 是「这个东西装好了」的唯一凭据，`requested` 区分软件包与依赖
 8. **网络**：所有请求 30 秒超时；下载超时或连接失败时询问是否重试
 
@@ -274,7 +274,7 @@ links/*           → bin/（无版本号的软链接）
 | 17 | `pkg/pkginstaller.py` → `pkg/linker.py` | 依赖全部就位后，把 `bin/wget` 指向 `Shore/wget/1.25.0/wget`（不带 `--no-link` 时）；第 8 步建好的 `bin/wget@1.25.0` 不受影响 |
 | 18 | `pkg/receipt.py` | 最后写 `Shore/wget/1.25.0/Note`：收据里的 `requested` 区分「用户点名装的包」与「顺带装的依赖」，卸载与体检据此判断谁是主角 |
 
-> **路径重定位不在这个流程里**：1.0 起客户端只做「下载 + 解包」，Mach-O 的 `@loader_path`
+> **路径重定位不在这个流程里**：0.1.0 起客户端只做「下载 + 解包」，Mach-O 的 `@loader_path`
 > 改写与 ad-hoc 重签名都在打包时由 `scripts/relocate_rpath.py` 完成，所以装完不用再扫一遍。
 
 ### 时序
@@ -334,7 +334,7 @@ BASE_DIR/bin/                     wget（不带版本号）与 wget@1.25.0，
 
 | # | 改哪里 | 改成什么 |
 | --- | --- | --- |
-| 1 | `MacWaveOrg/configdata` 的 `versiondata/latest_version` | `branch` 指向新分支（新分支成为发布线时），`version` / `release_date` 一并更新（1.0 起没有 `build_number`） |
+| 1 | `MacWaveOrg/configdata` 的 `versiondata/latest_version` | `branch` 指向新分支（新分支成为发布线时），`version` / `release_date` 一并更新（0.1.0 起没有 `build_number`） |
 | 2 | `.github/workflows/format-test.yml` | 把新分支名加进 `on.push.branches` 与 `on.pull_request.branches` |
 | 3 | `docs/PROJECT_CONTEXT.md` 开头的「版本分支（当前的 `4.1`）」 | 改成新分支 |
 | 4 | `README.md` / `README.zh-Hans.md` 的 `Latest Version` / `最新版本` | 正式发布时更新 |

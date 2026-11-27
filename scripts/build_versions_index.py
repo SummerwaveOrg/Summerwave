@@ -36,7 +36,7 @@ import domains  # noqa: E402
 import versioncompare  # noqa: E402  —— 版本排序只有这一份实现，INDEX.md 不另造一套
 from sync_payloads import read_record, records  # noqa: E402
 
-# 1.0 起索引是单一命名空间（根下 <名>/_<名>@<版本>.<os>-<arch>），所以清单只有一份，
+# 0.1.0 起索引是单一命名空间（根下 <名>/_<名>@<版本>.<os>-<arch>），所以清单只有一份，
 # kind 不再决定目录。保留这个映射只是为了日志里还能看出「这是哪一类」。
 KIND_LAYOUT = {"bottle": "", "deps": ""}
 

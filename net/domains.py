@@ -140,7 +140,7 @@ def index_list_url(package_name=None):
     # 所以：设了 SUMMERWAVE_API_DOMAIN（也就是在用镜像）时，要求镜像自己提供一份清单——
     #   <api>/versions              → 一行一个包名
     #   <api>/<包名>/versions        → 一行一个版本号
-    # 1.0 起索引是**单一命名空间放在仓库根**：包与依赖不分开，平台与架构编进记录名
+    # 0.1.0 起索引是**单一命名空间放在仓库根**：包与依赖不分开，平台与架构编进记录名
     # （_<名>@<版本>.<os>-<arch>）。
     # 没设时仍用 GitHub API，行为与 3.x 一致。
     # 4.0 的索引协议定稿后，这里改成只读镜像那一份。
@@ -207,7 +207,7 @@ def listing_names(text, dirs_only=False):
 # 为什么用 Releases 而不是仓库里的文件：git 有 100 MiB 单文件硬限，而 ollama 已有
 # 172.9 MB 的产物；Releases 单文件上限 2 GiB，且官方明确不限制总量与下载带宽。
 #
-# 1.0 起**统一重打包**（`scripts/prepare_bottle.py`）：服务端把引用改成 @loader_path、
+# 0.1.0 起**统一重打包**（`scripts/prepare_bottle.py`）：服务端把引用改成 @loader_path、
 # 布局摆成运行时那棵 Shore/，所以
 #   · 记录的 sha256 是**我们自己算的**，不是上游那个（上游 sha256 只用于取件时确认
 #     上游没被换，见 Builds 的 census）；
@@ -261,7 +261,7 @@ def resolve_payload(kind, name, version, arch, upstream_filename):
     #
     # **只从我们自己的存储取**：索引记录里的 `url` 全程不读 —— 它留着是给人和
     # 审计看的上游线索，不是安装路径。3.x 的 `--install-from-source`（读 url 直接
-    # 回上游装）自 4.4 起从 CLI 下线，1.0 把下层的分支也一并删除：一条「绕开自己
+    # 回上游装）自 4.4 起从 CLI 下线，0.1.0 把下层的分支也一并删除：一条「绕开自己
     # 的存储」的路，只要还在代码里，就会在某个时刻被重新接上。
     if not upstream_filename:
         print(f"{RED_BOLD}🌊 Error: No file field for {name}@{version}.{RESET}")
@@ -299,7 +299,7 @@ def resolve_payload(kind, name, version, arch, upstream_filename):
 # 把「当前该装哪个版本」和「那个版本具体怎么装」混在一个文件里，就没法让装了
 # 旧版本的用户继续用他们那份说明 —— 而旧版本仍在运行。
 
-# 1.0 起「该装哪一版」不再来自 Selfupdate 仓库，而是**发布 tag 本身**：
+# 0.1.0 起「该装哪一版」不再来自 Selfupdate 仓库，而是**发布 tag 本身**：
 # tag 里带版本号与 UTC 构建时刻（`v<版本>@YYYY-MM-DDTHH:MMZ`），见 docs/CONVENTIONS.md。
 # 所以只需要两样东西：正式版的最新发布、以及预览渠道的发布列表。
 #
@@ -324,7 +324,7 @@ def release_list_url(per_page=30):
 
 
 def release_tarball_url(tag):
-    """某个 tag 的源码包。1.0 的安装/自更新就是「取这一份、整树同步」。"""
+    """某个 tag 的源码包。0.1.0 的安装/自更新就是「取这一份、整树同步」。"""
     return f"https://github.com/{RELEASE_REPO}/archive/refs/tags/{quote(tag, safe='')}.tar.gz"
 
 

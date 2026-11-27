@@ -15,7 +15,7 @@
 #   2. **退出码 = 发现的问题数**，0 表示全绿。可以进脚本、进 CI。
 #   3. **拿不准就说拿不准**。唯一需要外部工具的判断记成 note，不当成坏包。
 #
-# 位置无关性（4.x 的 `wave transfer` / `transfer.sh --check`）不再检查：1.0 起
+# 位置无关性（4.x 的 `wave transfer` / `transfer.sh --check`）不再检查：0.1.0 起
 # 重定位只在打包时做（scripts/relocate_rpath.py），运行时没有可查的偏差来源。
 
 import os
@@ -31,7 +31,7 @@ YELLOW = '\033[33m'
 RESET = '\033[0m'
 
 BASE_DIR = load_base_dir()
-# 1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+# 0.1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
 PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"

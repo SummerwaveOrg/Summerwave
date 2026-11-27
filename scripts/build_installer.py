@@ -4,7 +4,7 @@
 #
 # 生成「这一版」的 install.sh —— 把这一版的文件清单内嵌进模板。
 #
-# 为什么要有它：1.0 起清单不再放在 Selfupdate 仓库里（那个仓库下线了）。清单跟着安装器
+# 为什么要有它：0.1.0 起清单不再放在 Selfupdate 仓库里（那个仓库下线了）。清单跟着安装器
 # 走，好处是三件事同时成立：
 #   * 装什么由一份被签名的文件说了算（读一个文件就能审计「这次会写哪些字节」）；
 #   * 客户端仍然能「逐文件比对哈希、只下变化的那些」—— 升级不必重下整棵树；
@@ -25,6 +25,7 @@
 
 import argparse
 import hashlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -103,7 +104,9 @@ def inject(template, version, manifest):
     为什么必须插在文件里而不是「运行时从 $0 读自己」：`curl … | bash` 时 `$0` 是 `bash`
     而不是文件，任何 read-self 的做法都读不到。heredoc 是管道执行下唯一可靠的形式。
     """
-    if MANIFEST_SIGNAL in template:
+    # 只看「行首的赋值」：模板里本来就会提到这个变量名（模板守卫要读它），
+    # 按子串判断会把模板自己当成生成物。
+    if re.search(rf"^{MANIFEST_SIGNAL}=", template, re.MULTILINE):
         raise SystemExit("🌊 Error: the template already carries an embedded manifest "
                          "（用 lib/install.sh 作模板，别拿生成物再生成一次）")
 

@@ -34,7 +34,7 @@ set -u
 MW_DEPLOYMENT_TARGET_ARM64="${MW_DEPLOYMENT_TARGET_ARM64:-15.0}"
 MW_DEPLOYMENT_TARGET_X86_64="${MW_DEPLOYMENT_TARGET_X86_64:-12.0}"
 
-# 装完之后的绝对路径根。1.0 起安装位置写死（macOS 是 /opt/macwave），
+# 装完之后的绝对路径根。0.1.0 起安装位置写死（macOS 是 /opt/macwave），
 # 所以构建时就能给出最终前缀 —— `.pc`、wrapper、configure 的 --prefix 都按它写。
 MW_PREFIX_ROOT="${MW_PREFIX_ROOT:-/opt/macwave}"
 
@@ -42,7 +42,7 @@ MW_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MW_CHECK="$MW_SCRIPTS_DIR/selfbuilt_check.sh"
 
 # 客户端仓库的位置：relocate_rpath.py 与平台标签词表都只有一份，都在那边。
-# 1.0 起代码仓库叫 SummerwaveOrg/Summerwave；4.x 时代是 MacWaveOrg/MacWave。
+# 0.1.0 起代码仓库叫 SummerwaveOrg/Summerwave；4.x 时代是 MacWaveOrg/MacWave。
 # 用 MACWAVE_CLIENT_REPO 覆盖（例如 CI 里 checkout 到别处）。
 MW_CLIENT_REPO="${MACWAVE_CLIENT_REPO:-}"
 if [[ -z "$MW_CLIENT_REPO" ]]; then

@@ -16,7 +16,7 @@ RESET = '\033[0m'
 from configpaths import assert_inside, dep_dir as _layout_dep_dir, load_base_dir, payload_root, require_safe_token
 
 
-# 1.0 起：依赖与包同构，都在 <根>/Shore/<名>/<版本>。
+# 0.1.0 起：依赖与包同构，都在 <根>/Shore/<名>/<版本>。
 BASE_DIR = load_base_dir()
 PAYLOAD = payload_root()
 

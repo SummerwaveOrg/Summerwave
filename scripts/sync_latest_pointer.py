@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 import versioncompare  # noqa: E402
 
 # 版本目录名有两种形状：
-#   发布时刻  2026.11.26-15:52:43（1.0 起客户端版本的格式）
+#   发布时刻  2026.11.26-15:52:43（0.1.0 起客户端版本的格式）
 #   老式版本号 4.0.0 / 2.5 / 3.14.9（历史版本，指针脚本还要读得懂）
 VERSION_DIR_RE = re.compile(r'^(?:\d{4}\.\d{1,2}\.\d{1,2}-\d{1,2}:\d{2}:\d{2}|\d+(?:\.\d+)*)$')
 

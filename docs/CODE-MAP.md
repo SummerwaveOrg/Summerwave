@@ -227,7 +227,7 @@
 | `minos_test.sh` | `min_os`（实验性，4.3 转正）：版本串解析（位数不同也比）、低于声明才提醒、字段缺失必须静默、非交互往安全侧倒、`--force` 越过、info 三种格式里没有声明时不出现、回填脚本幂等。离线 |
 | `structure_test.sh` | 项目结构自检：`scripts/components.txt` 里的每个组件，`wave.py` 都建了 sys.path、`install.sh` 都建了目录、CI 都覆盖；并且脚本与 CI 里不许再手写一份「lib pkg surfboard」 |
 | `net_policy_test.sh` | 传输层契约（AST，不是 grep）：每个 `requests` 调用都带 `**tls.request_kwargs()`、每个 `urlopen` 都带 `**tls.urlopen_kwargs()`、每个 `curl` 都有超时且 SSL 旗标只来自 `tls.curl_flags()`、SSL 开关只出现在 `net/tls.py` |
-| `domains_test.sh` | 地址层：默认值、环境变量覆盖与校验、`url` 从不被读（`--install-from-source` 已在 1.0 彻底删除）、两份 shell 脚本的域名块与 `domains.py` 是否一致。纯离线，所以放在需联网的测试之前 |
+| `domains_test.sh` | 地址层：默认值、环境变量覆盖与校验、`url` 从不被读（`--install-from-source` 已在 0.1.0 彻底删除）、两份 shell 脚本的域名块与 `domains.py` 是否一致。纯离线，所以放在需联网的测试之前 |
 | `check_domain_defaults.py` | 只做一件事：比对 `config/envvar.py` 与两份 shell 脚本里的域名默认值 + pip 索引。shell 那两份是被 curl 下来直接执行的，没法 source，只能内联；三处同源靠脚本盯着。扫的是 `envvar.DOMAINS` 这张表，所以改名 / 加项不用改脚本；shell 里冒出表上没有的 `MACWAVE_*_DOMAIN` 也会红 |
 | `sync_payloads.py` | 把索引里登记的产物取回本地并按 4.0 的命名摆好，落盘前核对索引里的 sha256。`--source payload` 时从我们自己的 Release 取（给镜像站同步用） |
 | `publish_payloads.py` | 把上一步的结果发布到 `Bottle` / `Deps` 的 Release：tag 是包名，只增不删，同名同大小跳过 |
@@ -360,7 +360,7 @@ MacWave 装完之后，机器上会有两类目录：**代码树**（安装根�
 
 | 路径 | 作用 |
 | --- | --- |
-| `versiondata/latest_version` | 最新版本号、发布日期、发布分支、更新命令（1.0 起没有构建号） |
+| `versiondata/latest_version` | 最新版本号、发布日期、发布分支、更新命令（0.1.0 起没有构建号） |
 | `versiondata/files_info` | 要下载的程序文件清单（缩进树） |
 | `versiondata/latest_test_version` | 测试用版本文件，内容为空，仅占位 |
 | `updatedata/{版本号}/dir_structure_change` | 单字符标记，表示该版本是否改了目录结构 |
@@ -546,7 +546,7 @@ MacWave 装完之后，机器上会有两类目录：**代码树**（安装根�
 
 *本文件与 `docs/TECHNICAL-GUIDE.md` 配套：前者讲文件与约定，后者讲原理与排查。*
 
-> 已知不一致：本文件已跟到 **1.0**，而 `docs/TECHNICAL-GUIDE.md` 的正文仍以 **3.0.4** 为基准
-> （1.0 只复核了它的第四章「安装与运行时目录」，其余章节是 4.x 及更早的叙述）。
+> 已知不一致：本文件已跟到 **0.1.0**，而 `docs/TECHNICAL-GUIDE.md` 的正文仍以 **3.0.4** 为基准
+> （0.1.0 只复核了它的第四章「安装与运行时目录」，其余章节是 4.x 及更早的叙述）。
 > 查当前行为时以本文件、`docs/PROJECT_CONTEXT.md` 和源码为准；技术手册的 1.x/2.x/3.x
 > 章节仍然可靠 —— 那些是历史，不会再变。

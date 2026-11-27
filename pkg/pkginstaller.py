@@ -1364,7 +1364,7 @@ def _install_single_locked(input_string):
     # 11. 路径替换：依赖与软件包都就位后统一做一遍
     #     （必须放最后：先装的依赖可能引用后装的依赖，提前替换会解析不到）
     steplog.begin("relocate and link")
-    # 1.0 起不再有「事后重定位」这一步：产物在构建期就是位置无关的
+    # 0.1.0 起不再有「事后重定位」这一步：产物在构建期就是位置无关的
     # （scripts/relocate_rpath.py 在打 bottle 时写 @loader_path），装上去直接能用。
     # 以前这里对绝对路径的旧产物跑一遍 transfer.sh，那条兼容路径已删除。
     steplog.detail("bottles are position-independent at build time; no rewrite needed")

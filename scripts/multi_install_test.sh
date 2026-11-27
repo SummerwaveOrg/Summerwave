@@ -28,7 +28,7 @@ case "$(uname -m)" in
     arm64|aarch64) ARCH=arm64 ;;
     *) ARCH=amd64 ;;
 esac
-# 1.0 的产物标签：<os>-<arch>，写进版本记录名（与 config/platforminfo.py 的
+# 0.1.0 的产物标签：<os>-<arch>，写进版本记录名（与 config/platforminfo.py 的
 # bottle_tag() 一致）。
 case "$(uname -s)" in
     Darwin) BOTTLE_TAG="macos-$ARCH" ;;

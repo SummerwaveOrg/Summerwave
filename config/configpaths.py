@@ -103,7 +103,7 @@ STATE_FILE_NAME = "config.sh"
 # 安装树里「东西放哪」的**唯一来源**。以前 bin/ 与 links/ 的字面量散在七八个
 # 模块里各拼一次，改布局要一处一处追；现在调用方一律走下面的函数。
 #
-# 1.0 起只有一处放"解开的软件包"，包与依赖同构：
+# 0.1.0 起只有一处放"解开的软件包"，包与依赖同构：
 #
 #   <根>/Shore/<名>/<版本>/…            编译好的软件包（Bottle 解开就长这样）
 #   <根>/Shore/<名>/<版本>/Note         收据（JSON，见 pkg/receipt.py）
@@ -115,7 +115,7 @@ STATE_FILE_NAME = "config.sh"
 #
 # 下面这几个函数是**唯一**的拼接点：改布局只改这里，调用点不用动。
 # （历史上 bin/ 既是"包树"又是 PATH 目录，所以老代码里 BIN_DIR 有两种含义；
-# 1.0 把它们分开了：PAYLOAD_ROOT 是包树，BIN_DIR 只放链接。）
+# 0.1.0 把它们分开了：PAYLOAD_ROOT 是包树，BIN_DIR 只放链接。）
 PAYLOAD_ROOT_NAME = "Shore"
 BIN_DIR_NAME = "bin"
 RECEIPT_NAME = "Note"
@@ -127,7 +127,7 @@ def payload_root(base_dir=None):
 
 
 def bin_dir(base_dir=None):
-    # PATH 里唯一要加的目录；1.0 起这里只有无版本号的软链接。
+    # PATH 里唯一要加的目录；0.1.0 起这里只有无版本号的软链接。
     return (base_dir or load_base_dir()) / BIN_DIR_NAME
 
 
@@ -206,7 +206,7 @@ def installed_version():
 
 def installed_channel():
     # 这棵树跟的是哪条流（`stable` / `preview`）。没写过时返回 None，调用方按
-    # stable 处理 —— 1.0 之前的树没有这个字段。
+    # stable 处理 —— 0.1.0 之前的树没有这个字段。
     state_dir = internal_state_dir()
     if state_dir is None:
         return None

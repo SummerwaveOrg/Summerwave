@@ -87,7 +87,7 @@ case "$(uname -s)" in
     *)      BOTTLE_TAG="linux-$ARCH" ;;
 esac
 
-# 1.0 起索引不再按架构分目录，平台与架构编在记录名里。
+# 0.1.0 起索引不再按架构分目录，平台与架构编在记录名里。
 mkdir -p "$MIRROR/pkg/pkginfo/tree" "$MIRROR/pkg/pkginfo/jq" \
          "$MIRROR/pkg/pkginfo/nolist"
 # nolist：名字在清单里、但没有它的 <包名>/versions —— 用来区分「拼错」与「镜像缺数据」

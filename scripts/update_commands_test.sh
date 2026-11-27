@@ -58,7 +58,7 @@ expect_absent() {  # expect_absent 描述 实际 不该出现的子串
 
 gen() {  # gen 输出文件 [额外参数...]
     local out=$1; shift
-    # 协议闸门已随 1.0 删除（Apache-2.0 不再需要逐版本同意），生成器没有
+    # 协议闸门已随 0.1.0 删除（Apache-2.0 不再需要逐版本同意），生成器没有
     # --agreement-id 了；这里只管清单、自愈与迁移。
     # stderr 落到 GEN_ERR 指定的文件（默认 err.txt）。调用方要看报告时先改它。
     "$PYTHON" "$BUILDER" --version 9.9.9 --branch main --out "$out" "$@" 2>"${GEN_ERR:-$WORK/err.txt}"

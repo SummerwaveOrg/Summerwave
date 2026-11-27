@@ -9,7 +9,7 @@
 # 本脚本在**服务端**把这一步做掉，产物里就是显式的 `@loader_path/../../<名>/<版本>/lib/...`，
 # 客户端只剩「下载 + 解包」——运行时不再改字节，也就不再需要 `wave transfer`。
 #
-# 布局必须是运行时布局（1.0 起包与依赖同构，见 config/configpaths.py）：
+# 布局必须是运行时布局（0.1.0 起包与依赖同构，见 config/configpaths.py）：
 #
 #     <stage>/Shore/<名>/<版本>/...            软件包与依赖都在这里
 #
@@ -57,7 +57,7 @@ MARKER = "_RELOCATED"
 # -------------------- 索引 --------------------
 
 def record_path(infosource, kind, arch, name, version):
-    # 1.0 起索引是单一命名空间：包与依赖同一个目录结构，平台标签编在记录名里。
+    # 0.1.0 起索引是单一命名空间：包与依赖同一个目录结构，平台标签编在记录名里。
     # kind 只用来区分「这条记录是包还是依赖」，不再影响落盘位置。
     tag = platforminfo.bottle_tag(arch)
     return infosource / name / f"_{name}@{version}.{tag}"
@@ -110,7 +110,7 @@ def domain(kind):
 def legacy_stored_name(name, version, arch, filename):
     """4.x 时代存在 Bottle/Deps Release 里的名字：<名>@<版本>.<架构><扩展名>。
 
-    1.0 的产物名换了（带完整瓶子标签），但**旧资产还在**能被这里取件 ——
+    0.1.0 的产物名换了（带完整瓶子标签），但**旧资产还在**能被这里取件 ——
     重编不依赖任何人先改名。
     """
     for marker in (".tar.xz", ".tar.bz2", ".tar.gz", ".conda", ".zip"):
@@ -150,7 +150,7 @@ def candidate_sources(kind, name, version, arch, fields, source):
     tag = platforminfo.bottle_tag(arch)
     storage = [
         f"{name}@{version}.{arch}.tar.bz2",     # prepare_bottle 曾经产出的名字
-        f"{name}@{version}.{tag}.tar.bz2",      # 1.0 改名之后
+        f"{name}@{version}.{tag}.tar.bz2",      # 0.1.0 改名之后
         f"{name}@{version}.{arch}{ext}",        # 字节原样搬运的旧名字
         f"{name}@{version}.{tag}{ext}",         # 字节原样搬运的新名字
     ]
@@ -411,7 +411,7 @@ def looks_like_source(root):
 
 
 def stage_target(stage, kind, name, version):
-    # 包与依赖同构（1.0 起）：<stage>/Shore/<名>/<版本>/。kind 只影响记录字段，
+    # 包与依赖同构（0.1.0 起）：<stage>/Shore/<名>/<版本>/。kind 只影响记录字段，
     # 不影响落盘位置 —— 这正是「卸载只要看一个根」的来源。
     return stage / "Shore" / name / version
 

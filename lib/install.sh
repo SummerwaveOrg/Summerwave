@@ -274,7 +274,7 @@ mw_redact() {
 # 所以校验规则更松（允许 https 与 http 回环，与 mw_domain 同）。
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
-# MacWave 自身文件（后面再拼 /<tag>/<路径>）。1.0 起按 **tag** 取，不按分支：
+# MacWave 自身文件（后面再拼 /<tag>/<路径>）。0.1.0 起按 **tag** 取，不按分支：
 # 清单已经内嵌在脚本里、哈希属于某个确定的版本，分支一动哈希就对不上。
 CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自带 CPython 的清单
@@ -310,9 +310,9 @@ if [[ -n "${MACWAVE_CACERT:-}" ]]; then
 fi
 
 
-# -------------------- 签名校验（1.0 起的位置变了） --------------------
+# -------------------- 签名校验（0.1.0 起的位置变了） --------------------
 #
-# 1.0 不再有「带签名的版本数据」：版本号与逐文件清单都在这个脚本里，清单又逐条钉住
+# 0.1.0 不再有「带签名的版本数据」：版本号与逐文件清单都在这个脚本里，清单又逐条钉住
 # 每个文件的 sha256。所以可信起点变成了**这份脚本本身**：
 #
 #   * `wave selfupdate` 在 bash 它之前，先验同 tag 的 `install.sh.sig`（不通过不执行）；
@@ -1027,12 +1027,12 @@ DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
 # 4.x 的安装：拒绝原地升级，要求重装
 # ==========================================
 #
-# 4.6 允许自定义安装目录（`--dir-option`），而 1.0 把安装根写死成 /opt/macwave。
-# 于是 1.0 的安装器**不知道旧的那一份在哪** —— 既不能 prune 也不能复用，硬装的结果
+# 4.6 允许自定义安装目录（`--dir-option`），而 0.1.0 把安装根写死成 /opt/macwave。
+# 于是 0.1.0 的安装器**不知道旧的那一份在哪** —— 既不能 prune 也不能复用，硬装的结果
 # 是同一台机器上两套并行：PATH 里的 wave 指着一套，Shore/ 在另一套，而且谁都说不清
 # 哪套在生效。
 #
-# 判定只认「明显是 MacWave 的版本线」（2.x / 3.x / 4.x）。1.0 自己的版本是时间戳
+# 判定只认「明显是 MacWave 的版本线」（2.x / 3.x / 4.x）。0.1.0 自己的版本是时间戳
 # 形态（`2026.11.26-15:52:43`）或带 `@<UTC>` 的 tag，不会落进这三个前缀。
 check_no_legacy_install() {
     mw_dry_run && return 0
@@ -1052,7 +1052,7 @@ check_no_legacy_install() {
 
     echo -e "${RED_BOLD}🌊 Error: an older MacWave installation was found at $BASE_DIR${RESET}" >&2
     echo -e "${RED_BOLD}🌊   ($legacy)${RESET}" >&2
-    echo -e "${YELLOW}🌊 Summerwave 1.0 cannot upgrade it in place: 4.x allowed custom install${RESET}" >&2
+    echo -e "${YELLOW}🌊 Summerwave 0.1.0 cannot upgrade it in place: 4.x allowed custom install${RESET}" >&2
     echo -e "${YELLOW}🌊 directories, so this installer has no way to know where the old copy is.${RESET}" >&2
     echo -e "${YELLOW}🌊 Uninstall the old version first, then run this installer again:${RESET}" >&2
     echo -e "${YELLOW}🌊   $BASE_DIR/lib/uninstall.sh${RESET}" >&2
@@ -1129,7 +1129,7 @@ fi
 # 版本号（来自脚本自己）
 # ==========================================
 #
-# 1.0 起**没有自更新数据仓库**：这个脚本是某个 tag 的发布产物，版本号与逐文件清单
+# 0.1.0 起**没有自更新数据仓库**：这个脚本是某个 tag 的发布产物，版本号与逐文件清单
 # 都内嵌在它自己的头部（见 scripts/build_installer.py）。所以这里不联网、不读 TOML，
 # 只做两件事：确认「我确实是发布产物」，以及把 tag 拆成渠道与构建号。
 #
@@ -1662,7 +1662,7 @@ fi
 # 创建目录
 # ==========================================
 
-# 1.0 起：bin/ 只放无版本号的软链接（4.x 的 links/ 并进来了），
+# 0.1.0 起：bin/ 只放无版本号的软链接（4.x 的 links/ 并进来了），
 # 解开的包与依赖都在 Shore/<名>/<版本>/，靠 Note 区分。
 INSTALL_DIR="$BASE_DIR/bin"
 LINKS_DIR="$INSTALL_DIR"

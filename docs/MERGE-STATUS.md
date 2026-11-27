@@ -128,9 +128,9 @@ grep -rn 'sys.platform\|platform.system()\|os.uname' --include=*.py \
 1. **旧仓库不动**：`MacWaveOrg/*` 与 `LinuxWaveOrg/*` 保持现状，新线路出问题随时能回退
    （旧线的客户端只认旧域名，互不影响）。
 2. **Actions 在新仓库是关闭的**（`enabled=false`）：继承来的工作流里有
-   `sync-release-branch.yml` 会按发布线把分支建回来。等 1.0 的 CI 重新设计后再开。
+   `sync-release-branch.yml` 会按发布线把分支建回来。等 0.1.0 的 CI 重新设计后再开。
 
-## 1.0 只装一处：`/opt/macwave`
+## 0.1.0 只装一处：`/opt/macwave`
 
 2026-11-26 定。安装位置不再是一道选择题，也不再支持三/四个候选：
 
@@ -166,7 +166,7 @@ grep -rn 'sys.platform\|platform.system()\|os.uname' --include=*.py \
 | 删除 | `config.json` 读取链、`config_dir_candidates` / `find_config_dir`、`/opt/macwave_config` 与 `~/.config/macwave_config`、`MACWAVE_BASE_DIR` |
 | 删除 | `wave basedir --set`（含整树搬家、APFS clone、三段逐字确认）、`lib/basedir.py` 430 → 82 行 |
 | 状态 | 只剩树内 `<base>/var/config.sh`（`MACWAVE_VERSION` / `MACWAVE_BUILD` / `MACWAVE_INSTALLED_AT`）|
-| 顺带修掉 | `shellenv` 与启动器里残留的 `links/`（1.0 已并入 `bin/`）|
+| 顺带修掉 | `shellenv` 与启动器里残留的 `links/`（0.1.0 已并入 `bin/`）|
 | 顺带修掉 | `index_list_url(arch)` 这个「收了 arch 却不用」的死参数 |
 
 **连带决策**（原摘要里没有，这次一并做完）

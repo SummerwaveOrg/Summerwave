@@ -96,7 +96,7 @@ sha256: "..."
 
 - `file` 决定落盘名里的扩展名，**必填**（`resolve_payload()` 缺它会报数据缺陷）。
 - `url` **不读**。它只是给人和审计看的上游线索。3.x 的 `--install-from-source`
-  （读 `url` 直接回上游装）自 4.4 起从 CLI 下线，1.0 把下层的 `from_source` 分支
+  （读 `url` 直接回上游装）自 4.4 起从 CLI 下线，0.1.0 把下层的 `from_source` 分支
   也删了 —— 一条绕开自有存储的路只要还在代码里，早晚会被重新接上。
 - 3.x 不认 `file`，会忽略，所以这次改动对 3.x 是安全的。
 
@@ -145,7 +145,7 @@ release_date = "2026-11-26"
 branch = "1.0"
 ```
 
-1.0 起**版本号就是发布时刻**（`YYYY.MM.DD-HH:MM:SS`），只需要比大小，不再有人工
+0.1.0 起**版本号就是发布时刻**（`YYYY.MM.DD-HH:MM:SS`），只需要比大小，不再有人工
 递增的语义版本；滚动更新因此不需要「够不够用」的讨论，`build_number` 也随之取消。
 比较规则与 `selfupdate = "blocked"` 见 [`VERSIONING.md`](./VERSIONING.md)。
 两份探针（`macwavedata/` 与 `prerelease/`）必须写各自的同一个值。
@@ -305,7 +305,7 @@ SUMMERWAVE_SELFUPDATE_DOMAIN=... SUMMERWAVE_PYTHON_DOMAIN=... SUMMERWAVE_CORE_DO
 
 ---
 
-## 1.0：Bottle 与索引的平台标签（2026-11-26 定）
+## 0.1.0：Bottle 与索引的平台标签（2026-11-26 定）
 
 **一个远端，标签写在名字里** —— 不按平台/架构拆仓库。
 
@@ -327,7 +327,7 @@ infosource/pkg/pkginfo/jq/_jq@1.8.2.macos-arm64 ← 该平台的那份 sha256 / 
   tag 只出现在产物文件名与那条索引记录里。
 - **取不到就是取不到**：按当前 `(os, arch)` 拼记录名，没有这条记录就明说
   「这个包没有你这个平台的产物」，不要拉回来再 `exec format error`。
-- **不兼容旧的**：1.0 起只认新形状。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz`
+- **不兼容旧的**：0.1.0 起只认新形状。老的 `pkginfo_<arch>/…` 路径与 `.<arch>.tar.gz`
   产物一律当作「没有这个平台的产物」——不会按「os 缺省 = macos」去猜。
   镜像重新生成一次索引即可（`scripts/build_versions_index.py`）。
 - **产物里不许出现打包机的临时路径**（硬规则，见下）。
@@ -368,7 +368,7 @@ conda 产物里的绝对路径不是「漏了」，而是故意留了一个 255 
 `bin/icu-config` 里的 `default_prefix`、编译进二进制里的资源目录全都指向**上游构建机**
 （`/Users/ktietz/Code/oss/ci_pkgs/…`）—— 用户机上一条都不存在，编译与运行都会挂。
 
-1.0 的安装根写死，所以 `prepare_bottle.py` 直接把**最终路径**烘进去：
+0.1.0 的安装根写死，所以 `prepare_bottle.py` 直接把**最终路径**烘进去：
 
 | 模式 | 做法 |
 | --- | --- |

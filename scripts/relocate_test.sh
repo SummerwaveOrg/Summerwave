@@ -6,7 +6,7 @@
 # 为什么值得单独一条：这条判据同时是**闸门**（不通过就拒绝打包）和**跳过条件**
 # （通过就不改写）。判宽了会静默放过坏产物 —— 旧瓶子里的
 # `@loader_path/../../../deps/ncurses/ncurses@6.6/lib/…` 就是这种情况：
-# 前缀是 @loader_path（看着「位置无关」），但那棵 deps/ 树在 1.0 里已经不存在，
+# 前缀是 @loader_path（看着「位置无关」），但那棵 deps/ 树在 0.1.0 里已经不存在，
 # 重编时被当成「已经就位」放过，装完就是 Library not loaded。
 #
 # 离线：判据本身只做路径运算，不需要真的 Mach-O；这里用临时目录摆出「目标在 / 目标不在」
@@ -31,7 +31,7 @@ PYTHON="${MACWAVE_PYTHON:-python3}"
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$WORK"' EXIT
 
-# 摆一棵 1.0 的运行时树，和一个「4.x 老树」的引用
+# 摆一棵 0.1.0 的运行时树，和一个「4.x 老树」的引用
 mkdir -p "$WORK/root/Shore/htop/3.5.3/bin" "$WORK/root/Shore/ncurses/6.6/lib"
 : > "$WORK/root/Shore/ncurses/6.6/lib/libncursesw.6.dylib"
 HT=("$WORK/root/Shore/htop/3.5.3/bin/htop")

@@ -76,7 +76,7 @@ def minimum_supported_os(machine=None):
 
 
 def bottle_tag(machine=None, os_name=None):
-    """1.0 的产物标签：`<os>-<arch>`，如 `macos-arm64` / `linux-amd64`。
+    """0.1.0 的产物标签：`<os>-<arch>`，如 `macos-arm64` / `linux-amd64`。
 
     词表封闭（macos|linux、arm64|amd64）。客户端与索引生成脚本共用这一份，
     免得两边各写一遍正则；`x86_64` / `amd64` 归一成 `amd64`。

@@ -3,7 +3,7 @@
 # taginfo_test.sh
 # 发布 tag 协议的离线回归：`v1.2.3[@2026-11-26T11:23Z]`，预览版带 `-rc.N` / `-beta.N`。
 #
-# 为什么值得单独一条：1.0 起 Selfupdate 仓库没有了，「该装哪一版」完全由 tag 决定。
+# 为什么值得单独一条：0.1.0 起 Selfupdate 仓库没有了，「该装哪一版」完全由 tag 决定。
 # 解析错了不会报错，只会挑错版本 —— 这种错误装到用户机器上才发现。
 
 set -u
@@ -67,7 +67,7 @@ check "带构建时刻" "$(g stamped)" "1.2.3|stable|0|2026-11-26T11:23Z"
 check "rc 渠道" "$(g rc)" "1.2.3|rc|1|2026-11-26T11:23Z"
 check "beta 渠道" "$(g beta)" "1.2.3|beta|2|2026-11-26T11:23Z"
 check "特殊版本仍可解析" "$(g special)" "2.1.5-procursus|stable|0|2026-01-02T03:04Z"
-check "时间戳版本号（1.0 的真实形状）" "$(g stamp_version)" "2026.11.26-15:52:43|stable|0|2026-11-26T15:52Z"
+check "时间戳版本号（0.1.0 的真实形状）" "$(g stamp_version)" "2026.11.26-15:52:43|stable|0|2026-11-26T15:52Z"
 check "时间戳版本号 + rc" "$(g stamp_rc)" "2026.11.26-15:52:43|rc|1|2026-11-26T15:52Z"
 check "往返一致" "$(g roundtrip)" "v1.2.3-rc.1@2026-11-26T11:23Z"
 check "latest 只认正式版" "$(g latest_stable)" "v1.2.3@2026-11-26T11:23Z"

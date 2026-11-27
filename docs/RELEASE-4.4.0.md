@@ -1,6 +1,6 @@
 # MacWave 4.4.0
 
-> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。1.0 改了什么见
+> 📜 **历史文档**：记录发布当时的做法，**不要照着它改代码**。0.1.0 改了什么见
 > [`VERSIONING.md`](./VERSIONING.md)、[`MERGE-STATUS.md`](./MERGE-STATUS.md) 与
 > [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)。
 

@@ -3,7 +3,7 @@
 Applies to MacWave 4.6 and later. Linux side: see the same subject under
 `$ORIGIN` at the end of this document.
 
-> ⚠️ **1.0 changed the "why".** Artifacts are still built with `@loader_path`
+> ⚠️ **0.1.0 changed the "why".** Artifacts are still built with `@loader_path`
 > (so the tree can be copied, archived, or checked out anywhere), but the client
 > no longer needs to relocate anything at install time: the install root is fixed,
 > `wave transfer` is gone, and `wave basedir --set` was removed. The relocation
@@ -33,7 +33,7 @@ re-sign the file. Three consequences:
 | "Install" means "bytes differ per user" | sha256 only describes what was downloaded, not what ends up on disk |
 
 `RELOCATION` is about removing all three. In 4.x that left the tree movable but the
-install root still user-chosen; 1.0 goes further and fixes the root, so the whole
+install root still user-chosen; 0.1.0 goes further and fixes the root, so the whole
 "relocate at install time" machinery is gone rather than generalised.
 
 ---
@@ -71,8 +71,8 @@ id — every reference is explicit — so the id is advisory.
 | Stage | Tool | Action |
 |---|---|---|
 | Build (CI) | `scripts/prepare_bottle.py` → `scripts/relocate_rpath.py` | rewrite references to `@loader_path/...`, ids to `@rpath/...`, ad-hoc sign, then **mark the artifact as prebuilt** |
-| Install (4.x) | `surfboard/transfer.sh` | prebuilt artifacts: **nothing at all**. Unmarked artifacts: rewrite to relative, re-sign. **Deleted in 1.0** — the client now only downloads and unpacks |
-| Migrate an old tree | — | removed in 1.0: `wave transfer` is gone, and `apply_migrations` only moves the old directories into `Shore/` |
+| Install (4.x) | `surfboard/transfer.sh` | prebuilt artifacts: **nothing at all**. Unmarked artifacts: rewrite to relative, re-sign. **Deleted in 0.1.0** — the client now only downloads and unpacks |
+| Migrate an old tree | — | removed in 0.1.0: `wave transfer` is gone, and `apply_migrations` only moves the old directories into `Shore/` |
 | Move the tree | — | impossible: the install root is fixed at `/opt/macwave`, and `wave basedir --set` was removed |
 
 ### 3.1 How the client knows an artifact is prebuilt
@@ -85,7 +85,7 @@ Two channels, because not every payload can carry a file:
 | single-file payload | `relocated: "loader_path"` in the version record | whoever publishes the index record |
 
 Both mark the same thing. In 4.x they meant `transfer.sh` returned immediately and the
-install tail did not count the artifact in its "Checking Mach-O files" line. In 1.0 the
+install tail did not count the artifact in its "Checking Mach-O files" line. In 0.1.0 the
 marker only exists so a later rebuild can skip work — nothing on the client reads it.
 
 Trust: the payload marker is inside the bytes the index `sha256` covers, so it cannot be
@@ -136,7 +136,7 @@ otool -L bin/A@1.0/A | grep openssl     # .../openssl@3.0.15/...
 otool -L bin/B@1.0/B | grep openssl     # .../openssl@3.2.0/...
 ```
 
-In 1.0 both `wave transfer` and `wave basedir --set` are gone, so there is no dry run to
+In 0.1.0 both `wave transfer` and `wave basedir --set` are gone, so there is no dry run to
 offer: `scripts/relocate_rpath.py <stage-dir> --check` is the only inspection tool left,
 and it runs at build time.
 
@@ -197,7 +197,7 @@ Related commands, side by side:
   build-side tool reports anything it cannot map instead of guessing.
 - **Old artifacts never gain this property by themselves.** `wave reinstall <pkg>`
   fetches the build-time relocated copy. `wave transfer` used to convert an already
-  installed tree in place; it was removed in 1.0, so reinstall is the only route.
+  installed tree in place; it was removed in 0.1.0, so reinstall is the only route.
 - **Payloads that come straight from upstream (conda repacks) are not prebuilt yet.**
   Their bytes must stay identical to upstream (`Deps/README.md`: "字节原样搬运"), so they
   carry `@rpath/<name>` + `LC_RPATH=@loader_path/../lib/`, which does not resolve once the

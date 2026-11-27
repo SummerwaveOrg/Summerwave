@@ -2,7 +2,7 @@
 
 # linker.py
 
-# 软件包的“不带版本号软链接”管理。1.0 的布局（见 configpaths）：
+# 软件包的“不带版本号软链接”管理。0.1.0 的布局（见 configpaths）：
 #   binary -> ../Shore/{名称}/{版本号}/{名称}
 #   tree   -> ../Shore/{名称}/{版本号}/bin/{名称}   （安装目录里有 .is_a_tree）
 #   tree 的其余命令（dtc 的 fdtget、testdisk 的 photorec…）各链一条。
@@ -39,7 +39,7 @@ from configpaths import (
 
 
 BASE_DIR = load_base_dir()
-# 1.0 起分成两处：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+# 0.1.0 起分成两处：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
 PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
 TREE_MARKER = ".is_a_tree"

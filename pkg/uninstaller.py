@@ -38,7 +38,7 @@ import common
 
 
 BASE_DIR = load_base_dir()
-# 1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
+# 0.1.0 起：PAYLOAD 是解开的包（<根>/Shore/<名>/<版本>），BIN_DIR 只放链接。
 PAYLOAD = payload_root()
 BIN_DIR = bin_dir()
 TAGGER_SCRIPT = Path(__file__).resolve().parent.parent / "surfboard" / "tagger.sh"

@@ -41,7 +41,7 @@ FIELD_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(.*)"\s*$', re.M)
 
 
 def record_path(infosource, kind, name, version, arch):
-    # 1.0 起索引是单一命名空间：记录就在仓库根下 <名>/_<名>@<版本>.macos-<arch>
+    # 0.1.0 起索引是单一命名空间：记录就在仓库根下 <名>/_<名>@<版本>.macos-<arch>
     tag = platforminfo.bottle_tag(arch)
     return infosource / name / f"_{name}@{version}.{tag}"
 
@@ -107,7 +107,7 @@ def main():
     args = parser.parse_args()
 
     if not (args.infosource / "pkg" / "pkginfo").is_dir():
-        print(f"🌊 Error: {args.infosource} does not look like the 1.0 index "
+        print(f"🌊 Error: {args.infosource} does not look like the 0.1.0 index "
               f"(expected pkg/pkginfo/). Run migrate_index_layout.py first.")
         return 1
 

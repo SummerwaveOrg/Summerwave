@@ -90,7 +90,7 @@ case "$ARTIFACT" in
         TREE=1
         tar -xzf "$ARTIFACT" -C "$WORK" || die "cannot extract $ARTIFACT"
         ROOT="$WORK" ;;
-    # 1.0 的重打产物统一是 bz2（prepare_bottle / 源码编都一样）。漏了这一支的话
+    # 0.1.0 的重打产物统一是 bz2（prepare_bottle / 源码编都一样）。漏了这一支的话
     # 压缩包会被当成「单文件产物」，然后在架构与签名上一起报红。
     *.tar.bz2|*.tbz2)
         TREE=1

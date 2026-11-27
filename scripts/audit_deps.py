@@ -133,7 +133,7 @@ def macho_refs(path):
 
 def split_data_path(path):
     # gettext/_gettext@0.21.0.macos-arm64 -> ("dep", "arm64", "gettext@0.21.0")
-    # 1.0 起索引不再按架构分目录，平台与架构编在记录名的后缀里。
+    # 0.1.0 起索引不再按架构分目录，平台与架构编在记录名的后缀里。
     parts = path.split("/")
     kind = "dep" if parts[0] == "deps" else "pkg"
     ref = os.path.basename(path).lstrip("_")
@@ -381,7 +381,7 @@ def resolve_base_dir(base_dir):
 
 
 def dependency_versions(deps_root):
-    # 1.0 起包与依赖同构地放在 Shore/<名>/<版本>/，靠 Note 的 requested 区分。
+    # 0.1.0 起包与依赖同构地放在 Shore/<名>/<版本>/，靠 Note 的 requested 区分。
     # 缺 Note 的按依赖算（老树 / 手装的产物），宁可多查一遍。
     for owner_dir in sorted(deps_root.iterdir()):
         if not owner_dir.is_dir():

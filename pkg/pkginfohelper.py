@@ -38,7 +38,7 @@ def github_api_headers(url):
     return {"Authorization": f"Bearer {token}"}
 
 BASE_DIR = load_base_dir()
-# 1.0 起：所有解开的包与依赖都在 <根>/Shore/<名>/<版本>。
+# 0.1.0 起：所有解开的包与依赖都在 <根>/Shore/<名>/<版本>。
 PAYLOAD = payload_root()
 
 # -------------------- 依赖库检查 --------------------

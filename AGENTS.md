@@ -4,7 +4,7 @@
 
 `CLAUDE.md` 是指向本文件的符号链接 —— Claude Code 读 `CLAUDE.md`，Codex 读 `AGENTS.md`，两者指向同一份内容，改这里就够，不要分别维护。
 
-## 1.0 的约定看哪份文件
+## 0.1.0 的约定看哪份文件
 
 发布 tag 的形状、自更新为什么没有独立仓库、索引与载荷的布局、产物的形状、安装位置、
 域名、构建来源 —— 这些跨仓库的约定**只在** [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md)

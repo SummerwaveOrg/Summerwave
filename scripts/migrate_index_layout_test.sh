@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # migrate_index_layout_test.sh
-# 索引迁移脚本的离线回归：旧布局（pkg/pkginfo_<arch>/…）搬到 1.0 布局
+# 索引迁移脚本的离线回归：旧布局（pkg/pkginfo_<arch>/…）搬到 0.1.0 布局
 # （pkg/pkginfo/<名>/_<名>@<版本>.<os>-<arch>）。
 #
 # 为什么值得单独一条：这一步搬的是**数据仓库**。搬错的后果是「记录还在但客户端看不见」，
@@ -156,7 +156,7 @@ echo "========== 5. 已经搬过的仓库是幂等的 =========="
 
 OUT="$("$PYTHON" "$MIGRATE" --infosource "$CLEAN" 2>&1)"; RC=$?
 check "第二次跑退出码 0" "$RC" "0"
-[[ "$OUT" == *"already in the 1.0 layout"* ]] \
+[[ "$OUT" == *"already in the 0.1.0 layout"* ]] \
     && pass "报告「已经是新布局」" || fail "没识别出已经搬过：$OUT"
 
 echo ""

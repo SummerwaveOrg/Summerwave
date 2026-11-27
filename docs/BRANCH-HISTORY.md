@@ -1,6 +1,6 @@
 # 旧分支去向（MacWave → Summerwave）
 
-Summerwave 仓库从 1.0 重新起步，所以在新的仓库里**没有保留** MacWave 的历史分支。
+Summerwave 仓库从 0.1.0 重新起步，所以在新的仓库里**没有保留** MacWave 的历史分支。
 完整历史仍在旧的只读仓库 `MacWaveOrg/MacWave` 里（分支名未改），下表的 SHA 就是各条线的最后一个提交。
 
 需要看某条旧线：
