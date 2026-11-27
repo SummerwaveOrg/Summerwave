@@ -23,7 +23,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 
 | 环境变量 | 内容 | 默认值 |
 | --- | --- | --- |
-| `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD` |
+| `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD` |
 | `MACWAVE_BOTTLE_DOMAIN` | 预编译二进制包 | `github.com/MacWaveOrg/Bottle/releases/download` |
 | `MACWAVE_DEPS_DOMAIN` | 依赖二进制 | `github.com/MacWaveOrg/Deps/releases/download` |
 | `MACWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/SummerwaveOrg/Summerwave` |
@@ -76,7 +76,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 ### 3.2 索引（infosource）
 
 ```
-<MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD
+<MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD
     pkg/                        注意：ref 段（HEAD）在域名里，不在这里
         pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>   一条记录一个文件
         pkginfo/versions                           一行一个包名（镜像生成）

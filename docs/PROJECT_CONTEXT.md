@@ -11,7 +11,7 @@
 
 - `main` 与版本分支（当前的 `4.1`）：程序代码，两者保持同步
 - `MacWaveOrg/configdata` 仓库的 `main` 分支：**发布线的单一事实来源**（`versiondata/latest_version`：`version` / `release_date` / `branch`）。镜像同步据此决定同步哪些 `core/<分支>/`，工具与人据此知道当前发布线；**客户端不再读它** —— 4.4 起客户端读的是 `MacWaveOrg/Selfupdate` 的探针（`macwavedata/latest.toml`；`preview` 渠道读 `prerelease/latest.toml`），那份文件才决定装哪个版本、从哪个分支取代码、以及要执行的 `update_commands.sh` 的哈希
-- `MacWaveOrg/SeaLane` 仓库的 `main` 分支：纯数据（包与依赖的元数据、下载地址、校验值），依赖数据在 `deps/` 目录下
+- `SummerwaveOrg/SeaLane` 仓库的 `main` 分支：纯数据（包与依赖的元数据、下载地址、校验值），依赖数据在 `deps/` 目录下
 
 ---
 
@@ -141,7 +141,7 @@ BASE_DIR/var/config.sh                        已安装的版本与渠道（唯�
 4.x 的 `bin/<名>@<版本>/`、`deps/…`、`links/` 已经不存在；1.0 的 `apply_migrations`
 只做一件事：把这些旧目录搬进 `Shore/`。
 
-## 四、数据源（`MacWaveOrg/SeaLane` 仓库）
+## 四、数据源（`SummerwaveOrg/SeaLane` 仓库）
 
 软件包：
 
@@ -257,7 +257,7 @@ links/*           → bin/（无版本号的软链接）
 | --- | --- | --- |
 | 1 | `lib/wave.py` | 取写死的安装根并把 `cli/`、`config/`、`lib/`、`net/`、`pkg/`、`surfboard/` 注入 `sys.path`；按 `COMMANDS` 字典把 `install` 分发给 `pkginstaller.handle_install("wave install wget@1.25.0")` |
 | 2 | `pkg/pkginstaller.py` | 解析下载参数（`-v` / `-C` / `--skip-ssl` / `--limit-rate` / `--proxy`，白名单校验）；解析包名与架构 |
-| 3 | `pkg/pkginstaller.py` | 定版本：`@版本号` → `--ver` → 都没有则调 `fetch_max_version()`（GitHub API，`MacWaveOrg/SeaLane` 仓库的 main，带 `?ref=main`） |
+| 3 | `pkg/pkginstaller.py` | 定版本：`@版本号` → `--ver` → 都没有则调 `fetch_max_version()`（GitHub API，`SummerwaveOrg/SeaLane` 仓库的 main，带 `?ref=main`） |
 | 4 | `pkg/pkginstaller.py` | 拉 `_wget@common`，解析出 `bin_name`（缺失即报错） |
 | 5 | `pkg/pkginstaller.py` | 拉 `_wget@1.25.0.macos-arm64`（记录名带瓶子标签），解析出 `url` / `sha256` / **`deps`**（多行，向上回溯的 DSL 解析）；校验 `url` 必须是 https |
 | 6 | `pkg/pkginstaller.py` | `download_file()` 下载到 `downloads/tmp/`（rich 进度条、`.partial` + 断点续传、限速、代理、30 秒超时后询问重试），完成后去掉 `.partial` 后缀 |

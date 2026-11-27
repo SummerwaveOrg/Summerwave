@@ -139,7 +139,7 @@ Warning: 1 library reference(s) exist in this installation but could not be link
 ### 5. 依赖数据：`--ver` / 版本 / 路径全链路
 
 - 依赖产物 URL 曾经在 `surfboard/depsinfo_<arch>/` 下，3.0 起搬到独立仓库
-  `MacWaveOrg/SeaLane` 的 `deps/depsinfo/`（1.0 起不再按架构分目录）。
+  `SummerwaveOrg/SeaLane` 的 `deps/depsinfo/`（1.0 起不再按架构分目录）。
   **改数据前先确认改的是哪个仓库** ——
   我在这上面推错过一次（MacWave 仓库里还留着一个旧结构的 `SeaLane` 分支镜像）。
 - `tmux@3.6` 的二进制需要 `_tiparm_s`，而 infosource 里的 `ncurses@6.4`（只有

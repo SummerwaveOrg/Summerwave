@@ -292,7 +292,7 @@ wave uninstall <包名>          # 卸得掉，不带版本号的链接被清掉
 用索引把**两份内容一次生成**：
 
 ```bash
-cd ~/Projects/MacWaveOrg/SeaLane
+cd ~/Projects/SummerwaveOrg/SeaLane
 python3 - <<'PY'
 import re, pathlib
 
@@ -371,7 +371,7 @@ PY
 
 ```bash
 # 索引 + 它的 README
-cd ~/Projects/MacWaveOrg/SeaLane && git add -A && git commit -m "Add <包名>" && git push origin main
+cd ~/Projects/SummerwaveOrg/SeaLane && git add -A && git commit -m "Add <包名>" && git push origin main
 
 # MacWave 的两份 README
 cd ~/Projects/SummerwaveOrg/Summerwave && git add README.md README.zh-Hans.md && git commit -m "List <包名>" && git push origin <分支>
@@ -664,7 +664,7 @@ Options: …            ← 跑起来了
 
 ```bash
 # 索引里的记录数与产物数应当对得上
-ls ~/Projects/MacWaveOrg/SeaLane/pkg/pkginfo | grep -vc "^test_"
+ls ~/Projects/SummerwaveOrg/SeaLane/pkg/pkginfo | grep -vc "^test_"
 gh release list -R MacWaveOrg/Bottle --limit 100 | wc -l
 ```
 

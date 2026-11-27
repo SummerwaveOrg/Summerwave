@@ -166,7 +166,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 ```
 
 **只有 `infosource/` 在地址里多一层 ref，其余都没有。** 这不是设计不一致而是跟着上游
-地址走的：`SeaLane` 的默认地址是 `…/MacWaveOrg/SeaLane/HEAD`（`HEAD` 是默认分支的
+地址走的：`SeaLane` 的默认地址是 `…/SummerwaveOrg/SeaLane/HEAD`（`HEAD` 是默认分支的
 别名），`selfupdate` / `python` 的默认地址以 `/main` 结尾、客户端拼路径时不再接 ref，
 `core` 拼的是分支名。
 
@@ -207,7 +207,7 @@ ls /www/wwwroot/mirror.repohub.top/MacWave/
 
 ```bash
 git clone --depth 1 https://github.com/SummerwaveOrg/Summerwave /tmp/summerwave-src
-git clone --depth 1 https://github.com/MacWaveOrg/SeaLane /tmp/infosource
+git clone --depth 1 https://github.com/SummerwaveOrg/SeaLane /tmp/infosource
 
 python3 /tmp/macwave-src/scripts/sync_payloads.py \
   --infosource /tmp/infosource \
@@ -505,7 +505,7 @@ rm -rf /www/wwwroot/mirror.repohub.top/MacWave/python/.git
 
 | 目标 | 来源 | 处理 |
 | --- | --- | --- |
-| `infosource/HEAD/` | `MacWaveOrg/SeaLane` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
+| `infosource/HEAD/` | `SummerwaveOrg/SeaLane` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
 | `selfupdate/` | `MacWaveOrg/Selfupdate` 的 `main` | 同上 |
 | `python/` | `MacWaveOrg/Python` 的 `main` | 同上 |
 | `core/<分支>/` | `SummerwaveOrg/Summerwave` 的对应分支 | 同上；分支表 = `configdata` 的当前发布线 + `KEEP_BRANCHES` |

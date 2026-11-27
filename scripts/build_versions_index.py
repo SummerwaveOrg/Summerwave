@@ -73,7 +73,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate the versions lists that a mirror has to serve.")
     parser.add_argument("--infosource", required=True, type=Path,
-                        help="path to a checkout of MacWaveOrg/SeaLane (written in place)")
+                        help="path to a checkout of SummerwaveOrg/SeaLane (written in place)")
     parser.add_argument("--mirror", required=True, type=Path,
                         help="mirror root; its bottle/ and deps/ subtrees decide what gets listed")
     args = parser.parse_args()

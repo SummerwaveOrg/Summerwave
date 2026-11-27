@@ -35,7 +35,7 @@ MacWave is a **package manager for macOS**, built to distribute the command-line
 3. **Versioned by design.** Every binary lives under `package@version`, so several versions coexist and none of them shadow a system tool.
 4. **Optional unversioned links.** `wave link <package>` creates a plain `package` shortcut that points at the highest installed version and re-points itself whenever versions are installed or removed.
 5. **Isolated by construction.** Everything MacWave installs stays inside its own directories; it never overwrites or links against macOS system libraries, so even a major macOS upgrade leaves it intact.
-6. **No stale metadata.** Package data is read from the `MacWaveOrg/SeaLane` repository at request time.
+6. **No stale metadata.** Package data is read from the `SummerwaveOrg/SeaLane` repository at request time.
 7. **Ten archive formats, covered by CI.** Extensionless binaries, `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.gz`, `.xz`, `.bz2`, and `.conda`.
 8. **Checksum before extraction.** A package whose SHA256 is missing or does not match is refused, never installed with a warning.
 9. **Resumable downloads.** An interrupted transfer continues with `-C`.
@@ -583,7 +583,7 @@ install a throwaway copy under a temporary root, or run the scripts in
 | Repository | Holds |
 | --- | --- |
 | `SummerwaveOrg/Summerwave` | The program itself |
-| `MacWaveOrg/SeaLane` | The package index, one directory per package and architecture |
+| `SummerwaveOrg/SeaLane` | The package index, one directory per package and architecture |
 | `MacWaveOrg/configdata` | The published version, the updater's file list, and the bundled interpreter |
 
 ### Source layout

@@ -42,11 +42,11 @@ import domains
 
 checks = [
     ("索引 @common", f"{domains.api_domain()}/pkg/pkginfo/jq/_jq@common",
-     "https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD/pkg/pkginfo/jq/_jq@common"),
+     "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/pkg/pkginfo/jq/_jq@common"),
     ("索引版本文件", f"{domains.api_domain()}/pkg/pkginfo/jq/_jq@1.7.1",
-     "https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD/pkg/pkginfo/jq/_jq@1.7.1"),
+     "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/pkg/pkginfo/jq/_jq@1.7.1"),
     ("依赖索引", f"{domains.api_domain()}/deps/depsinfo/libidn2/_libidn2@common",
-     "https://raw.githubusercontent.com/MacWaveOrg/SeaLane/HEAD/deps/depsinfo/libidn2/_libidn2@common"),
+     "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/deps/depsinfo/libidn2/_libidn2@common"),
     ("版本指针", domains.selfupdate_latest_url(),
      "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/macwavedata/latest.toml"),
     ("预发布版本指针", domains.selfupdate_prerelease_latest_url(),
@@ -60,9 +60,9 @@ checks = [
     ("解释器归档", domains.python_archive_url("3.14.9", "cpython-aarch64.tar.gz"),
      "https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD/pythondata/3.14.9/cpython-aarch64.tar.gz"),
     ("列版本", domains.index_list_url("jq"),
-     "https://api.github.com/repos/MacWaveOrg/SeaLane/contents/pkg/pkginfo/jq?ref=HEAD"),
+     "https://api.github.com/repos/SummerwaveOrg/SeaLane/contents/pkg/pkginfo/jq?ref=HEAD"),
     ("列软件包", domains.index_list_url(),
-     "https://api.github.com/repos/MacWaveOrg/SeaLane/contents/pkg/pkginfo?ref=HEAD"),
+     "https://api.github.com/repos/SummerwaveOrg/SeaLane/contents/pkg/pkginfo?ref=HEAD"),
 ]
 
 print(f"  {len(checks)} 项")

@@ -153,7 +153,7 @@ def sync_one(job, out_dir, overwrite, source):
 def main():
     parser = argparse.ArgumentParser(description="Fetch and lay out 4.0 payloads.")
     parser.add_argument("--infosource", required=True, type=Path,
-                        help="path to a checkout of MacWaveOrg/SeaLane")
+                        help="path to a checkout of SummerwaveOrg/SeaLane")
     parser.add_argument("--out", required=True, type=Path,
                         help="output tree; its bottle/ and deps/ subdirs are what a mirror serves")
     parser.add_argument("--kinds", default="bottle,deps",

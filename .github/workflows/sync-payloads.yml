@@ -29,7 +29,7 @@ on:
         type: boolean
         default: true
       infosource_ref:
-        description: "Branch or tag of MacWaveOrg/SeaLane to read (empty = main)"
+        description: "Branch or tag of SummerwaveOrg/SeaLane to read (empty = main)"
         default: ""
       probe_sha:
         description: "Report the real sha256 of records whose sha256 is all zeros"
@@ -58,7 +58,7 @@ jobs:
       - name: Checkout infosource
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/SeaLane
+          repository: SummerwaveOrg/SeaLane
           ref: ${{ github.event.inputs.infosource_ref || 'main' }}
           path: SeaLane-data
 

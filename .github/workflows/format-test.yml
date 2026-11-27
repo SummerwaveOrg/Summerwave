@@ -30,7 +30,7 @@ jobs:
       - name: Checkout infosource data
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/SeaLane
+          repository: SummerwaveOrg/SeaLane
           ref: main
           path: SeaLane-data
 
@@ -336,7 +336,7 @@ jobs:
       - name: Checkout infosource data
         uses: actions/checkout@v7
         with:
-          repository: MacWaveOrg/SeaLane
+          repository: SummerwaveOrg/SeaLane
           ref: main
           path: SeaLane-data
 

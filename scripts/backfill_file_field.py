@@ -80,7 +80,7 @@ def backfill(path, write):
 def main():
     parser = argparse.ArgumentParser(description="Add the file field 4.0 needs to index records.")
     parser.add_argument("--data-dir", required=True, type=Path,
-                        help="path to a checkout of MacWaveOrg/SeaLane")
+                        help="path to a checkout of SummerwaveOrg/SeaLane")
     parser.add_argument("--write", action="store_true",
                         help="write the changes (default: report only)")
     args = parser.parse_args()

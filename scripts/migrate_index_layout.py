@@ -22,7 +22,7 @@
 #
 # 用法：
 #   # 只看计划（默认，什么都不改）
-#   python3 scripts/migrate_index_layout.py --infosource ~/Projects/MacWaveOrg/SeaLane
+#   python3 scripts/migrate_index_layout.py --infosource ~/Projects/SummerwaveOrg/SeaLane
 #
 #   # 真的搬索引记录（产物改名仍然只打印）
 #   python3 scripts/migrate_index_layout.py --infosource … --apply
@@ -318,7 +318,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Migrate an infosource checkout to the 1.0 index layout.")
     parser.add_argument("--infosource", required=True, type=Path,
-                        help="path to a checkout of MacWaveOrg/SeaLane (modified in place with --apply)")
+                        help="path to a checkout of SummerwaveOrg/SeaLane (modified in place with --apply)")
     parser.add_argument("--os", default="macos", choices=list(platforminfo.BOTTLE_OSES),
                         help="platform the payloads belong to (default: macos)")
     parser.add_argument("--apply", action="store_true",
