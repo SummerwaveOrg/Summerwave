@@ -1959,16 +1959,29 @@ ensure_portable_python() {
         return 0
     fi
 
-    url="https://api.github.com/repos/${MACWAVE_PYTHON_REPO:-SummerwaveOrg/Python}/releases/assets/$id"
     archive="$base_dir/downloads/tmp/portable-python-$version.tar.gz"
     mkdir -p "$base_dir/downloads/tmp" 2>/dev/null || true
 
     mw_say_err "🌊 Downloading the bundled Python $version (about 26 MB)..." \
         "🌊 正在下载自带 Python ${version}（约 26 MB）……"
-    # Accept: application/octet-stream 是必须的：少了它 api 会返回 JSON 元数据
-    if ! mw_download "$url" "$archive" 900 "Accept: application/octet-stream"; then
-        echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$url")${RESET}" >&2
-        return 1
+
+    # 两种寻址，不能合并：GitHub 的资产接口只认 asset id（还要 octet-stream
+    # 那个 header），而静态镜像只认文件名。设了 SUMMERWAVE_PYTHON_DOMAIN 就走
+    # <域名>/<文件名>，镜像站把四个 tar.gz 摊平放好即可。
+    python_domain="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-}")"
+    if [[ -n "$python_domain" ]]; then
+        url="$python_domain/$filename"
+        if ! mw_download "$url" "$archive" 900; then
+            echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$url")${RESET}" >&2
+            return 1
+        fi
+    else
+        url="https://api.github.com/repos/${MACWAVE_PYTHON_REPO:-SummerwaveOrg/Python}/releases/assets/$id"
+        # Accept: application/octet-stream 是必须的：少了它 api 会返回 JSON 元数据
+        if ! mw_download "$url" "$archive" 900 "Accept: application/octet-stream"; then
+            echo -e "${YELLOW}🌊 Could not download the bundled Python from $(mw_redact "$url")${RESET}" >&2
+            return 1
+        fi
     fi
 
     actual="$(mw_sha256 "$archive")"

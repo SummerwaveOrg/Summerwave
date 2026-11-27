@@ -240,7 +240,7 @@ def _asset_ids(tag):
     """
     url = f"{domains.release_api_base()}/releases/tags/{tag}"
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=30, **tls.urlopen_kwargs()) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return {asset.get("name"): asset.get("id") for asset in payload.get("assets", [])}
 
@@ -255,7 +255,8 @@ def _download_asset(asset_id, destination):
     request = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
     part = destination + ".part"
     try:
-        with urllib.request.urlopen(request, timeout=600) as response, open(part, "wb") as out:
+        with urllib.request.urlopen(request, timeout=600, **tls.urlopen_kwargs()) as response, \
+                open(part, "wb") as out:
             shutil.copyfileobj(response, out)
         os.replace(part, destination)
     except BaseException:

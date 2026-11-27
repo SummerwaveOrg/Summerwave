@@ -19,6 +19,31 @@ mirror.repohub.top/MacWave       宝塔 + nginx，纯静态文件树
 
 三段的职责不能混：**抓上游只在 Actions 里做**，香港只负责「复制 + 服务」，用户的机器只读镜像。
 
+## 每一个联网的地方都能指向镜像
+
+客户端只从这几处取东西，每一处都有一个环境变量，设了就整体改道——没有哪一处
+偷偷回落到 GitHub（`scripts/check_domain_defaults.py` 会盯着 shell 里内联的那两份）。
+
+| 取什么 | 环境变量 | 镜像上放成 |
+|---|---|---|
+| 索引记录（`_<名>@<版本>`、`_<名>@common`） | `SUMMERWAVE_API_DOMAIN` | 与 Sealane 仓库根同构 |
+| 列包名 / 列版本 | 同上 | `<api>/versions`、`<api>/<名>/versions` |
+| 包载荷 | `SUMMERWAVE_BOTTLE_DOMAIN` | `<包名>/<文件名>` |
+| 依赖载荷 | `SUMMERWAVE_DEPS_DOMAIN` | `<依赖名>/<文件名>` |
+| MacWave 自身的文件 | `SUMMERWAVE_CORE_DOMAIN` | `<版本>/<路径>` |
+| 自更新（发布列表、install.sh 与其签名） | `SUMMERWAVE_RELEASE_DOMAIN` | `…/releases/latest`、`…/releases/tags/<tag>`、`…/releases/assets/<id>` |
+| 自带 CPython | `SUMMERWAVE_PYTHON_DOMAIN` | `<文件名>`（摊平放四个 tar.gz） |
+| pip | `MACWAVE_PIP_INDEX` | 一个 PEP 503 索引 |
+
+两处**不能**靠静态镜像顶替，所以另有取舍：
+
+- **列包名 / 列版本**走 GitHub 的 contents API，镜像顶不了那台机器；设了
+  `SUMMERWAVE_API_DOMAIN` 之后客户端改读镜像自己产出的 `<api>/versions` 与
+  `<api>/<名>/versions`（一行一个名字）。
+- **自带 CPython** 默认按 Release 的 asset id 取（那条路 302 到 CDN）。asset id
+  是 GitHub 才有的东西，静态站无从对应，所以设了 `SUMMERWAVE_PYTHON_DOMAIN`
+  之后改成按**文件名**取。
+
 ## 为什么根目录是 `MacWave/` 而不是整个域名
 
 域名顶层留给别的产品。LinuxWave 很可能也要镜像站，那时它用 `mirror.repohub.top/LinuxWave`，

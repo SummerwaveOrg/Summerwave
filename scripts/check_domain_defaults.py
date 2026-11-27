@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 # shell 只需要这三个（索引与二进制都在 Python 侧取）。
-SHELL_KINDS = ("core",)  # 只有 core 还在 shell 里取文件；python 与自更新数据都已移出
+SHELL_KINDS = ("core", "python")  # shell 里取的两样：核心树、自带解释器
 
 SHELL_FILES = ("lib/install.sh",)  # lib/selfupdate.sh 已在 0.1.0 换轨时删除
 

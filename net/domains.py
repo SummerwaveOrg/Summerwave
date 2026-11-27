@@ -319,11 +319,6 @@ def release_list_url(per_page=30):
     return f"{release_api_base()}/releases?per_page={per_page}"
 
 
-def release_tarball_url(tag):
-    """某个 tag 的源码包。0.1.0 的安装/自更新就是「取这一份、整树同步」。"""
-    return f"https://github.com/{RELEASE_REPO}/archive/refs/tags/{quote(tag, safe='')}.tar.gz"
-
-
 # -------------------- 自带解释器 --------------------
 #
 # 这里**没有**域名：便携 CPython 的版本、文件名、sha256 与 Release asset id 全部由

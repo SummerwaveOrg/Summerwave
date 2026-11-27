@@ -66,6 +66,13 @@ DOMAINS = {
         "SUMMERWAVE_RELEASE_DOMAIN",
         "https://api.github.com/repos/SummerwaveOrg/Summerwave",
         "the release list that says which version is current"),
+    # 自带 CPython。默认空：空表示从 GitHub Release 的资产接口按 asset id 取
+    # （那条路 302 到 CDN，实测 5 MB/s）。设了就走镜像，按文件名取
+    # <域名>/<文件名> —— 静态站无法接受 asset id 寻址，所以两种模式不能合并。
+    "python": Domain(
+        "SUMMERWAVE_PYTHON_DOMAIN",
+        "",
+        "the bundled CPython archive, addressed by file name"),
 }
 
 # pip 的索引。不在 DOMAINS 里：它不是「MacWave 的数据源」，没有协议校验，

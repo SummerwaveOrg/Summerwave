@@ -45,20 +45,18 @@ checks = [
      "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/jq/_jq@common"),
     ("索引版本文件", f"{domains.api_domain()}/jq/_jq@1.7.1",
      "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/jq/_jq@1.7.1"),
-    ("依赖索引", f"{domains.api_domain()}/deps/depsinfo/libidn2/_libidn2@common",
-     "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/deps/depsinfo/libidn2/_libidn2@common"),
-    ("发布列表", domains.release_latest_url(),
-     "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/macwavedata/latest.toml"),
-    ("预发布版本指针", domains.selfupdate_prerelease_latest_url(),
-     "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/prerelease/latest.toml"),
-    ("更新脚本", domains.selfupdate_commands_url("4.0.0"),
-     "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD/macwavedata/4.0.0/update_commands.sh"),
-    ("解释器指针", domains.python_latest_url(),
-     "https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD/pythondata/latest.toml"),
-    ("解释器各架构", domains.python_url_toml_url("3.14.9"),
-     "https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD/pythondata/3.14.9/python_url.toml"),
-    ("解释器归档", domains.python_archive_url("3.14.9", "cpython-aarch64.tar.gz"),
-     "https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD/pythondata/3.14.9/cpython-aarch64.tar.gz"),
+    ("依赖索引", f"{domains.api_domain()}/depsinfo/libidn2/_libidn2@common",
+     "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD/depsinfo/libidn2/_libidn2@common"),
+    ("发布接口", domains.release_latest_url(),
+     "https://api.github.com/repos/SummerwaveOrg/Summerwave/releases/latest"),
+    ("发布列表", domains.release_list_url(),
+     "https://api.github.com/repos/SummerwaveOrg/Summerwave/releases?per_page=30"),
+    ("载荷（包）", domains.bottle_domain(),
+     "https://github.com/SummerwaveOrg/Bottle/releases/download"),
+    ("载荷（依赖）", domains.deps_domain(),
+     "https://github.com/SummerwaveOrg/Bottle/releases/download"),
+    ("自身文件", domains.core_domain(),
+     "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave"),
     ("列版本", domains.index_list_url("jq"),
      "https://api.github.com/repos/SummerwaveOrg/SeaLane/contents/jq?ref=HEAD"),
     ("列软件包", domains.index_list_url(),
@@ -72,7 +70,7 @@ for name, got, want in bad:
 raise SystemExit(1 if bad else 0)
 PY
 then
-    pass "${CHECKS} 个默认地址与预期逐字一致"
+    pass "默认地址与预期逐字一致"
 else
     fail "默认地址与预期不一致"
 fi
