@@ -342,7 +342,7 @@ MacWave 装完之后，机器上会有两类目录：**代码树**（安装根�
 | `Python` | `pythondata/<版本>/python_url.toml` | 各架构的上游地址与校验值 |
 | `Python` | `pythondata/<版本>/<上游同名文件>` | 我们自己托管的那份字节 |
 
-`Selfupdate` 用 `MACWAVE_SELFUPDATE_DOMAIN`、`Python` 用 `MACWAVE_PYTHON_DOMAIN`。
+`Selfupdate` 用 `SUMMERWAVE_SELFUPDATE_DOMAIN`、`Python` 用 `SUMMERWAVE_PYTHON_DOMAIN`。
 两者分开是因为体积与发布节奏不同：一个几十字节，一个每架构约 26 MB。
 
 `update_commands.sh` 同时取代了 3.x 的 `files_info`（缩进树清单）与 `updatedata/`

@@ -21,10 +21,12 @@ SHELL_KINDS = ("core", "selfupdate", "python")
 
 SHELL_FILES = ("lib/install.sh", "lib/selfupdate.sh")
 
-# shell 里「变量名 + 默认值」的写法：${MACWAVE_CORE_DOMAIN:-https://…}
+# shell 里「变量名 + 默认值」的写法：${SUMMERWAVE_CORE_DOMAIN:-https://…}
 DEFAULT_RE = r'\$\{%s:-([^}"]*)\}'
-# 任何 MACWAVE_*_DOMAIN 的出现（用来发现表上没有的名字）
-ANY_DOMAIN_RE = re.compile(r"MACWAVE_[A-Z0-9_]*_DOMAIN")
+# 任何 SUMMERWAVE_*_DOMAIN 的出现（用来发现表上没有的名字）。
+# 用户 export 的那一层是品牌名（1.0 起从 MACWAVE_ 改成 SUMMERWAVE_）；路径与
+# /opt/macwave 这类**不归用户输入**的名字仍然是 macwave，两者刻意不一致。
+ANY_DOMAIN_RE = re.compile(r"SUMMERWAVE_[A-Z0-9_]*_DOMAIN")
 
 
 def main():
@@ -67,10 +69,10 @@ def main():
             print(f"  {script}: {found} 不在 config/envvar.py 里（拼错或没有登记）")
             problems += 1
 
-    # 名字本身也要对得上：shell 只认 MACWAVE_*_DOMAIN 这种形状
+    # 名字本身也要对得上：shell 只认 SUMMERWAVE_*_DOMAIN 这种形状
     for kind in envvar.kinds():
         name = envvar.name(kind)
-        if not (name.startswith("MACWAVE_") and name.endswith("_DOMAIN")):
+        if not (name.startswith("SUMMERWAVE_") and name.endswith("_DOMAIN")):
             print(f"  envvar: {kind} 的变量名 {name} 不像一个域名变量")
             problems += 1
 

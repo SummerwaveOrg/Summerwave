@@ -8,12 +8,12 @@
 # 变成一件需要能整体替换的事 —— 换镜像、换存储后端、换 CDN 都只改环境变量。
 #
 #   | 变量                          | 含义                                     |
-#   | MACWAVE_API_DOMAIN            | 索引（软件包与依赖的元数据）              |
-#   | MACWAVE_BOTTLE_DOMAIN         | 预编译二进制包（Bottle）                  |
-#   | MACWAVE_DEPS_DOMAIN           | 依赖的二进制包                            |
-#   | MACWAVE_CORE_DOMAIN           | MacWave 自身文件                          |
-#   | MACWAVE_PYTHON_DOMAIN         | 独立 CPython 解释器                       |
-#   | MACWAVE_SELFUPDATE_DOMAIN     | 自更新信息（版本号、文件清单、迁移脚本）   |
+#   | SUMMERWAVE_API_DOMAIN            | 索引（软件包与依赖的元数据）              |
+#   | SUMMERWAVE_BOTTLE_DOMAIN         | 预编译二进制包（Bottle）                  |
+#   | SUMMERWAVE_DEPS_DOMAIN           | 依赖的二进制包                            |
+#   | SUMMERWAVE_CORE_DOMAIN           | MacWave 自身文件                          |
+#   | SUMMERWAVE_PYTHON_DOMAIN         | 独立 CPython 解释器                       |
+#   | SUMMERWAVE_SELFUPDATE_DOMAIN     | 自更新信息（版本号、文件清单、迁移脚本）   |
 #
 # 名字与默认值**不在这里**，在 config/envvar.py —— 那是唯一一处。
 # 默认值仍是 3.x 在用的地址，所以一个都不设时行为与 3.x 完全一致。
@@ -137,7 +137,7 @@ def index_list_url(package_name=None):
     # 「列出版本 / 列出软件包」这件事目前走 GitHub 的 contents API，它属于
     # api.github.com，与索引本身的地址不是一台机器，镜像站无法等价提供。
     #
-    # 所以：设了 MACWAVE_API_DOMAIN（也就是在用镜像）时，要求镜像自己提供一份清单——
+    # 所以：设了 SUMMERWAVE_API_DOMAIN（也就是在用镜像）时，要求镜像自己提供一份清单——
     #   <api>/versions              → 一行一个包名
     #   <api>/<包名>/versions        → 一行一个版本号
     # 1.0 起索引是**单一命名空间放在仓库根**：包与依赖不分开，平台与架构编进记录名
@@ -155,7 +155,7 @@ def index_list_url(package_name=None):
     # ref=HEAD 而不是 ref=main：HEAD 解析为默认分支，改默认分支名不必回来改这里。
     # 返回的是 contents API 的 JSON 数组，与镜像那份纯文本由 listing_names 统一。
     url = f"https://api.github.com/repos/SummerwaveOrg/SeaLane/contents{suffix}?ref=HEAD"
-    steplog.detail("listing source: GitHub API (MACWAVE_API_DOMAIN not set)")
+    steplog.detail("listing source: GitHub API (SUMMERWAVE_API_DOMAIN not set)")
     return url
 
 

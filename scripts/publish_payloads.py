@@ -90,7 +90,7 @@ def ensure_release(repo, tag, write):
          "--title", tag,
          "--notes", f"Payloads for `{tag}`.\n\n"
                     f"Served to MacWave 4.0 clients as "
-                    f"`<MACWAVE_BOTTLE_DOMAIN or MACWAVE_DEPS_DOMAIN>/{tag}/<file>`.\n"
+                    f"`<SUMMERWAVE_BOTTLE_DOMAIN or SUMMERWAVE_DEPS_DOMAIN>/{tag}/<file>`.\n"
                     f"Assets are byte-for-byte copies of the upstream artifacts; "
                     f"their checksums are recorded in the `infosource` index.\n"
                     f"Nothing here is ever replaced: a rebuild gets a new version suffix."])

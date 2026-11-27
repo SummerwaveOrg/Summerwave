@@ -67,7 +67,7 @@ run_install() {
     local root="$WORK/$1"; shift
     mkdir -p "$root"
     OUT=$(MACWAVE_TEST="$root" \
-          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+          SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
     RC=$?
 }
@@ -95,7 +95,7 @@ fi
 # 它也必须能照常打出用法。这条是结构保证，不是巧合 —— 早先的写法是先取版本、
 # 再解析参数，`--help` 在断网机器上会直接报「读不到版本号」。
 OUT=$(MACWAVE_TEST="$WORK/help-offline" \
-      MACWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
+      SUMMERWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
       /bin/bash "$INSTALL_SH" --help < /dev/null 2>&1)
 RC=$?
 if [[ "$RC" -eq 0 ]] && has "$OUT" "Usage:" && hasnt "$OUT" "Cannot read the latest version"; then
@@ -204,7 +204,7 @@ mklinux() {
     # mklinux [参数...]：在「Linux 宿主」下跑一次，输出进 OUT，退出码进 RC
     rm -rf "$WORK/linux-root"
     OUT=$(PATH="$STUB_BIN:$PATH" \
-          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+          SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
     RC=$?
 }
@@ -248,7 +248,7 @@ fi
 
 # 沙箱里宿主是 Linux 完全正常：MACWAVE_TEST 一设，守卫就放行。
 OUT=$(MACWAVE_TEST="$WORK/linux-sandbox" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+      SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
       PATH="$STUB_BIN:$PATH" \
       /bin/bash "$INSTALL_SH" --dry-run < /dev/null 2>&1)
 RC=$?
@@ -267,7 +267,7 @@ run_lang() {
     local lang="$1"; shift
     OUT=$(env -u MACWAVE_LANG -u LC_ALL -u LC_MESSAGES LANG="$lang" \
           MACWAVE_TEST="$WORK/lang-$lang" \
-          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+          SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
     RC=$?
 }
@@ -311,7 +311,7 @@ fi
 # MACWAVE_LANG 是调用方（update_commands.sh / CI）给的，优先级最高
 OUT=$(env -u LC_ALL -u LC_MESSAGES LANG=en_US.UTF-8 MACWAVE_LANG=zh \
       MACWAVE_TEST="$WORK/lang-env" \
-      MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+      SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
       /bin/bash "$INSTALL_SH" --help < /dev/null 2>&1)
 RC=$?
 if [[ "$RC" -eq 0 ]] && has "$OUT" "用中文输出"; then
@@ -346,7 +346,7 @@ write_sw_vers() {
 run_bare() {
     # run_bare [参数...]：不设 MACWAVE_TEST，平台判断才会真的跑起来
     OUT=$(PATH="$STUB_BIN:$PATH" MACWAVE_SW_VERS="$STUB_BIN/sw_vers" \
-          MACWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
+          SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SELFUPDATE_DIR" \
           /bin/bash "$INSTALL_SH" "$@" < /dev/null 2>&1)
     RC=$?
 }

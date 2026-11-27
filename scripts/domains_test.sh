@@ -80,8 +80,8 @@ fi
 echo
 echo "========== 2. 环境变量覆盖与规范化 =========="
 
-if PYTHONPATH="$PY_PATHS" MACWAVE_API_DOMAIN="https://mirror.example.com/macwave/" \
-     MACWAVE_SELFUPDATE_DOMAIN="https://mirror.example.com/su" python3 - << 'PY'
+if PYTHONPATH="$PY_PATHS" SUMMERWAVE_API_DOMAIN="https://mirror.example.com/macwave/" \
+     SUMMERWAVE_SELFUPDATE_DOMAIN="https://mirror.example.com/su" python3 - << 'PY'
 import domains
 
 ok = True
@@ -104,7 +104,7 @@ fi
 
 # 不合法的值必须在拼地址之前就被拒绝（它们会进 URL，也会进错误信息）
 for bad in "ftp://x.example.com" "http://mirror.example.com" "no-scheme" "https://exa mple.com"; do
-    if PYTHONPATH="$PY_PATHS" MACWAVE_API_DOMAIN="$bad" python3 -c "import domains; domains.api_domain()" > /dev/null 2>&1; then
+    if PYTHONPATH="$PY_PATHS" SUMMERWAVE_API_DOMAIN="$bad" python3 -c "import domains; domains.api_domain()" > /dev/null 2>&1; then
         fail "非法值被接受：$bad"
     else
         pass "非法值被拒绝：$bad"
@@ -112,7 +112,7 @@ for bad in "ftp://x.example.com" "http://mirror.example.com" "no-scheme" "https:
 done
 
 # 本机回环允许明文 http（离线镜像、测试用）
-if PYTHONPATH="$PY_PATHS" MACWAVE_API_DOMAIN="http://127.0.0.1:8080/idx" \
+if PYTHONPATH="$PY_PATHS" SUMMERWAVE_API_DOMAIN="http://127.0.0.1:8080/idx" \
      python3 -c "import domains; assert domains.api_domain() == 'http://127.0.0.1:8080/idx'"; then
     pass "回环地址允许明文 http"
 else

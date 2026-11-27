@@ -122,8 +122,8 @@ MacWave 用到的每个地址都能替换，所以换镜像是一组环境变量
 
 ### 换成镜像站
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 ```
 其余地址继续用官方源，所以镜像站只需要镜像它承载的那部分内容。
 
@@ -134,17 +134,17 @@ export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 上面两行只覆盖大文件的下载。当 `github.com` 与 `raw.githubusercontent.com` 是**连不上**而不是慢的时候，让 MacWave 能跑起来的那几个文件仍然在 GitHub 上：软件包索引、自更新数据、自带解释器、MacWave 自身代码。把它们全部指向镜像：
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
-export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 `MACWAVE_PIP_INDEX` 是唯一不一样的那个：它只影响 `pip` 安装的三个 Python 依赖（`requests`、`toml`、`colorama`），所以可以指向任意 PyPI 镜像。其余六个都是同一个镜像域名下的路径，因此一个账号就能覆盖全部。
-**`MACWAVE_API_DOMAIN` 末尾的 `/HEAD` 不能省。** 镜像按 `<组织>/<仓库>/<ref>/…`
+**`SUMMERWAVE_API_DOMAIN` 末尾的 `/HEAD` 不能省。** 镜像按 `<组织>/<仓库>/<ref>/…`
 布局，`SeaLane` 是一个 git 仓库，所以 ref 那一段必须真实存在一层目录：
 
 ```
@@ -165,12 +165,12 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 cat >> ~/.zshrc <<'MWMIRROR'
 
 # MacWave mirror — 删掉这一块就恢复官方地址
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
-export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 MWMIRROR
 source ~/.zshrc
@@ -195,8 +195,8 @@ source ~/.zshrc
 账号是一组用户名 + 密码，直接写进 URL：
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/bottle"
-export MACWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/deps"
+export SUMMERWAVE_BOTTLE_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/bottle"
+export SUMMERWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/deps"
 ```
 
 要全量的话，同一组凭据分别写进六个路径即可 —— 镜像站六个都提供。
@@ -209,12 +209,12 @@ export MACWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/
 ### 全部变量
 | 变量 | 取什么 | 默认 |
 | --- | --- | --- |
-| `MACWAVE_BOTTLE_DOMAIN` | 预编译软件包 | GitHub Releases |
-| `MACWAVE_DEPS_DOMAIN` | 依赖库 | GitHub Releases |
-| `MACWAVE_API_DOMAIN` | 软件包索引（**末尾要带 ref 段**，如 `/HEAD`） | raw.githubusercontent 上的 `SeaLane` |
-| `MACWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | raw.githubusercontent 上的 `Selfupdate` |
-| `MACWAVE_PYTHON_DOMAIN` | 自带解释器 | raw.githubusercontent 上的 `Python` |
-| `MACWAVE_CORE_DOMAIN` | MacWave 自身文件 | raw.githubusercontent 上的 `MacWave` |
+| `SUMMERWAVE_BOTTLE_DOMAIN` | 预编译软件包 | GitHub Releases |
+| `SUMMERWAVE_DEPS_DOMAIN` | 依赖库 | GitHub Releases |
+| `SUMMERWAVE_API_DOMAIN` | 软件包索引（**末尾要带 ref 段**，如 `/HEAD`） | raw.githubusercontent 上的 `SeaLane` |
+| `SUMMERWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | raw.githubusercontent 上的 `Selfupdate` |
+| `SUMMERWAVE_PYTHON_DOMAIN` | 自带解释器 | raw.githubusercontent 上的 `Python` |
+| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身文件 | raw.githubusercontent 上的 `MacWave` |
 | `MACWAVE_PIP_INDEX` | `pip` 的索引（只影响三个 Python 依赖） | `https://pypi.org/simple` |
 
 变量的值是**包名之前那一段**：客户端会往 bottle / deps 的地址后接 `/<包名>/<包名>@<版本>.<架构><扩展名>`，往其他地址后接 `/pkg/…`、`/macwavedata/…`、`/pythondata/…`。末尾斜杠会被自动去掉，写不写都行。
@@ -224,7 +224,7 @@ export MACWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/
 ### 先验证再用
 ```bash
 curl -o /dev/null -w '%{speed_download} B/s\n' \
-  "$MACWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.arm64"
+  "$SUMMERWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.arm64"
 ```
 能快速下载、并且 `wave install jq` 成功，说明镜像可用。每个产物都会用索引里记录的 SHA-256 校验，所以镜像即使下发了被篡改的字节也会明确失败，而不是悄悄装进系统。
 

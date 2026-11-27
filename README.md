@@ -130,8 +130,8 @@ Every address MacWave contacts is configurable, so switching mirrors is a set of
 
 ### Switch to a mirror
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 ```
 Everything else keeps using the official addresses, so a mirror only needs to carry what it mirrors.
 
@@ -141,17 +141,17 @@ The `MacWave/` segment keeps a mirror's domain shareable: LinuxWave can later li
 Those two lines only cover the bulk downloads. When `github.com` and `raw.githubusercontent.com` are **blocked** rather than slow, the files that let MacWave work at all still come from GitHub: the package index, the self-update data, the bundled interpreter and MacWave's own code. Point all of them at the mirror:
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
-export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 `MACWAVE_PIP_INDEX` is the odd one out: it only affects the three Python dependencies (`requests`, `toml`, `colorama`) that `pip` installs once, so it can point at any PyPI mirror. The other six are paths under one mirror host, which is why a single account covers all of them.
-**The trailing `/HEAD` in `MACWAVE_API_DOMAIN` is required.** A mirror lays files out
+**The trailing `/HEAD` in `SUMMERWAVE_API_DOMAIN` is required.** A mirror lays files out
 as `<org>/<repo>/<ref>/…`, and `SeaLane` is a git repository, so the ref has to be a
 real directory level:
 
@@ -173,12 +173,12 @@ version list", and so do `wave search` and `wave latest`), not just one. The oth
 cat >> ~/.zshrc <<'MWMIRROR'
 
 # MacWave mirror — delete this block to go back to the official addresses
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
-export MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 MWMIRROR
 source ~/.zshrc
@@ -205,8 +205,8 @@ to ask for a username and password.
 The credentials go straight into the URL:
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/bottle"
-export MACWAVE_DEPS_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/deps"
+export SUMMERWAVE_BOTTLE_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/bottle"
+export SUMMERWAVE_DEPS_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/deps"
 ```
 
 The same credentials go into each of the six paths when you want the full set — the mirror serves all of them.
@@ -219,12 +219,12 @@ The same credentials go into each of the six paths when you want the full set �
 ### The full set
 | Variable | What it fetches | Default |
 | --- | --- | --- |
-| `MACWAVE_BOTTLE_DOMAIN` | prebuilt packages | GitHub Releases |
-| `MACWAVE_DEPS_DOMAIN` | dependency libraries | GitHub Releases |
-| `MACWAVE_API_DOMAIN` | package index (**the ref segment is required**, e.g. `/HEAD`) | `SeaLane` on raw.githubusercontent |
-| `MACWAVE_SELFUPDATE_DOMAIN` | self-update data | `Selfupdate` on raw.githubusercontent |
-| `MACWAVE_PYTHON_DOMAIN` | the bundled interpreter | `Python` on raw.githubusercontent |
-| `MACWAVE_CORE_DOMAIN` | MacWave's own files | `MacWave` on raw.githubusercontent |
+| `SUMMERWAVE_BOTTLE_DOMAIN` | prebuilt packages | GitHub Releases |
+| `SUMMERWAVE_DEPS_DOMAIN` | dependency libraries | GitHub Releases |
+| `SUMMERWAVE_API_DOMAIN` | package index (**the ref segment is required**, e.g. `/HEAD`) | `SeaLane` on raw.githubusercontent |
+| `SUMMERWAVE_SELFUPDATE_DOMAIN` | self-update data | `Selfupdate` on raw.githubusercontent |
+| `SUMMERWAVE_PYTHON_DOMAIN` | the bundled interpreter | `Python` on raw.githubusercontent |
+| `SUMMERWAVE_CORE_DOMAIN` | MacWave's own files | `MacWave` on raw.githubusercontent |
 | `MACWAVE_PIP_INDEX` | `pip`'s index (only the three Python deps) | `https://pypi.org/simple` |
 
 A variable's value is the part **before** the package name: the client appends `/<package>/<package>@<version>.<arch><ext>` to the bottle and deps prefixes, and `/pkg/…`, `/macwavedata/…`, `/pythondata/…` to the others.
@@ -234,7 +234,7 @@ The exact tree and naming rules for each kind of data are in [docs/DATA-LAYER.md
 ### Check it before trusting it
 ```bash
 curl -o /dev/null -w '%{speed_download} B/s\n' \
-  "$MACWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.arm64"
+  "$SUMMERWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.arm64"
 ```
 If that downloads quickly and `wave install jq` succeeds, the mirror is good. Every artifact is verified against the SHA-256 recorded in the index, so a mirror that serves altered bytes fails loudly instead of installing something unexpected.
 

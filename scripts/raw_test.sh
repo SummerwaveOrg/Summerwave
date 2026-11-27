@@ -135,11 +135,11 @@ for _ in $(seq 1 40); do
 done
 
 wave() {
-    env -u MACWAVE_DEPS_DOMAIN -u MACWAVE_CORE_DOMAIN -u MACWAVE_SELFUPDATE_DOMAIN \
+    env -u SUMMERWAVE_DEPS_DOMAIN -u SUMMERWAVE_CORE_DOMAIN -u SUMMERWAVE_SELFUPDATE_DOMAIN \
         HOME="$HOME_DIR" \
         MACWAVE_TEST="$TEST_ROOT" \
-        MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
-        MACWAVE_BOTTLE_DOMAIN="http://127.0.0.1:$PORT" \
+        SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+        SUMMERWAVE_BOTTLE_DOMAIN="http://127.0.0.1:$PORT" \
         python3 "$BASE/lib/wave.py" "$@"
 }
 
@@ -265,7 +265,7 @@ install_dry() {
     local root
     root=$(mktemp -d "$WORK/inst.XXXXXX")
     MACWAVE_TEST="$root" \
-        MACWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
+        SUMMERWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
         /bin/bash "$INSTALL_SH" --dry-run "$@" 2>&1
 }
 

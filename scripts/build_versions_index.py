@@ -4,7 +4,7 @@
 #
 # 为「列出版本 / 列出软件包」生成镜像自备的清单。
 #
-# 为什么需要：设了 MACWAVE_API_DOMAIN 之后，客户端不再问 api.github.com，而是读
+# 为什么需要：设了 SUMMERWAVE_API_DOMAIN 之后，客户端不再问 api.github.com，而是读
 #   <api>/versions            一行一个包名
 #   <api>/<包名>/versions     一行一个版本记录文件名
 #                                         （_jq@1.8.2.macos-arm64 —— 平台标签在名字里）
@@ -164,7 +164,7 @@ def main():
         for line in missing:
             print(f"  - {line}")
 
-    print("\n🌊 Done. 现在可以把 MACWAVE_API_DOMAIN 指向这个 infosource 的对外地址。")
+    print("\n🌊 Done. 现在可以把 SUMMERWAVE_API_DOMAIN 指向这个 infosource 的对外地址。")
     return 0
 
 

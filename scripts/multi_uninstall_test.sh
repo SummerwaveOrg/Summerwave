@@ -104,8 +104,8 @@ else
 fi
 
 export MACWAVE_TEST="$ROOT"
-export MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT/infosource"
-export MACWAVE_BOTTLE_DOMAIN="http://127.0.0.1:$PORT/bottle"
+export SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT/infosource"
+export SUMMERWAVE_BOTTLE_DOMAIN="http://127.0.0.1:$PORT/bottle"
 
 run_wave() { "$PYTHON" "$REPO_DIR/lib/wave.py" "$@" </dev/null; }
 

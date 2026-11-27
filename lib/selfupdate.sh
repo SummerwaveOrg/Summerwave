@@ -86,12 +86,12 @@ mw_redact() {
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
 # MacWave 自身文件（后面再拼 /<分支>/<路径>）
-CORE_URL="$(mw_domain MACWAVE_CORE_DOMAIN "${MACWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
+CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自更新数据：版本号、文件清单、目录迁移脚本
-SELFUPDATE_URL="$(mw_domain MACWAVE_SELFUPDATE_DOMAIN "${MACWAVE_SELFUPDATE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD}")"
+SELFUPDATE_URL="$(mw_domain SUMMERWAVE_SELFUPDATE_DOMAIN "${SUMMERWAVE_SELFUPDATE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD}")"
 # 自带 CPython 的清单
 # 解释器单独一个仓库（体积与发布节奏都和自更新数据不同）
-PYTHON_DOMAIN_URL="$(mw_domain MACWAVE_PYTHON_DOMAIN "${MACWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
+PYTHON_DOMAIN_URL="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
 
 # ==========================================
 # 每个请求的超时
@@ -857,7 +857,7 @@ done
 # 一次「系统 Python 从 3.14 升到 3.15，所有命令都报模块缺失」。
 #
 # 自带之后，「用哪个解释器」由 MacWave 自己决定，报错也就能稳定复现。
-# 数据来自 MACWAVE_PYTHON_DOMAIN 的 pythondata/latest.toml，换版本不用改脚本。
+# 数据来自 SUMMERWAVE_PYTHON_DOMAIN 的 pythondata/latest.toml，换版本不用改脚本。
 # 下载失败（网络问题）时回退到系统 python3，安装不会因此中断。
 
 portable_python_arch() {

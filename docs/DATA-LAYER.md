@@ -23,12 +23,12 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 
 | 环境变量 | 内容 | 默认值 |
 | --- | --- | --- |
-| `MACWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD` |
-| `MACWAVE_BOTTLE_DOMAIN` | 预编译二进制包 | `github.com/MacWaveOrg/Bottle/releases/download` |
-| `MACWAVE_DEPS_DOMAIN` | 依赖二进制 | `github.com/MacWaveOrg/Deps/releases/download` |
-| `MACWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/SummerwaveOrg/Summerwave` |
-| `MACWAVE_PYTHON_DOMAIN` | 自带 CPython | `raw.githubusercontent.com/MacWaveOrg/Python/HEAD` |
-| `MACWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | `raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD` |
+| `SUMMERWAVE_API_DOMAIN` | 索引与「列出版本」的清单 | `raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD` |
+| `SUMMERWAVE_BOTTLE_DOMAIN` | 预编译二进制包 | `github.com/MacWaveOrg/Bottle/releases/download` |
+| `SUMMERWAVE_DEPS_DOMAIN` | 依赖二进制 | `github.com/MacWaveOrg/Deps/releases/download` |
+| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身代码（按分支） | `raw.githubusercontent.com/SummerwaveOrg/Summerwave` |
+| `SUMMERWAVE_PYTHON_DOMAIN` | 自带 CPython | `raw.githubusercontent.com/MacWaveOrg/Python/HEAD` |
+| `SUMMERWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | `raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD` |
 
 另有第七个变量 `MACWAVE_PIP_INDEX`，不属于「六类数据」：它覆盖 `pip` 安装
 `requests` / `packaging` / `rich` 时使用的索引，默认 `https://pypi.org/simple`。
@@ -49,7 +49,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 ### 3.1 二进制包（Bottle / Deps）
 
 ```
-<MACWAVE_BOTTLE_DOMAIN>/            ← GitHub Releases 时这里是 .../releases/download
+<SUMMERWAVE_BOTTLE_DOMAIN>/            ← GitHub Releases 时这里是 .../releases/download
     <包名>/
         <包名>@<版本>.<架构><扩展名>
 ```
@@ -76,7 +76,7 @@ shell 侧（`install.sh`、`selfupdate.sh`）有一份逐字对应的副本，�
 ### 3.2 索引（infosource）
 
 ```
-<MACWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD
+<SUMMERWAVE_API_DOMAIN>/           默认 https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD
     pkg/                        注意：ref 段（HEAD）在域名里，不在这里
         pkginfo/<包名>/_<包名>@<版本>.<os>-<arch>   一条记录一个文件
         pkginfo/versions                           一行一个包名（镜像生成）
@@ -119,17 +119,17 @@ min_os: "12.1"
 [`RELEASE-CHECKLIST.md`](./RELEASE-CHECKLIST.md) 第 1 步。
 
 「列出版本 / 列出软件包」目前走 GitHub contents API，它属于 `api.github.com`，与索引不是
-一台机器，镜像站无法等价提供。因此设置了 `MACWAVE_API_DOMAIN` 时要求镜像自己提供清单：
+一台机器，镜像站无法等价提供。因此设置了 `SUMMERWAVE_API_DOMAIN` 时要求镜像自己提供清单：
 
 ```
-<MACWAVE_API_DOMAIN>/pkg/pkginfo/versions             一行一个包名
-<MACWAVE_API_DOMAIN>/pkg/pkginfo/<包名>/versions       一行一条记录名
+<SUMMERWAVE_API_DOMAIN>/pkg/pkginfo/versions             一行一个包名
+<SUMMERWAVE_API_DOMAIN>/pkg/pkginfo/<包名>/versions       一行一条记录名
 ```
 
 ### 3.3 自更新数据（Selfupdate）
 
 ```
-<MACWAVE_SELFUPDATE_DOMAIN>/
+<SUMMERWAVE_SELFUPDATE_DOMAIN>/
     macwavedata/
         latest.toml                 哪个版本是最新的（唯一入口）
         <版本>/
@@ -173,7 +173,7 @@ branch = "1.0"
 ### 3.4 自带解释器（Python）
 
 ```
-<MACWAVE_PYTHON_DOMAIN>/
+<SUMMERWAVE_PYTHON_DOMAIN>/
     pythondata/
         latest.toml                     现在用哪个版本（唯一入口）
         <版本>/
@@ -206,7 +206,7 @@ amd64_sha256 = "600c..."
 ### 3.5 自身代码（core）
 
 ```
-<MACWAVE_CORE_DOMAIN>/<分支>/<仓库内路径>
+<SUMMERWAVE_CORE_DOMAIN>/<分支>/<仓库内路径>
 ```
 
 3.x 与 4.0 相同的 22 个文件：`lib/` 7 个、`pkg/` 8 个、`surfboard/` 7 个。
@@ -236,12 +236,12 @@ amd64_sha256 = "600c..."
 
 | 环境变量 | 站点内目录 | 上游来源 |
 | --- | --- | --- |
-| `MACWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle` | `MacWave/bottle/<包名>/<文件>` | `Bottle` 仓库的全部 Release 资产 |
-| `MACWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps` | `MacWave/deps/<包名>/<文件>` | `Deps` 仓库的全部 Release 资产 |
-| `MACWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource` | `MacWave/infosource/pkg/...` | `SeaLane` 仓库内容 |
-| `MACWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate` | `MacWave/selfupdate/macwavedata/...` | `Selfupdate` 仓库内容 |
-| `MACWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python` | `MacWave/python/pythondata/...` | `Python` 仓库内容 |
-| `MACWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core` | `MacWave/core/<分支>/lib/...` | `MacWave` 仓库各分支 |
+| `SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle` | `MacWave/bottle/<包名>/<文件>` | `Bottle` 仓库的全部 Release 资产 |
+| `SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps` | `MacWave/deps/<包名>/<文件>` | `Deps` 仓库的全部 Release 资产 |
+| `SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/infosource` | `MacWave/infosource/pkg/...` | `SeaLane` 仓库内容 |
+| `SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate` | `MacWave/selfupdate/macwavedata/...` | `Selfupdate` 仓库内容 |
+| `SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python` | `MacWave/python/pythondata/...` | `Python` 仓库内容 |
+| `SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core` | `MacWave/core/<分支>/lib/...` | `MacWave` 仓库各分支 |
 
 `MacWave/` 这一层是为了让同一个镜像域名能被多个产品共用（LinuxWave 将来用
 `/LinuxWave`），所以它不是固定前缀，而是环境变量值的一部分。
@@ -283,20 +283,20 @@ amd64_sha256 = "600c..."
 
 ```bash
 # 1. 版本指针（应等于官方最新版本）
-curl -fsSL "$MACWAVE_SELFUPDATE_DOMAIN/macwavedata/latest.toml"
+curl -fsSL "$SUMMERWAVE_SELFUPDATE_DOMAIN/macwavedata/latest.toml"
 
 # 2. 该版本的更新脚本存在且是合法 shell
-curl -fsSL "$MACWAVE_SELFUPDATE_DOMAIN/macwavedata/<版本>/update_commands.sh" | /bin/bash -n
+curl -fsSL "$SUMMERWAVE_SELFUPDATE_DOMAIN/macwavedata/<版本>/update_commands.sh" | /bin/bash -n
 
 # 3. 索引里的 sha256 与实际文件逐字相同
-curl -fsSL "$MACWAVE_BOTTLE_DOMAIN/<包名>/<包名>%40<版本>.<架构><扩展名>" | shasum -a 256
+curl -fsSL "$SUMMERWAVE_BOTTLE_DOMAIN/<包名>/<包名>%40<版本>.<架构><扩展名>" | shasum -a 256
 
 # 4. 解释器指针
-curl -fsSL "$MACWAVE_PYTHON_DOMAIN/pythondata/latest.toml"
+curl -fsSL "$SUMMERWAVE_PYTHON_DOMAIN/pythondata/latest.toml"
 
 # 5. 首次安装（不碰现有安装）
-MACWAVE_BOTTLE_DOMAIN=... MACWAVE_API_DOMAIN=... \
-MACWAVE_SELFUPDATE_DOMAIN=... MACWAVE_PYTHON_DOMAIN=... MACWAVE_CORE_DOMAIN=... \
+SUMMERWAVE_BOTTLE_DOMAIN=... SUMMERWAVE_API_DOMAIN=... \
+SUMMERWAVE_SELFUPDATE_DOMAIN=... SUMMERWAVE_PYTHON_DOMAIN=... SUMMERWAVE_CORE_DOMAIN=... \
   /bin/bash lib/install.sh
 ```
 

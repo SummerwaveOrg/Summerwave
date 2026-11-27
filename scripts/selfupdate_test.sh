@@ -119,10 +119,10 @@ python3 "$SCRIPT_DIR/build_update_commands.py" \
     --files "${SU_FILES[@]}" \
     --out "$SU_WORK/selfupdate/macwavedata/$SU_VERSION/update_commands.sh" > /dev/null
 
-export MACWAVE_SELFUPDATE_DOMAIN="file://$SU_WORK/selfupdate"
-export MACWAVE_CORE_DOMAIN="file://$SU_WORK/core"
+export SUMMERWAVE_SELFUPDATE_DOMAIN="file://$SU_WORK/selfupdate"
+export SUMMERWAVE_CORE_DOMAIN="file://$SU_WORK/core"
 # 解释器数据不存在时安装器会警告并回退到系统 python3，安装不中断
-export MACWAVE_PYTHON_DOMAIN="file://$SU_WORK/python"
+export SUMMERWAVE_PYTHON_DOMAIN="file://$SU_WORK/python"
 
 # ==========================================
 # 1. 版本数据解析与版本比较（离线，不碰网络）

@@ -31,8 +31,8 @@ import silent
 BASE_DIR = load_base_dir()
 DOWNLOAD_TMP = BASE_DIR / "downloads" / "tmp"
 
-# 依赖的元数据属于索引，跟着 MACWAVE_API_DOMAIN 走；依赖的二进制包本身才跟
-# MACWAVE_DEPS_DOMAIN 走（见 domains.dep_url）。
+# 依赖的元数据属于索引，跟着 SUMMERWAVE_API_DOMAIN 走；依赖的二进制包本身才跟
+# SUMMERWAVE_DEPS_DOMAIN 走（见 domains.dep_url）。
 # 索引是单一命名空间、放在仓库根：依赖记录与软件包记录同一个目录结构，
 # 地址就是 <api>/<名>/_<名>@<版本>.macos-<arch>。
 DEPSINFO_BASE = domains.api_domain()

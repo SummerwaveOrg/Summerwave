@@ -182,7 +182,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 `README.md` 的 `content-length` / `Last-Modified` 与磁盘上的那份：
 
 ```bash
-curl -sI "$MACWAVE_API_DOMAIN/README.md" | grep -iE 'content-length|last-modified'
+curl -sI "$SUMMERWAVE_API_DOMAIN/README.md" | grep -iE 'content-length|last-modified'
 ls -l /www/wwwroot/mirror.repohub.top/MacWave/SeaLane/README.md
 # 两行不一致 = /HEAD 没有指向同步出来的那棵树
 ```
@@ -339,9 +339,9 @@ curl -fsSL https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64 |
 写在**同一条命令的前面**：
 
 ```bash
-MACWAVE_CORE_DOMAIN=https://mirror.repohub.top/MacWave/core \
-MACWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate \
-MACWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
+SUMMERWAVE_CORE_DOMAIN=https://mirror.repohub.top/MacWave/core \
+SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate \
+SUMMERWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
 /bin/bash -c "$(curl -fsSL https://mirror.repohub.top/MacWave/core/lib/install.sh)"
 ```
 
@@ -373,22 +373,22 @@ MACWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
    ```bash
    curl -fsSL -o /tmp/mw-install.sh https://mirror.repohub.top/MacWave/core/lib/install.sh
    less /tmp/mw-install.sh          # 看一眼再执行
-   MACWAVE_CORE_DOMAIN=… /bin/bash /tmp/mw-install.sh
+   SUMMERWAVE_CORE_DOMAIN=… /bin/bash /tmp/mw-install.sh
    ```
 
 这里出现了另外两个变量，含义与前面不同：
 
 | 变量 | 取什么 | 镜像要承载 |
 | --- | --- | --- |
-| `MACWAVE_API_DOMAIN` | 软件包索引与「列出版本」清单 | `<根>/MacWave/infosource/<ref>/…` |
-| `MACWAVE_CORE_DOMAIN` | MacWave 自身的代码（`lib/`、`pkg/`、`surfboard/`） | `<根>/MacWave/core/<分支>/…` |
-| `MACWAVE_PYTHON_DOMAIN` | 自带 CPython（独立仓库） | `<根>/MacWave/python/pythondata/…` |
+| `SUMMERWAVE_API_DOMAIN` | 软件包索引与「列出版本」清单 | `<根>/MacWave/infosource/<ref>/…` |
+| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身的代码（`lib/`、`pkg/`、`surfboard/`） | `<根>/MacWave/core/<分支>/…` |
+| `SUMMERWAVE_PYTHON_DOMAIN` | 自带 CPython（独立仓库） | `<根>/MacWave/python/pythondata/…` |
 
 `infosource/` 底下那层 ref **必须写在变量值里**（MacWave 用 `HEAD`）：
 
 ```
-export MACWAVE_API_DOMAIN=https://<根>/MacWave/sealane/HEAD   ← 正确
-export MACWAVE_API_DOMAIN=https://<根>/MacWave/infosource        ← 错误，全部 404
+export SUMMERWAVE_API_DOMAIN=https://<根>/MacWave/sealane/HEAD   ← 正确
+export SUMMERWAVE_API_DOMAIN=https://<根>/MacWave/infosource        ← 错误，全部 404
 ```
 
 与下面 `core/` 的分支层是同一类坑，但后果更广：少了 ref 不是某个包出问题，
@@ -425,9 +425,9 @@ done
 已经装好、只是下载慢的情况。三行写进 `~/.zshrc`：
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
-export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate
 ```
 
 写进 `~/.zshrc` 长期生效，然后 `source ~/.zshrc`。
@@ -437,7 +437,7 @@ export MACWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate
 验证真的走了镜像：
 
 ```bash
-curl -sI "$MACWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.macos-arm64" | head -1
+curl -sI "$SUMMERWAVE_BOTTLE_DOMAIN/jq/jq%401.8.2.macos-arm64" | head -1
 # 期望 HTTP/2 200
 wave install jq
 ```
@@ -449,12 +449,12 @@ wave install jq
 | 方式 | 命令 | 何时失效 |
 | --- | --- | --- |
 | **改配置（推荐）** | 从 `~/.zshrc` 删掉那几行 `export`，再 `source ~/.zshrc` | 永久 |
-| **临时关掉** | `unset MACWAVE_BOTTLE_DOMAIN MACWAVE_DEPS_DOMAIN MACWAVE_SELFUPDATE_DOMAIN` | 只影响当前终端，新开窗口又回来 |
+| **临时关掉** | `unset SUMMERWAVE_BOTTLE_DOMAIN SUMMERWAVE_DEPS_DOMAIN SUMMERWAVE_SELFUPDATE_DOMAIN` | 只影响当前终端，新开窗口又回来 |
 
 确认已切回：
 
 ```bash
-echo "${MACWAVE_BOTTLE_DOMAIN:-(未设置 → 用官方地址)}"
+echo "${SUMMERWAVE_BOTTLE_DOMAIN:-(未设置 → 用官方地址)}"
 ```
 
 **一个变量都不设 = 与 3.x 完全相同的地址。** 这就是默认值仍指向官方源的原因：不设就是原样。
@@ -462,9 +462,9 @@ echo "${MACWAVE_BOTTLE_DOMAIN:-(未设置 → 用官方地址)}"
 **可以只镜像一部分。** 三个变量互相独立，没设的那个继续用官方地址。例如只镜像二进制、自更新仍走官方：
 
 ```bash
-export MACWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
-export MACWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
-# 不设 MACWAVE_SELFUPDATE_DOMAIN
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
+# 不设 SUMMERWAVE_SELFUPDATE_DOMAIN
 ```
 
 ## 哪些操作受这些变量影响

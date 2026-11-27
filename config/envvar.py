@@ -41,31 +41,31 @@ class Domain:
 # 键是内部代号（与 net/domains.py 的各 *_domain() 函数对应），值见上面。
 DOMAINS = {
     "api": Domain(
-        "MACWAVE_API_DOMAIN",
+        "SUMMERWAVE_API_DOMAIN",
         "https://raw.githubusercontent.com/SummerwaveOrg/SeaLane/HEAD",
         "package and dependency index"),
     # 默认指向 GitHub Releases：它的下载路径 /<tag>/<资产> 与静态镜像的 /<包名>/<文件>
     # 同形，所以国内镜像站只要 rsync 出同一棵树即可。指向仓库文件会被 git 的
     # 100 MiB 硬限拦住。
     "bottle": Domain(
-        "MACWAVE_BOTTLE_DOMAIN",
+        "SUMMERWAVE_BOTTLE_DOMAIN",
         "https://github.com/SummerwaveOrg/Bottle/releases/download",
         "prebuilt binary packages"),
     "deps": Domain(
-        "MACWAVE_DEPS_DOMAIN",
+        "SUMMERWAVE_DEPS_DOMAIN",
         "https://github.com/SummerwaveOrg/Bottle/releases/download",
         "dependency binaries"),
     "core": Domain(
-        "MACWAVE_CORE_DOMAIN",
+        "SUMMERWAVE_CORE_DOMAIN",
         "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave",
         "MacWave's own files"),
     # 解释器单独一个仓库：体积（每架构约 26 MB）与发布节奏都和自更新数据不同
     "python": Domain(
-        "MACWAVE_PYTHON_DOMAIN",
+        "SUMMERWAVE_PYTHON_DOMAIN",
         "https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD",
         "the bundled CPython interpreter"),
     "selfupdate": Domain(
-        "MACWAVE_SELFUPDATE_DOMAIN",
+        "SUMMERWAVE_SELFUPDATE_DOMAIN",
         "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD",
         "self-update data"),
 }

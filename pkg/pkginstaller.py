@@ -838,7 +838,7 @@ def fetch_common_fields(package_name, timeout=DEFAULT_TIMEOUT):
                 request=url,
                 response=f"HTTP {response.status_code}",
                 hint=[f"check the package exists: `wave search {package_name}`",
-                      "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
+                      "check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
     except SystemExit:
         raise
     except Exception as e:
@@ -877,7 +877,7 @@ def _explain_missing_version_list(package_name, api_url, timeout):
     三种原因的话术完全不同，混成一句「读不到版本清单」会让用户去查 GitHub 和镜像 ——
     而绝大多数情况只是包名打错了：
 
-      名字清单拿不到      → 网络 / MACWAVE_API_DOMAIN / 镜像没生成清单
+      名字清单拿不到      → 网络 / SUMMERWAVE_API_DOMAIN / 镜像没生成清单
       名字不在清单里      → 包名错（最常见）；给出近似名与几个同类示例
       名字在、清单却 404  → 镜像缺这一份，数据问题
 
@@ -889,7 +889,7 @@ def _explain_missing_version_list(package_name, api_url, timeout):
         steplog.fail(
             f"cannot reach the package list, so {package_name} cannot be checked",
             request=api_url,
-            hint=["check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD",
+            hint=["check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD",
                   "if every package fails this way, the mirror has no versions lists "
                   "yet (see docs/MIRROR-SETUP.md)",
                   "check the network and any --proxy setting, then retry"])
@@ -1198,7 +1198,7 @@ def _install_single_locked(input_string):
                     request=pkg_version_url,
                     response="404 Not Found",
                     hint=[f"run `wave search {ParsePkgName}` to see the available versions",
-                          "check MACWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
+                          "check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
             else:
                 steplog.fail(
                     "could not read the version record",

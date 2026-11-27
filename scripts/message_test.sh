@@ -113,10 +113,10 @@ done
 
 # wave <args> —— 全部在沙箱里跑，索引指向假镜像
 wave() {
-    env -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN \
+    env -u SUMMERWAVE_BOTTLE_DOMAIN -u SUMMERWAVE_DEPS_DOMAIN \
         HOME="$HOME_DIR" \
         MACWAVE_TEST="$TEST_ROOT" \
-        MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+        SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
         python3 "$BASE/lib/wave.py" "$@"
 }
 
@@ -260,7 +260,7 @@ plain=$(strip_ansi "$out")
 ok     "点名「索引里没有这个包」"       "$plain" "no package named 'abc' in the index"
 ok     "明确排除网络/镜像问题"          "$plain" "not a network or mirror problem"
 ok     "给几个真实存在的名字作参考"      "$plain" "some names in the index"
-not_ok "不再提 MACWAVE_API_DOMAIN"      "$plain" "MACWAVE_API_DOMAIN"
+not_ok "不再提 SUMMERWAVE_API_DOMAIN"      "$plain" "SUMMERWAVE_API_DOMAIN"
 not_ok "不再提 versions lists"          "$plain" "no versions lists yet"
 
 out=$(wave install treee 2>&1)

@@ -198,7 +198,7 @@ MacWave 从 2026 年 8 月初起，两个多月内走完了 1.0 到 3.0。这段
 以「模块不可用」的形式失败 —— 这不是假设，是真实发生过的一次故障。
 
 3.1 起，解释器由 MacWave 自己提供。4.0 把它移到独立仓库 `MacWaveOrg/Python`
-（`MACWAVE_PYTHON_DOMAIN`），分两个文件：
+（`SUMMERWAVE_PYTHON_DOMAIN`），分两个文件：
 
 - `pythondata/latest.toml` —— 现在该用哪个版本；
 - `pythondata/<版本>/python_url.toml` —— 各架构的上游地址与校验值，
@@ -644,12 +644,12 @@ packages           →  解压到临时目录  →  检查链接  →  落盘  �
 
 | 变量 | 取什么 | 默认（不设时） |
 | --- | --- | --- |
-| `MACWAVE_API_DOMAIN` | 包索引与依赖索引的元数据 | `SeaLane` 的 raw 地址 |
-| `MACWAVE_BOTTLE_DOMAIN` | 预编译软件包 | 无（未设即报错） |
-| `MACWAVE_DEPS_DOMAIN` | 依赖库 | 无（未设即报错） |
-| `MACWAVE_CORE_DOMAIN` | MacWave 自身文件 | `MacWave` 的 raw 地址 |
-| `MACWAVE_PYTHON_DOMAIN` | 自带 CPython | `Python` 仓库的 raw 地址 |
-| `MACWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | `Selfupdate` 仓库的 raw 地址 |
+| `SUMMERWAVE_API_DOMAIN` | 包索引与依赖索引的元数据 | `SeaLane` 的 raw 地址 |
+| `SUMMERWAVE_BOTTLE_DOMAIN` | 预编译软件包 | 无（未设即报错） |
+| `SUMMERWAVE_DEPS_DOMAIN` | 依赖库 | 无（未设即报错） |
+| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身文件 | `MacWave` 的 raw 地址 |
+| `SUMMERWAVE_PYTHON_DOMAIN` | 自带 CPython | `Python` 仓库的 raw 地址 |
+| `SUMMERWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | `Selfupdate` 仓库的 raw 地址 |
 
 三个要点：
 
@@ -663,7 +663,7 @@ packages           →  解压到临时目录  →  检查链接  →  落盘  �
   `/<tag>/<资产>` 与静态镜像的 `/<包名>/<文件名>` 同形，所以国内镜像只要 `rsync`
   出同一棵树，不需要理解任何协议。
 - **版本清单是唯一不能简单镜像的东西**：它走 `api.github.com`，与索引不是一台机器。
-  设了 `MACWAVE_API_DOMAIN` 时改读镜像自己的 `<路径>/versions`（一行一个名字），
+  设了 `SUMMERWAVE_API_DOMAIN` 时改读镜像自己的 `<路径>/versions`（一行一个名字），
   没设时仍用 GitHub API。
 
 配置校验在拼地址之前完成：非 https（本机回环除外）、带空白或引号的值一律拒绝，

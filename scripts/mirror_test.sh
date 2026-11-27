@@ -29,8 +29,8 @@ fail() { echo -e "${RED_BOLD}🌊 FAIL: $1${RESET}"; FAILED=$((FAILED + 1)); }
 # 需要带凭据时用 run_mirror_api：先把所有变量清掉，再单独设一个，
 # 否则「先 unset 再赋值」的顺序会让设置被抹掉（本脚本第一版就踩了这个坑）。
 CLEAN_ENV=(env
-    -u MACWAVE_API_DOMAIN -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN
-    -u MACWAVE_CORE_DOMAIN -u MACWAVE_PYTHON_DOMAIN -u MACWAVE_SELFUPDATE_DOMAIN
+    -u SUMMERWAVE_API_DOMAIN -u SUMMERWAVE_BOTTLE_DOMAIN -u SUMMERWAVE_DEPS_DOMAIN
+    -u SUMMERWAVE_CORE_DOMAIN -u SUMMERWAVE_PYTHON_DOMAIN -u SUMMERWAVE_SELFUPDATE_DOMAIN
     -u MACWAVE_PIP_INDEX)
 
 run_mirror() {
@@ -39,7 +39,7 @@ run_mirror() {
 
 run_mirror_api() {
     local url="$1"; shift
-    "${CLEAN_ENV[@]}" MACWAVE_API_DOMAIN="$url" python3 "$WAVE_BIN" mirror "$@"
+    "${CLEAN_ENV[@]}" SUMMERWAVE_API_DOMAIN="$url" python3 "$WAVE_BIN" mirror "$@"
 }
 
 # 安装根写死成 /opt/macwave：用 MACWAVE_TEST 把它映射进临时根，并把组件拷进去
@@ -159,7 +159,7 @@ assert "s3cr3t-pw" not in text
 
 echo "========== --raw is ready to paste and keeps the same masking =========="
 OUT="$(run_mirror_api "$MIRROR/infosource" --raw 2>/dev/null)"
-if [[ "$OUT" == *'export MACWAVE_API_DOMAIN="https://alice:******@mirror.example.test/MacWave/infosource"'* ]]; then
+if [[ "$OUT" == *'export SUMMERWAVE_API_DOMAIN="https://alice:******@mirror.example.test/MacWave/infosource"'* ]]; then
     pass "--raw emits a full export line with a masked password"
 else
     fail "--raw line missing or wrong"
@@ -175,12 +175,12 @@ fi
 
 echo "========== --raw --only-set exports only the overridden sources =========="
 OUT="$(run_mirror_api "$MIRROR/infosource" --raw --only-set 2>/dev/null)"
-if [[ "$OUT" == *'export MACWAVE_API_DOMAIN='* ]]; then
+if [[ "$OUT" == *'export SUMMERWAVE_API_DOMAIN='* ]]; then
     pass "--only-set keeps the source that was overridden"
 else
     fail "--only-set dropped the overridden source"
 fi
-if [[ "$OUT" == *'export MACWAVE_DEPS_DOMAIN='* ]]; then
+if [[ "$OUT" == *'export SUMMERWAVE_DEPS_DOMAIN='* ]]; then
     fail "--only-set still exported a built-in default"
 else
     pass "--only-set omits sources that fall back to the built-in default"

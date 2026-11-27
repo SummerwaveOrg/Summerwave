@@ -80,7 +80,7 @@ v<版本>[@<构建时刻>][-<渠道>.<序号>]
 - 资产名 `<名>@<版本>.macos-<arch>.tar.bz2`，归档根是**版本目录的内容**
   （`bin/` `lib/` `include/` …），与 `Shore/<名>/<版本>/` 同构。
 - 客户端默认地址：
-  `MACWAVE_BOTTLE_DOMAIN` 与 `MACWAVE_DEPS_DOMAIN` 都指向
+  `SUMMERWAVE_BOTTLE_DOMAIN` 与 `SUMMERWAVE_DEPS_DOMAIN` 都指向
   `https://github.com/SummerwaveOrg/Bottle/releases/download`。
 - 4.x 的 `MacWaveOrg/Bottle`、`MacWaveOrg/Deps` 冻结保留。
 

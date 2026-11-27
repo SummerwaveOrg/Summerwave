@@ -99,7 +99,7 @@ def dep_list(fields):
 # -------------------- 取产物 --------------------
 
 def domain(kind):
-    name = "MACWAVE_BOTTLE_DOMAIN" if kind == "pkg" else "MACWAVE_DEPS_DOMAIN"
+    name = "SUMMERWAVE_BOTTLE_DOMAIN" if kind == "pkg" else "SUMMERWAVE_DEPS_DOMAIN"
     base = os.environ.get(name, "").rstrip("/")
     if not base:
         sys.exit(f"🌊 Error: {name} is not set; point it at a mirror or leave the tool to "
@@ -155,7 +155,7 @@ def candidate_sources(kind, name, version, arch, fields, source):
         f"{name}@{version}.{tag}{ext}",         # 字节原样搬运的新名字
     ]
     candidates = []
-    base = os.environ.get("MACWAVE_BOTTLE_DOMAIN" if kind == "pkg" else "MACWAVE_DEPS_DOMAIN", "").rstrip("/")
+    base = os.environ.get("SUMMERWAVE_BOTTLE_DOMAIN" if kind == "pkg" else "SUMMERWAVE_DEPS_DOMAIN", "").rstrip("/")
     if base and source in ("auto", "storage"):
         for stored in dict.fromkeys(storage):        # dict 保序 + 去重
             candidates.append((f"{base}/{name}/{quote(stored)}", stored))
@@ -182,7 +182,7 @@ def fetch(kind, name, version, arch, fields, work, source="auto", cache=None):
     candidates = candidate_sources(kind, name, version, arch, fields, source)
     if not candidates:
         sys.exit(f"🌊 Error: no source for {name}@{version} "
-                 f"(set MACWAVE_BOTTLE_DOMAIN / MACWAVE_DEPS_DOMAIN, or the record needs a url)")
+                 f"(set SUMMERWAVE_BOTTLE_DOMAIN / SUMMERWAVE_DEPS_DOMAIN, or the record needs a url)")
 
     for url, basename in candidates:
         out = (cache or work) / f"{name}@{version}.{arch}-{basename}"

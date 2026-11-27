@@ -119,10 +119,10 @@ if [[ -d "$USER_SITE" ]]; then
 fi
 
 wave() {
-    env -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN \
+    env -u SUMMERWAVE_BOTTLE_DOMAIN -u SUMMERWAVE_DEPS_DOMAIN \
         HOME="$HOME_DIR" \
         MACWAVE_TEST="$TEST_ROOT" \
-        MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+        SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
         python3 "$BASE/lib/wave.py" "$@"
 }
 

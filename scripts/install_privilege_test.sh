@@ -64,7 +64,7 @@ new_root() {
 dry_run() {
     local root="$1"; shift
     MACWAVE_TEST="$root" \
-        MACWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
+        SUMMERWAVE_SELFUPDATE_DOMAIN="http://127.0.0.1:1" \
         /bin/bash "$INSTALL_SH" --dry-run "$@" 2>&1
 }
 

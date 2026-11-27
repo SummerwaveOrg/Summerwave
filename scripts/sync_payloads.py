@@ -220,8 +220,8 @@ def main():
         return 1
 
     print(f"🌊 Mirror root: {args.out}")
-    print("🌊   MACWAVE_BOTTLE_DOMAIN=<该目录对外地址>/bottle")
-    print("🌊   MACWAVE_DEPS_DOMAIN=<该目录对外地址>/deps")
+    print("🌊   SUMMERWAVE_BOTTLE_DOMAIN=<该目录对外地址>/bottle")
+    print("🌊   SUMMERWAVE_DEPS_DOMAIN=<该目录对外地址>/deps")
     return 0
 
 

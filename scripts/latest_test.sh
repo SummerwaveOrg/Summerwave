@@ -110,10 +110,10 @@ USER_SITE=$(python3 -c 'import site; print(site.getusersitepackages())')
 [[ -d "$USER_SITE" ]] && export PYTHONPATH="$USER_SITE"
 
 wave() {
-    env -u MACWAVE_BOTTLE_DOMAIN -u MACWAVE_DEPS_DOMAIN \
+    env -u SUMMERWAVE_BOTTLE_DOMAIN -u SUMMERWAVE_DEPS_DOMAIN \
         HOME="$HOME_DIR" \
         MACWAVE_TEST="$TEST_ROOT" \
-        MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+        SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
         python3 "$BASE/lib/wave.py" "$@"
 }
 
@@ -125,7 +125,7 @@ echo "BASE       = $BASE"
 echo "ARCH       = $ARCH"
 echo "索引端口   = $PORT"
 echo -n "BASE_DIR 解析 = "
-HOME="$HOME_DIR" MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+HOME="$HOME_DIR" SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
   python3 -c "
 import os, sys
 sys.path[:0] = ['$BASE/' + name for name in os.environ['MACWAVE_COMPONENT_NAMES'].split()]
@@ -193,7 +193,7 @@ mkdir -p "$WORK/empty/home" "$WORK/empty/root/opt/macwave/var"
 copy_components "$WORK/empty/root/opt/macwave/"
 printf "MACWAVE_VERSION='4.1.0'\n" > "$WORK/empty/root/opt/macwave/var/config.sh"
 out=$(env HOME="$WORK/empty/home" MACWAVE_TEST="$WORK/empty/root" \
-      MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+      SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
       PYTHONPATH="$USER_SITE" python3 "$WORK/empty/root/opt/macwave/lib/wave.py" latest --all 2>&1)
 ok "--all 在没装任何包时说清楚" "$out" "No packages installed yet"
 
@@ -201,7 +201,7 @@ echo
 echo "========== 5. 链接指向旧版本时的附注 =========="
 
 mkdir -p "$BASE/Shore/jq/1.8.2" && : > "$BASE/Shore/jq/1.8.2/jq"
-out=$(env HOME="$HOME_DIR" MACWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
+out=$(env HOME="$HOME_DIR" SUMMERWAVE_API_DOMAIN="http://127.0.0.1:$PORT" \
       PYTHONPATH="$USER_SITE" python3 "$BASE/lib/wave.py" latest jq 2>&1)
 ok "已装新版：状态是 up to date" "$out" "up to date"
 ok "但仍附注真正在跑的旧版本"     "$out" "(linked: 1.7.1)"

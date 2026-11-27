@@ -3,7 +3,7 @@
 # versions_index_test.sh
 # `scripts/build_versions_index.py` 的离线回归 —— 镜像自备的 versions 清单。
 #
-# 为什么值得单独一条：设了 MACWAVE_API_DOMAIN 之后，客户端「列出版本 / 列出软件包」
+# 为什么值得单独一条：设了 SUMMERWAVE_API_DOMAIN 之后，客户端「列出版本 / 列出软件包」
 # 全靠这两类文件（`pkginfo/versions` 与 `pkginfo/<包名>/versions`）。它们不在数据仓库里，
 # 是镜像生成出来的；生成逻辑错位的表现是「包在，但一个版本都列不出来」或
 # 「列出来了却下不到」—— 两种都要等用户下载阶段才炸。

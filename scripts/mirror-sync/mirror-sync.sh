@@ -75,8 +75,8 @@ FAIL=0
 # 产物要从「我们自己的 Release」取，地址由 domains.py 的内置默认值决定。
 # 若这台机器的环境里残留了 MACWAVE_*_DOMAIN，路径会被改到别处（甚至指回自己），
 # 那就成了「从镜像同步镜像」。这里显式清掉。
-unset MACWAVE_API_DOMAIN MACWAVE_BOTTLE_DOMAIN MACWAVE_DEPS_DOMAIN \
-      MACWAVE_CORE_DOMAIN MACWAVE_SELFUPDATE_DOMAIN MACWAVE_PYTHON_DOMAIN \
+unset SUMMERWAVE_API_DOMAIN SUMMERWAVE_BOTTLE_DOMAIN SUMMERWAVE_DEPS_DOMAIN \
+      SUMMERWAVE_CORE_DOMAIN SUMMERWAVE_SELFUPDATE_DOMAIN SUMMERWAVE_PYTHON_DOMAIN \
       MACWAVE_PIP_INDEX
 
 hr()   { printf '%s\n' "------------------------------------------------------------"; }
