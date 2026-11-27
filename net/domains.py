@@ -242,11 +242,15 @@ def payload_suffix(upstream_filename):
     return ""
 
 
-def payload_filename(name, version, arch, upstream_filename):
+def payload_filename(name, version, arch, upstream_filename, os_name=None):
     # <包名>@<版本>.<os>-<arch><扩展名>，例如 jq@1.8.2.macos-arm64.tar.gz。
     # 标签与索引记录名同源（config/platforminfo.bottle_tag），一个平台一份产物。
     # 落盘也用它，因为 pkgunzip.sh 靠扩展名选解压器。
-    return f"{name}@{version}.{platforminfo.bottle_tag(arch)}{payload_suffix(upstream_filename)}"
+    #
+    # os_name 只给「为另一个平台造产物名」的工具用（scripts/prepare_bottle.py
+    # 的 --os），客户端永远不传 —— 它只取自己那一个平台的产物。
+    return (f"{name}@{version}.{platforminfo.bottle_tag(arch, os_name=os_name)}"
+            f"{payload_suffix(upstream_filename)}")
 
 
 def payload_url(kind, name, filename):

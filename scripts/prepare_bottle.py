@@ -57,10 +57,10 @@ MARKER = "_RELOCATED"
 
 # -------------------- 索引 --------------------
 
-def record_path(infosource, kind, arch, name, version):
+def record_path(infosource, kind, arch, name, version, os_name=None):
     # 0.1.0 起索引是单一命名空间：包与依赖同一个目录结构，平台标签编在记录名里。
     # kind 只用来区分「这条记录是包还是依赖」，不再影响落盘位置。
-    tag = platforminfo.bottle_tag(arch)
+    tag = platforminfo.bottle_tag(arch, os_name=os_name)
     return infosource / name / f"_{name}@{version}.{tag}"
 
 
@@ -85,8 +85,8 @@ def parse_fields(text):
     return {key: "\n".join(values) for key, values in fields.items()}
 
 
-def read_record(infosource, kind, arch, name, version):
-    path = record_path(infosource, kind, arch, name, version)
+def read_record(infosource, kind, arch, name, version, os_name=None):
+    path = record_path(infosource, kind, arch, name, version, os_name=os_name)
     if not path.is_file():
         sys.exit(f"🌊 Error: no index record at {path}")
     return parse_fields(path.read_text(encoding="utf-8"))
@@ -123,11 +123,14 @@ def legacy_stored_name(name, version, arch, filename):
     return f"{name}@{version}.{arch}{ext}"
 
 
-def repacked_name(name, version, arch):
-    """重打之后的产物名：<名>@<版本>.<os>-<arch>.tar.bz2（repack 只出 bz2）。"""
-    out = f"{name}@{version}.{platforminfo.bottle_tag(arch)}.tar.bz2"
+def repacked_name(name, version, arch, os_name=None):
+    """重打之后的产物名：<名>@<版本>.<os>-<arch>.tar.bz2（repack 只出 bz2）。
+
+    os_name 不传时按宿主推断（macOS 上就是 macos），所以老用法完全不变。
+    """
+    out = f"{name}@{version}.{platforminfo.bottle_tag(arch, os_name=os_name)}.tar.bz2"
     # 与客户端拼地址用的是同一个函数，这里当场对齐 —— 一旦两边漂了，宁可在打包时炸
-    assert domains.payload_filename(name, version, arch, out) == out, out
+    assert domains.payload_filename(name, version, arch, out, os_name=os_name) == out, out
     return out
 
 
@@ -418,7 +421,7 @@ def stage_target(stage, kind, name, version):
 
 
 def prepare(infosource, kind, name, version, arch, out_dir, keep,
-            source="auto", cache=None, smoke=True, audit=True):
+            source="auto", cache=None, smoke=True, audit=True, os_name=None):
     work = Path(tempfile.mkdtemp(prefix=f"prepare-{name}-"))
     try:
         stage = work / "stage"
@@ -432,7 +435,8 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
             if key in seen:
                 continue
             seen.add(key)
-            fields = read_record(infosource, current_kind, arch, current_name, current_version)
+            fields = read_record(infosource, current_kind, arch, current_name,
+                                 current_version, os_name=os_name)
             target = stage_target(stage, current_kind, current_name, current_version)
             target.mkdir(parents=True, exist_ok=True)
             payload, _ = fetch(current_kind, current_name, current_version, arch,
@@ -503,7 +507,7 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
         # 3. 打标记 + 只重打目标产物（依赖由它们自己那一轮处理）
         (target / MARKER).write_text("@loader_path\n", encoding="utf-8")
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = out_dir / repacked_name(name, version, arch)
+        out_file = out_dir / repacked_name(name, version, arch, os_name=os_name)
         digest = repack(target, out_file)
 
         if audit:
@@ -546,7 +550,7 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
 
 
 def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_existing,
-          smoke=True, audit=True):
+          smoke=True, audit=True, os_name=None):
     """把索引里所有记录重打一遍。断点续跑：产物已在 out_dir 就跳过。"""
     from sync_payloads import records
 
@@ -569,7 +573,7 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
         Path(tsv).write_text("kind\tname\tversion\tarch\tfile\tsha256\n", encoding="utf-8")
 
     for index, (kind, arch, name, version, record) in enumerate(todo, 1):
-        expected = out_dir / repacked_name(name, version, arch)
+        expected = out_dir / repacked_name(name, version, arch, os_name=os_name)
         if skip_existing and expected.is_file():
             skipped += 1
             continue
@@ -577,7 +581,7 @@ def batch(infosource, out_dir, source, cache, only, limit, kinds, tsv, skip_exis
         try:
             result = prepare(infosource, kind, name, version, arch, out_dir,
                              keep=False, source=source, cache=cache,
-                             smoke=smoke, audit=audit)
+                             smoke=smoke, audit=audit, os_name=os_name)
         except SystemExit as error:            # prepare() 用 sys.exit 报错
             failures.append((f"{name}@{version}.{arch}", str(error)))
             print(f"🌊 FAILED: {error}", flush=True)
@@ -604,6 +608,9 @@ def main():
     parser.add_argument("--name")
     parser.add_argument("--version")
     parser.add_argument("--arch", default="arm64", choices=("arm64", "amd64"))
+    parser.add_argument("--os", default=None, choices=("macos", "linux"),
+                        help="target platform; defaults to the host "
+                             "(only matters when naming the artifact and picking the record)")
     parser.add_argument("--all", action="store_true",
                         help="rebuild every record in the index (use --only/--limit/--kinds to narrow)")
     parser.add_argument("--only", default="", help="comma-separated package names (with --all)")
@@ -637,13 +644,13 @@ def main():
         kinds = {k.strip() for k in args.kinds.split(",") if k.strip()}
         return batch(Path(args.infosource), Path(args.out), args.source, cache,
                      only, args.limit, kinds, args.tsv, args.resume,
-                     smoke=not args.no_smoke, audit=not args.no_audit)
+                     smoke=not args.no_smoke, audit=not args.no_audit, os_name=args.os)
 
     if not (args.kind and args.name and args.version):
         parser.error("either --all, or --kind + --name + --version")
     prepare(Path(args.infosource), args.kind, args.name, args.version,
             args.arch, Path(args.out), args.keep, source=args.source, cache=cache,
-            smoke=not args.no_smoke, audit=not args.no_audit)
+            smoke=not args.no_smoke, audit=not args.no_audit, os_name=args.os)
     return 0
 
 

@@ -279,7 +279,7 @@ PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.
 CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自带 CPython 的清单
 # 解释器单独一个仓库（体积与发布节奏都和自更新数据不同）
-PYTHON_DOMAIN_URL="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
+PYTHON_DOMAIN_URL="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD}")"
 
 # 用户协议所在页面。4.7 起安装器只在开头把地址念一遍（不记录同意、结尾也不问），
 # 所以它纯粹是给人看的一个链接。站点在 summerwave.org。

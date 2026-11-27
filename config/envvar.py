@@ -62,7 +62,7 @@ DOMAINS = {
     # 解释器单独一个仓库：体积（每架构约 26 MB）与发布节奏都和自更新数据不同
     "python": Domain(
         "SUMMERWAVE_PYTHON_DOMAIN",
-        "https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD",
+        "https://raw.githubusercontent.com/SummerwaveOrg/Python/HEAD",
         "the bundled CPython interpreter"),
     "selfupdate": Domain(
         "SUMMERWAVE_SELFUPDATE_DOMAIN",
