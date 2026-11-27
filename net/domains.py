@@ -324,14 +324,19 @@ def resolve_payload(kind, name, version, arch, upstream_filename, upstream_url, 
 RELEASE_REPO = "SummerwaveOrg/Summerwave"
 
 
+def release_api_base():
+    """发布接口的根。默认真连 GitHub；换成假站点即可离线测试整条自更新。"""
+    return domain("release") or f"https://api.github.com/repos/{RELEASE_REPO}"
+
+
 def release_latest_url():
     """正式渠道的最新发布（GitHub 会跳过 prerelease 与 draft）。"""
-    return f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
+    return f"{release_api_base()}/releases/latest"
 
 
 def release_list_url(per_page=30):
     """最近若干发布；预览渠道要在这份列表里挑最新的预发布。"""
-    return f"https://api.github.com/repos/{RELEASE_REPO}/releases?per_page={per_page}"
+    return f"{release_api_base()}/releases?per_page={per_page}"
 
 
 def release_tarball_url(tag):

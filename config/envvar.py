@@ -68,6 +68,13 @@ DOMAINS = {
         "SUMMERWAVE_SELFUPDATE_DOMAIN",
         "https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD",
         "self-update data"),
+    # 「该装哪一版」的来源：GitHub 的发布列表（1.0 起版本号就是 tag，不再有
+    # Selfupdate 仓库）。单独列成一条，是为了让离线测试能把整个接口换成本地假站点
+    # —— 否则 `wave selfupdate` 无法离线验证。
+    "release": Domain(
+        "SUMMERWAVE_RELEASE_DOMAIN",
+        "https://api.github.com/repos/SummerwaveOrg/Summerwave",
+        "the release list that says which version is current"),
 }
 
 # pip 的索引。不在 DOMAINS 里：它不是「MacWave 的数据源」，没有协议校验，
