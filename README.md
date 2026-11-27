@@ -1,4 +1,9 @@
-## 🌊 MacWave
+<div align="center">
+    <img src="images/Summerwave-icon-1024.png" alt="Logo" width="160" />
+    <h1>Summerwave</h1>
+</div>
+
+## 🌊 Summerwave
 
 A package manager for macOS software developers.
 
@@ -24,25 +29,25 @@ that is what we promise. Individual packages may declare their own minimum;
 
 4.5.2, Release on 2026-11-23
 
-## 🌊 About MacWave 
+## 🌊 About Summerwave 
 
-MacWave is a **package manager for macOS**, built to distribute the command-line tools that macOS software developers rely on. Its sibling project, LinuxWave, covers Linux.
+Summerwave is a **package manager for macOS**, built to distribute the command-line tools that macOS software developers rely on. Its sibling project, LinuxWave, covers Linux.
 
-## 🌊 Why MacWave
+## 🌊 Why Summerwave
 
 1. **Small on disk.** The installer fetches individual files rather than cloning the repository, and there is no package cache to keep in sync.
 2. **One command per package.** Common tools are installed by name, without hunting for release pages.
 3. **Versioned by design.** Every binary lives under `package@version`, so several versions coexist and none of them shadow a system tool.
 4. **Optional unversioned links.** `wave link <package>` creates a plain `package` shortcut that points at the highest installed version and re-points itself whenever versions are installed or removed.
-5. **Isolated by construction.** Everything MacWave installs stays inside its own directories; it never overwrites or links against macOS system libraries, so even a major macOS upgrade leaves it intact.
+5. **Isolated by construction.** Everything Summerwave installs stays inside its own directories; it never overwrites or links against macOS system libraries, so even a major macOS upgrade leaves it intact.
 6. **No stale metadata.** Package data is read from the `SummerwaveOrg/SeaLane` repository at request time.
 7. **Ten archive formats, covered by CI.** Extensionless binaries, `.zip`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar`, `.gz`, `.xz`, `.bz2`, and `.conda`.
 8. **Checksum before extraction.** A package whose SHA256 is missing or does not match is refused, never installed with a warning.
 9. **Resumable downloads.** An interrupted transfer continues with `-C`.
 10. **Transparent implementation.** Python and Shell only. The interpreter is bundled, so no runtime has to be installed and no behaviour is hidden behind one.
-11. **Dependencies handled for you.** Packages that need libraries declare them; MacWave installs, tracks and removes those libraries by reference count.
+11. **Dependencies handled for you.** Packages that need libraries declare them; Summerwave installs, tracks and removes those libraries by reference count.
 
-## 🌊 Install MacWave
+## 🌊 Install Summerwave
 
 In the terminal, run:
 
@@ -66,11 +71,24 @@ spoken to in Chinese. `--ci` asks nothing at all and installs into `/opt/macwave
 whole install and prints every step without downloading, asking for a password,
 or writing anything. `install.sh --help` lists the rest.
 
+**Prefer to check before running?** The installer is a release asset with a detached
+signature, so you can verify it first:
+
+```bash
+curl -fsSLO https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh
+curl -fsSLO https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh.sig
+curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/<tag>/Keys/macwave-rsa.pub.pem -o pub.pem
+openssl dgst -sha256 -verify pub.pem -signature install.sh.sig install.sh && /bin/bash install.sh
+```
+
+(The version and the per-file checksums are embedded in `install.sh` itself, so
+pinning the script is the same as pinning everything it will download.)
+
 (If you are using bash instead of zsh, run ```source ~/.bashrc```)
 
 **Requirements: macOS Monterey 12 or later, Xcode Command Line Tools.**
 
-**You do not need to install Python.** MacWave ships its own CPython under
+**You do not need to install Python.** Summerwave ships its own CPython under
 `<install-dir>/python/` and runs from a private environment beside it, so the
 `python3` on your PATH (Homebrew, pyenv, the system one) never affects it.
 If that bundled copy cannot be downloaded, the installer falls back to your
@@ -124,7 +142,7 @@ Packages and dependencies share one shape, so `Shore/` is uniform: nothing in it
 second copy of something else, and `bin/` holds no real files — which is why deleting an
 entry there can never damage an installed package.
 ## 🌊 Using a Mirror (4.0 and later)
-Every address MacWave contacts is configurable, so switching mirrors is a set of environment variables rather than a command. To check which address is in effect, run `wave mirror` — it prints every source, whether it came from the environment or the built-in default, with passwords masked.
+Every address Summerwave contacts is configurable, so switching mirrors is a set of environment variables rather than a command. To check which address is in effect, run `wave mirror` — it prints every source, whether it came from the environment or the built-in default, with passwords masked.
 
 **This matters most in mainland China**, where `github.com` is often unreachable rather than merely slow. Measured from one such connection: two out of three attempts failed to open a TCP connection within 20 seconds, while domestic mirrors answered in 37–78 ms.
 
@@ -138,26 +156,25 @@ Everything else keeps using the official addresses, so a mirror only needs to ca
 The `MacWave/` segment keeps a mirror's domain shareable: LinuxWave can later live at `/LinuxWave` on the same host without either product owning the root.
 
 ### Mirror everything
-Those two lines only cover the bulk downloads. When `github.com` and `raw.githubusercontent.com` are **blocked** rather than slow, the files that let MacWave work at all still come from GitHub: the package index, the self-update data, the bundled interpreter and MacWave's own code. Point all of them at the mirror:
+Those two lines only cover the bulk downloads. When `github.com` and `raw.githubusercontent.com` are **blocked** rather than slow, the files that let Summerwave work at all still come from GitHub: the package index, the bundled interpreter and Summerwave's own code (the installer itself comes from a release asset). Point all of them at the mirror:
 
 ```bash
 export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-`MACWAVE_PIP_INDEX` is the odd one out: it only affects the three Python dependencies (`requests`, `toml`, `colorama`) that `pip` installs once, so it can point at any PyPI mirror. The other six are paths under one mirror host, which is why a single account covers all of them.
+`MACWAVE_PIP_INDEX` is the odd one out: it only affects the three Python dependencies (`requests`, `toml`, `colorama`) that `pip` installs once, so it can point at any PyPI mirror. The other five are paths under one mirror host, which is why a single account covers all of them.
 **The trailing `/HEAD` in `SUMMERWAVE_API_DOMAIN` is required.** A mirror lays files out
 as `<org>/<repo>/<ref>/…`, and `SeaLane` is a git repository, so the ref has to be a
 real directory level:
 
 ```
-…/MacWave/sealane/HEAD/pkg/pkginfo_arm64/versions   ← correct
-…/MacWave/sealane/pkg/pkginfo_arm64/versions        ← wrong, 404
+…/MacWave/sealane/HEAD/versions       ← correct
+…/MacWave/sealane/versions            ← wrong, 404
 ```
 
 Without it **every** package fails to install (`wave install` stops at "cannot read the
@@ -172,11 +189,10 @@ version list", and so do `wave search` and `wave latest`), not just one. The oth
 ```bash
 cat >> ~/.zshrc <<'MWMIRROR'
 
-# MacWave mirror — delete this block to go back to the official addresses
+# Summerwave mirror — delete this block to go back to the official addresses
 export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -209,12 +225,12 @@ export SUMMERWAVE_BOTTLE_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave
 export SUMMERWAVE_DEPS_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/deps"
 ```
 
-The same credentials go into each of the six paths when you want the full set — the mirror serves all of them.
+The same credentials go into each of the five paths when you want the full set — the mirror serves all of them.
 
 - Both `curl` and `requests` accept credentials embedded in a URL, so no client-side setup is needed.
 - These lines end up in `~/.zshrc`, **which is plain text**: never commit it, and remember the password is readable by anyone who can read that file.
-- When something fails, MacWave replaces the password with `***` before printing the address, so pasting an error into a chat will not leak it.
-- The mirror carries all six paths, so putting the credentials into the full set above covers the "`github.com` is unreachable" case too, not just "large downloads crawl".
+- When something fails, Summerwave replaces the password with `***` before printing the address, so pasting an error into a chat will not leak it.
+- The mirror carries the five paths, so putting the credentials into the full set above covers the "`github.com` is unreachable" case too, not just "large downloads crawl".
 
 ### The full set
 | Variable | What it fetches | Default |
@@ -222,12 +238,11 @@ The same credentials go into each of the six paths when you want the full set �
 | `SUMMERWAVE_BOTTLE_DOMAIN` | prebuilt packages | GitHub Releases |
 | `SUMMERWAVE_DEPS_DOMAIN` | dependency libraries | GitHub Releases |
 | `SUMMERWAVE_API_DOMAIN` | package index (**the ref segment is required**, e.g. `/HEAD`) | `SeaLane` on raw.githubusercontent |
-| `SUMMERWAVE_SELFUPDATE_DOMAIN` | self-update data | `Selfupdate` on raw.githubusercontent |
 | `SUMMERWAVE_PYTHON_DOMAIN` | the bundled interpreter | `Python` on raw.githubusercontent |
-| `SUMMERWAVE_CORE_DOMAIN` | MacWave's own files | `MacWave` on raw.githubusercontent |
+| `SUMMERWAVE_CORE_DOMAIN` | Summerwave's own files | `Summerwave` on raw.githubusercontent |
 | `MACWAVE_PIP_INDEX` | `pip`'s index (only the three Python deps) | `https://pypi.org/simple` |
 
-A variable's value is the part **before** the package name: the client appends `/<package>/<package>@<version>.<arch><ext>` to the bottle and deps prefixes, and `/pkg/…`, `/macwavedata/…`, `/pythondata/…` to the others.
+A variable's value is the part **before** the package name: the client appends `/<package>/<package>@<version>.<os>-<arch><ext>` to the bottle and deps prefixes, `/<name>/versions` to the index, and `/<tag>/<path>` to the core. 1.0 has no self-update data to point at: the installer is a release asset and the version is its tag.
 
 The exact tree and naming rules for each kind of data are in [docs/DATA-LAYER.md](docs/DATA-LAYER.md). Trailing slashes are stripped, so either form works.
 
@@ -248,9 +263,9 @@ Setting `HTTPS_PROXY` in the environment has the same effect and covers commands
 ### Running your own mirror
 A mirror is a static file tree, so `nginx`, an object bucket or any file server will do — no special software and no database. Setup steps, including the two `Cache-Control` lines worth adding, are in [docs/MIRROR-SETUP.md](docs/MIRROR-SETUP.md).
 
-## 🌊 Uninstall MacWave
+## 🌊 Uninstall Summerwave
 
-To completely remove MacWave from your system, run the following command in your terminal:
+To completely remove Summerwave from your system, run the following command in your terminal:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)"
@@ -269,7 +284,7 @@ The unversioned link always points at the highest installed version, and is re-p
 
 ## 🌊 Symlink Management
 
-Since MacWave 2.4, once a versionless link exists, MacWave keeps it pointing at the right version on its own:
+Since Summerwave 2.4, once a versionless link exists, Summerwave keeps it pointing at the right version on its own:
 
 1. If the highest version is uninstalled, the versionless link moves to the highest version that remains, and the uninstalled version's own link goes with it.
 2. An install re-points the versionless link at the version it just installed; add `--no-link` to that install to skip this.
@@ -292,15 +307,15 @@ Commands:
   list        List installed packages (two columns; --raw for scripts)
   search      Search for a package in the index
   info        Display detailed information about a package
-  selfupdate  Update MacWave itself
+  selfupdate  Update Summerwave itself
   link        Link installed packages without a version number
   unlink      Remove those unversioned links
   linkquery   Show which version an unversioned link points to
   mirror      Show which address each kind of data is fetched from
   latest      Show which packages have a newer version available
-  basedir     Print MacWave's install root (fixed at /opt/macwave)
+  basedir     Print Summerwave's install root (fixed at /opt/macwave)
   doctor      Check the install tree for problems (read-only)
-  shellenv    Print the shell code that puts MacWave on your PATH
+  shellenv    Print the shell code that puts Summerwave on your PATH
   manual      Show the full manual (same text as man and info)
 
 Flags:
@@ -346,7 +361,7 @@ wave upgrade --all, -a             Take every installed package to the latest ve
     --all, -a                      Apply to every installed package (upgrade / link / unlink / linkquery)
 
 Self Update:
-wave selfupdate                    Update MacWave itself
+wave selfupdate                    Update Summerwave itself
 wave selfupdate --max-time=2min    Same, but give each request two minutes
 wave selfupdate --dry-run          Print what would be updated and change nothing
 
@@ -522,9 +537,9 @@ yt-dlp           by yt-dlp
 zellij           by zellij-org
 zoxide           by Ajeet D'Souza
 ```
-## 🌊 Working on MacWave
+## 🌊 Working on Summerwave
 
-MacWave is written in plain Python and Shell. There is no build step: the files
+Summerwave is written in plain Python and Shell. There is no build step: the files
 in this repository are the ones that run. Internals are documented in
 [`docs/TECHNICAL-GUIDE.md`](./docs/TECHNICAL-GUIDE.md) and
 [`docs/CODE-MAP.md`](./docs/CODE-MAP.md).
@@ -557,20 +572,20 @@ policy are written up in
 ### Do Not Run From the Clone
 
 This repository is source, not an installation. Running `wave` from inside the
-clone, or adding the clone's directories to `PATH`, fails on purpose: MacWave
+clone, or adding the clone's directories to `PATH`, fails on purpose: Summerwave
 needs the state file that `install.sh` writes (at the fixed install root), and that
 file records which version is installed.
 
 A full clone reports:
 
 ```
-🌊 Error: MacWave is a git clone!
+🌊 Error: Summerwave is a git clone!
 ```
 
 A shallow clone reports:
 
 ```
-🌊 Error: MacWave is a shallow clone!
+🌊 Error: Summerwave is a shallow clone!
 ```
 
 Both are followed by the same advice — install with `install.sh`, choose a
@@ -615,7 +630,7 @@ Records live in `SeaLane` under `pkg/pkginfo_<arch>/<name>/`, in two forms:
 - `_<name>@common` — metadata shared by every version: `des`, `hom`, `lic`,
   `aut`, and `bin_name`, the name the binary is installed as.
 - `_<name>@<version>` — one file per version, carrying `url` and `sha256`, plus
-  `deps` when the package needs libraries MacWave must install as well.
+  `deps` when the package needs libraries Summerwave must install as well.
 
 `sha256` is mandatory. A record without it is rejected rather than installed
 with a warning. Dependencies are written as `name@version` and are reference
@@ -665,7 +680,7 @@ The project requires about **¥349 CNY (about $52 USD)** per month to keep runni
 
 ## 🌊 License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for the full text, and [NOTICE](NOTICE) for the attribution note. Packages that MacWave installs keep their own licenses.
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for the full text, and [NOTICE](NOTICE) for the attribution note. Packages that Summerwave installs keep their own licenses.
 
 License by release:
 

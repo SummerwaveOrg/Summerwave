@@ -1,4 +1,9 @@
-## 🌊 MacWave
+<div align="center">
+    <img src="images/Summerwave-icon-1024.png" alt="Logo" width="160" />
+    <h1>Summerwave</h1>
+</div>
+
+## 🌊 Summerwave
 
 面向 macOS 软件开发者的包管理器。
 
@@ -23,25 +28,25 @@ Catalina —— 但 12 以下没有做过端到端实测，所以我们只承诺
 
 4.5.2，发布于 2026-11-23
 
-## 🌊 关于MacWave
+## 🌊 关于Summerwave
 
-MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开发者日常依赖的命令行工具。Linux 由兄弟项目 LinuxWave 覆盖。
+Summerwave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开发者日常依赖的命令行工具。Linux 由兄弟项目 LinuxWave 覆盖。
 
-## 🌊 为什么选择 MacWave
+## 🌊 为什么选择 Summerwave
 
 1. **占用小。** 安装器按文件拉取，而不是 clone 整个仓库；也不保留需要同步的软件包缓存。
 2. **一条命令装一个软件包。** 常用工具按名字安装，不必再逐个寻找发布页。
 3. **版本化存储。** 每个二进制文件都存放在 `package@version` 之下，多个版本可以共存，且都不会遮蔽系统工具。
 4. **可选的免版本号链接。** `wave link <软件包>` 会创建一个不带版本号的 `软件包` 快捷方式，指向已安装的最高版本；安装或卸载版本时，它会自动改指。
-5. **天然隔离。** MacWave 安装的一切都留在自己的目录中，绝不覆盖或链接 macOS 系统库，因此即使跨越大版本升级 macOS，环境依然完整可用。
+5. **天然隔离。** Summerwave 安装的一切都留在自己的目录中，绝不覆盖或链接 macOS 系统库，因此即使跨越大版本升级 macOS，环境依然完整可用。
 6. **元数据不会过期。** 软件包数据在请求时从 `SummerwaveOrg/SeaLane` 仓库读取。
 7. **十种归档格式，均由 CI 覆盖。** 无扩展名二进制文件、`.zip`、`.tar.gz`、`.tar.bz2`、`.tar.xz`、`.tar`、`.gz`、`.xz`、`.bz2` 与 `.conda`。
 8. **先校验，后解压。** 缺少 SHA256 或校验不符的软件包会被拒绝，绝不「给出警告后照常安装」。
 9. **支持断点续传。** 传输中断后可用 `-C` 继续。
 10. **实现透明。** 只用 Python 与 Shell，并自带解释器 —— 无需另装运行时，行为也没有藏在运行时里。
-11. **依赖自动处理。** 需要库的软件包会在记录中声明；MacWave 按引用计数安装、追踪并移除这些库。
+11. **依赖自动处理。** 需要库的软件包会在记录中声明；Summerwave 按引用计数安装、追踪并移除这些库。
 
-## 🌊 安装 MacWave
+## 🌊 安装 Summerwave
 
 在终端中运行：
 
@@ -62,13 +67,24 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 不写入任何内容。
 其余选项见 `install.sh --help`。
 
+**想先验再装？** 安装器是带分离签名的发布资产，可以先验再用：
+
+```bash
+curl -fsSLO https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh
+curl -fsSLO https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh.sig
+curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/<tag>/Keys/macwave-rsa.pub.pem -o pub.pem
+openssl dgst -sha256 -verify pub.pem -signature install.sh.sig install.sh && /bin/bash install.sh
+```
+
+（版本号与逐文件校验值都内嵌在 `install.sh` 里，所以钉住这个脚本就等于钉住它要下载的一切。）
+
 （如果你使用的是 bash 而非 zsh，请运行 ```source ~/.bashrc```）
 
 **安装后建议阅读手册。点击阅读（这个词以后做成链接）**。
 
 **环境要求：macOS Monterey 12 及以上、Xcode Command Line Tools。**
 
-**你不需要自己安装 Python。** MacWave 自带一份 CPython，放在
+**你不需要自己安装 Python。** Summerwave 自带一份 CPython，放在
 `<安装目录>/python/` 下，并在旁边建私有运行环境；因此 PATH 上的 `python3`
 （Homebrew、pyenv、系统自带的）都不会影响它。
 若自带的那份下载失败，安装器会回退到系统的 `python3` 并明确提示。
@@ -116,7 +132,7 @@ MacWave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开
 软件包与依赖是同一种形状，所以 `Shore/` 是一致的：里面没有第二份副本，`bin/` 里
 没有一个真实文件 —— 这也是为什么删掉 `bin/` 里的某一条永远不会弄坏已装的包。
 ## 🌊 使用镜像站（4.0 起）
-MacWave 用到的每个地址都能替换，所以换镜像是一组环境变量而不是命令。要查当前生效的是哪个地址，用 `wave mirror` —— 它会列出每一项的来源（环境变量还是内置默认值）与地址，密码默认脱敏。
+Summerwave 用到的每个地址都能替换，所以换镜像是一组环境变量而不是命令。要查当前生效的是哪个地址，用 `wave mirror` —— 它会列出每一项的来源（环境变量还是内置默认值）与地址，密码默认脱敏。
 
 **这件事对国内用户最要紧**：`github.com` 常常不是慢，而是连不上。从一条国内线路实测：三次里两次在 20 秒内连 TCP 都没建立，而同一时刻国内镜像站 37~78 毫秒就返回了。
 
@@ -131,25 +147,24 @@ export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 
 ### 全量镜像
 
-上面两行只覆盖大文件的下载。当 `github.com` 与 `raw.githubusercontent.com` 是**连不上**而不是慢的时候，让 MacWave 能跑起来的那几个文件仍然在 GitHub 上：软件包索引、自更新数据、自带解释器、MacWave 自身代码。把它们全部指向镜像：
+上面两行只覆盖大文件的下载。当 `github.com` 与 `raw.githubusercontent.com` 是**连不上**而不是慢的时候，让 Summerwave 能跑起来的那几个文件仍然在 GitHub 上：软件包索引、自更新数据、自带解释器、Summerwave 自身代码。把它们全部指向镜像：
 
 ```bash
 export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-`MACWAVE_PIP_INDEX` 是唯一不一样的那个：它只影响 `pip` 安装的三个 Python 依赖（`requests`、`toml`、`colorama`），所以可以指向任意 PyPI 镜像。其余六个都是同一个镜像域名下的路径，因此一个账号就能覆盖全部。
+`MACWAVE_PIP_INDEX` 是唯一不一样的那个：它只影响 `pip` 安装的三个 Python 依赖（`requests`、`toml`、`colorama`），所以可以指向任意 PyPI 镜像。其余五个都是同一个镜像域名下的路径，因此一个账号就能覆盖全部。
 **`SUMMERWAVE_API_DOMAIN` 末尾的 `/HEAD` 不能省。** 镜像按 `<组织>/<仓库>/<ref>/…`
 布局，`SeaLane` 是一个 git 仓库，所以 ref 那一段必须真实存在一层目录：
 
 ```
-…/MacWave/sealane/HEAD/pkg/pkginfo_arm64/versions   ← 正确
-…/MacWave/sealane/pkg/pkginfo_arm64/versions        ← 错误，404
+…/MacWave/sealane/HEAD/versions       ← 正确
+…/MacWave/sealane/versions            ← 错误，404
 ```
 
 少了它的症状是**所有**软件包都装不上（`wave install` 停在「读不到版本清单」，
@@ -164,11 +179,10 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```bash
 cat >> ~/.zshrc <<'MWMIRROR'
 
-# MacWave mirror — 删掉这一块就恢复官方地址
+# Summerwave mirror — 删掉这一块就恢复官方地址
 export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
 export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
 export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.example.cn/MacWave/selfupdate
 export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
 export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -199,11 +213,11 @@ export SUMMERWAVE_BOTTLE_DOMAIN="https://<用户名>:<密码>@<镜像地址>/Mac
 export SUMMERWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/deps"
 ```
 
-要全量的话，同一组凭据分别写进六个路径即可 —— 镜像站六个都提供。
+要全量的话，同一组凭据分别写进五个路径即可 —— 镜像站五个都提供。
 
 - `curl` 与 `requests` 都支持 URL 里带凭据，所以客户端不需要额外配置。
 - 这两行会写进 `~/.zshrc`，**那是明文文件**：别把它提交进任何仓库，也别忘了密码对人可见。
-- 报错时 MacWave 会把地址里的口令换成 `***` 再打印，所以贴日志求助不会顺便泄露密码。
+- 报错时 Summerwave 会把地址里的口令换成 `***` 再打印，所以贴日志求助不会顺便泄露密码。
 - 镜像承载全部六个路径，所以把账号写进上面的全量配置后，「`github.com` 整体连不上」也能解决，不只是「大文件下不动」。
 
 ### 全部变量
@@ -212,9 +226,8 @@ export SUMMERWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWa
 | `SUMMERWAVE_BOTTLE_DOMAIN` | 预编译软件包 | GitHub Releases |
 | `SUMMERWAVE_DEPS_DOMAIN` | 依赖库 | GitHub Releases |
 | `SUMMERWAVE_API_DOMAIN` | 软件包索引（**末尾要带 ref 段**，如 `/HEAD`） | raw.githubusercontent 上的 `SeaLane` |
-| `SUMMERWAVE_SELFUPDATE_DOMAIN` | 自更新数据 | raw.githubusercontent 上的 `Selfupdate` |
 | `SUMMERWAVE_PYTHON_DOMAIN` | 自带解释器 | raw.githubusercontent 上的 `Python` |
-| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身文件 | raw.githubusercontent 上的 `MacWave` |
+| `SUMMERWAVE_CORE_DOMAIN` | Summerwave 自身文件 | raw.githubusercontent 上的 `Summerwave` |
 | `MACWAVE_PIP_INDEX` | `pip` 的索引（只影响三个 Python 依赖） | `https://pypi.org/simple` |
 
 变量的值是**包名之前那一段**：客户端会往 bottle / deps 的地址后接 `/<包名>/<包名>@<版本>.<架构><扩展名>`，往其他地址后接 `/pkg/…`、`/macwavedata/…`、`/pythondata/…`。末尾斜杠会被自动去掉，写不写都行。
@@ -238,9 +251,9 @@ wave install jq --proxy http://proxy.corp:3128
 ### 自己架镜像站
 镜像站就是一棵静态文件树，`nginx`、对象存储或任何文件服务器都行 —— 不需要特殊软件，也不需要数据库。搭建步骤（含建议加的两行 `Cache-Control`）见 [docs/MIRROR-SETUP.md](docs/MIRROR-SETUP.md)。
 
-## 🌊 卸载 MacWave
+## 🌊 卸载 Summerwave
 
-要从系统中彻底移除 MacWave，请在终端中运行以下命令：
+要从系统中彻底移除 Summerwave，请在终端中运行以下命令：
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/uninstall.sh)"
@@ -259,7 +272,7 @@ wave install jq --proxy http://proxy.corp:3128
 
 ## 🌊 软链接管理
 
-从 MacWave 2.4 起，建立不含版本号的软链接后，MacWave 会自动维护它指向的版本：
+从 Summerwave 2.4 起，建立不含版本号的软链接后，Summerwave 会自动维护它指向的版本：
 
 1. 最高版本被卸载后，不含版本号的软链接会改指向剩余版本中的最高版本，被卸载版本自己的软链接一并撤销。
 2. 安装会把不含版本号的软链接指向本次安装的版本；本次安装加上 `--no-link` 可跳过这一步。
@@ -282,15 +295,15 @@ Commands:
   list        List installed packages (two columns; --raw for scripts)
   search      Search for a package in the index
   info        Display detailed information about a package
-  selfupdate  Update MacWave itself
+  selfupdate  Update Summerwave itself
   link        Link installed packages without a version number
   unlink      Remove those unversioned links
   linkquery   Show which version an unversioned link points to
   mirror      Show which address each kind of data is fetched from
   latest      Show which packages have a newer version available
-  basedir     Print MacWave's install root (fixed at /opt/macwave)
+  basedir     Print Summerwave's install root (fixed at /opt/macwave)
   doctor      Check the install tree for problems (read-only)
-  shellenv    Print the shell code that puts MacWave on your PATH
+  shellenv    Print the shell code that puts Summerwave on your PATH
   manual      Show the full manual (same text as man and info)
 
 Flags:
@@ -335,7 +348,7 @@ wave upgrade --all, -a             把所有已装的软件包更新到最新版
     --all, -a                      Apply to every installed package (upgrade / link / unlink / linkquery)
 
 Self Update:
-wave selfupdate                    Update MacWave itself
+wave selfupdate                    Update Summerwave itself
 wave selfupdate --max-time=2min    Same, but give each request two minutes
 wave selfupdate --dry-run          Print what would be updated and change nothing
 
@@ -510,9 +523,9 @@ yt-dlp           by yt-dlp
 zellij           by zellij-org
 zoxide           by Ajeet D'Souza
 ```
-## 🌊 开发 MacWave
+## 🌊 开发 Summerwave
 
-MacWave 由纯 Python 与 Shell 写成，没有构建步骤 —— 本仓库里的文件就是实际运行的代码。
+Summerwave 由纯 Python 与 Shell 写成，没有构建步骤 —— 本仓库里的文件就是实际运行的代码。
 内部实现见 [`docs/TECHNICAL-GUIDE.md`](./docs/TECHNICAL-GUIDE.md) 与
 [`docs/CODE-MAP.md`](./docs/CODE-MAP.md)。
 
@@ -541,19 +554,19 @@ git switch -c 4.2 4.1
 ### 不要从仓库里直接运行
 
 本仓库是源码，不是安装结果。在仓库目录里运行 `wave`，或把仓库中的目录加入 `PATH`，
-都会**按设计**失败：MacWave 依赖 `install.sh` 写出的状态文件（在写死的安装根下），
+都会**按设计**失败：Summerwave 依赖 `install.sh` 写出的状态文件（在写死的安装根下），
 而该文件记录了装的是哪个版本。
 
 完整的 clone 会报：
 
 ```
-🌊 Error: MacWave is a git clone!
+🌊 Error: Summerwave is a git clone!
 ```
 
 shallow clone 会报：
 
 ```
-🌊 Error: MacWave is a shallow clone!
+🌊 Error: Summerwave is a shallow clone!
 ```
 
 两者之后都会给出同样的建议：用 `install.sh` 安装、选择目录，然后使用安装出来的
@@ -587,7 +600,7 @@ shallow clone 会报：
 - `_<软件包名>@common` —— 所有版本共用的元数据：`des`、`hom`、`lic`、`aut`，
   以及 `bin_name`，即二进制文件安装后的名字。
 - `_<软件包名>@<版本号>` —— 每个版本一个文件，包含 `url` 与 `sha256`；当这个软件包
-  需要 MacWave 一并安装的库时，再加上 `deps`。
+  需要 Summerwave 一并安装的库时，再加上 `deps`。
 
 `sha256` 是必填项。缺少它的记录会被拒绝安装，而不是给出警告后照常安装。
 依赖写成 `name@version` 并采用引用计数，因此移除一个软件包不会连带删掉其他软件包
@@ -633,7 +646,7 @@ python3 scripts/audit_deps.py data # 用已装的库审计索引数据
 
 ## 🌊 许可证
 
-本项目基于 **Apache License 2.0** 发布 —— 全文见 [LICENSE](LICENSE)，署名说明见 [NOTICE](NOTICE)。MacWave 安装的软件包各自保留自己的许可证。
+本项目基于 **Apache License 2.0** 发布 —— 全文见 [LICENSE](LICENSE)，署名说明见 [NOTICE](NOTICE)。Summerwave 安装的软件包各自保留自己的许可证。
 
 各版本的许可证：
 
