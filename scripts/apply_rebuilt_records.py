@@ -40,9 +40,9 @@ DEFAULT_INFOSOURCE = Path.home() / "Projects" / "SummerwaveOrg" / "SeaLane"
 FIELD_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"(.*)"\s*$', re.M)
 
 
-def record_path(infosource, kind, name, version, arch):
-    # 0.1.0 起索引是单一命名空间：记录就在仓库根下 <名>/_<名>@<版本>.macos-<arch>
-    tag = platforminfo.bottle_tag(arch)
+def record_path(infosource, kind, name, version, arch, os_name=None):
+    # 0.1.0 起索引是单一命名空间：记录就在仓库根下 <名>/_<名>@<版本>.<os>-<arch>
+    tag = platforminfo.bottle_tag(arch, os_name=os_name)
     return infosource / name / f"_{name}@{version}.{tag}"
 
 
@@ -104,11 +104,16 @@ def main():
     parser.add_argument("--infosource", default=str(DEFAULT_INFOSOURCE), type=Path)
     parser.add_argument("--apply", action="store_true", help="actually rewrite the records")
     parser.add_argument("--only", default="", help="comma separated package names")
+    parser.add_argument("--os", default=None, choices=("macos", "linux"),
+                        help="which platform's records to rewrite (default: the host)")
     args = parser.parse_args()
 
-    if not (args.infosource / "pkg" / "pkginfo").is_dir():
-        print(f"🌊 Error: {args.infosource} does not look like the 0.1.0 index "
-              f"(expected pkg/pkginfo/). Run migrate_index_layout.py first.")
+    # 0.1.0 的索引是单一扁平命名空间：<名>/_<名>@<版本>.<os>-<arch>。
+    # 这里以前检查 pkg/pkginfo/（4.x 的布局），迁移之后那个目录根本不存在。
+    if not any(args.infosource.glob("*/_*@*.macos-*")) \
+       and not any(args.infosource.glob("*/_*@*.linux-*")):
+        print(f"🌊 Error: {args.infosource} does not look like a Summerwave index "
+              f"(expected <name>/_<name>@<version>.<os>-<arch>).")
         return 1
 
     only = {name.strip() for name in args.only.split(",") if name.strip()}
@@ -129,7 +134,7 @@ def main():
             continue
 
         archive = args.prebuilt / filename
-        record = record_path(args.infosource, kind, name, version, arch)
+        record = record_path(args.infosource, kind, name, version, arch, os_name=args.os)
 
         if not archive.is_file():
             problems.append(f"{name}@{version}.{arch}: archive missing ({archive})")
