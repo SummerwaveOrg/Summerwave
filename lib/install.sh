@@ -274,10 +274,9 @@ mw_redact() {
 # 所以校验规则更松（允许 https 与 http 回环，与 mw_domain 同）。
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
-# MacWave 自身文件（后面再拼 /<分支>/<路径>）
+# MacWave 自身文件（后面再拼 /<tag>/<路径>）。1.0 起按 **tag** 取，不按分支：
+# 清单已经内嵌在脚本里、哈希属于某个确定的版本，分支一动哈希就对不上。
 CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
-# 自更新数据：版本号、文件清单、目录迁移脚本
-SELFUPDATE_URL="$(mw_domain SUMMERWAVE_SELFUPDATE_DOMAIN "${SUMMERWAVE_SELFUPDATE_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Selfupdate/HEAD}")"
 # 自带 CPython 的清单
 # 解释器单独一个仓库（体积与发布节奏都和自更新数据不同）
 PYTHON_DOMAIN_URL="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-https://raw.githubusercontent.com/MacWaveOrg/Python/HEAD}")"
@@ -311,19 +310,21 @@ if [[ -n "${MACWAVE_CACERT:-}" ]]; then
 fi
 
 
-# -------------------- 签名校验（强制） --------------------
+# -------------------- 签名校验（1.0 起的位置变了） --------------------
 #
-# 验签**不通过就不装**：这份数据决定装哪个版本、取哪个分支，是整条链唯一的可信起点
-# （老客户端跑的是自己那份老脚本，逼它验签等于让它装不上）。
+# 1.0 不再有「带签名的版本数据」：版本号与逐文件清单都在这个脚本里，清单又逐条钉住
+# 每个文件的 sha256。所以可信起点变成了**这份脚本本身**：
 #
-# 三样东西各管一段：
-#   latest.toml.sig              签「版本、分支、update_commands 的哈希」（暂时留空）
-#   update_commands_sha256       钉住即将被 bash 执行的那个脚本
-#   want <路径> <0|1> <sha256>   钉住脚本往下要的每个文件
+#   * `wave selfupdate` 在 bash 它之前，先验同 tag 的 `install.sh.sig`（不通过不执行）；
+#   * 手工安装用文档里那条「下载脚本 + 下载 .sig → 验签 → 再运行」的两步命令；
+#     `curl … | bash` 省掉了这一步，只在能确认来源时才用。
+#
+# 下面的 mw_trusted_pub / mw_verify_* 仍然保留：它们是「验一份字节是否由我们签的」
+# 的唯一实现（scripts/shared/signature_verify.sh 与它逐字一致，check_shared_blocks.py
+# 盯着），手工验签与后续把「执行前校验」搬进来都用它。
 #
 # 公钥从哪来：mw_trusted_pub() 见下面 —— 优先 MACWAVE_RSA_PUB（一个 PEM 路径），
-# 否则用两个脚本里各内嵌一份的那把钥（scripts/embed_rsa_pub.py 维护）。
-# 两边都没有时整段跳过（这种脚本本来就没有验签能力，不是「验过了」）。
+# 否则用脚本里内嵌的那把钥（scripts/embed_rsa_pub.py 维护）。
 
 mw_sha256() {
     # 用 openssl：macOS 自带，不必依赖 shasum 的 perl
@@ -983,14 +984,13 @@ fi
 # 它取目标版本的 lib/install.sh，带着下面这组变量执行本文件。于是「怎么装」只有
 # 一份实现 —— 全新安装与升级跑的是同一个脚本，区别只在几个开关。
 #
-# 为什么不是「下载一段代码去 bash」：本文件是**目标版本 tag 里的 install.sh**，
-# 与发布资产同名同源，审计时看它 + 同版本的 files.txt 就够；且它的哈希被写进
-# latest.toml（installer_sha256），selfupdate 会先校验再执行。
+# 为什么不是「下载一段代码去 bash」：本文件就是**目标 tag 的发布资产**，版本号与
+# 逐文件清单都内嵌在它自己头部，审计时读这一个文件就够；调用方（`wave selfupdate`）
+# 会先验它的 `.sig` 再执行。
 #
 # 变量契约（全部可选；缺哪个就退回默认值）：
 #
 #   MACWAVE_SELFUPDATE=1        我在升级一棵已有的树（装哪棵树不传 —— 位置写死）
-#   MACWAVE_VERSION / MACWAVE_BRANCH   目标版本与分支（已存在的口子）
 #   MACWAVE_NEED_SUDO=1|0       提权结论沿用调用方的，不重新探测
 SELFUPDATE_MODE=false
 if [[ "${MACWAVE_SELFUPDATE:-}" == "1" ]]; then
@@ -1022,6 +1022,53 @@ else
 fi
 
 DISPLAY_DIR=$(home_to_tilde "$BASE_DIR")
+
+# ==========================================
+# 4.x 的安装：拒绝原地升级，要求重装
+# ==========================================
+#
+# 4.6 允许自定义安装目录（`--dir-option`），而 1.0 把安装根写死成 /opt/macwave。
+# 于是 1.0 的安装器**不知道旧的那一份在哪** —— 既不能 prune 也不能复用，硬装的结果
+# 是同一台机器上两套并行：PATH 里的 wave 指着一套，Shore/ 在另一套，而且谁都说不清
+# 哪套在生效。
+#
+# 判定只认「明显是 MacWave 的版本线」（2.x / 3.x / 4.x）。1.0 自己的版本是时间戳
+# 形态（`2026.11.26-15:52:43`）或带 `@<UTC>` 的 tag，不会落进这三个前缀。
+check_no_legacy_install() {
+    mw_dry_run && return 0
+
+    local state="$BASE_DIR/var/config.sh" old_version=""
+    if [[ -f "$state" ]]; then
+        old_version="$(sed -n "s/^MACWAVE_VERSION='\(.*\)'$/\1/p" "$state" | head -n 1)"
+    fi
+
+    local legacy=""
+    if [[ "$old_version" =~ ^(2|3|4)\.[0-9] ]]; then
+        legacy="版本 $old_version"
+    elif [[ -d "$BASE_DIR/links" || -d "$BASE_DIR/deps" || -d "$BASE_DIR/pkg/pkginfo" ]]; then
+        legacy="4.x 的目录布局（links/、deps/ 或 pkg/pkginfo/）"
+    fi
+    [[ -n "$legacy" ]] || return 0
+
+    echo -e "${RED_BOLD}🌊 Error: an older MacWave installation was found at $BASE_DIR${RESET}" >&2
+    echo -e "${RED_BOLD}🌊   ($legacy)${RESET}" >&2
+    echo -e "${YELLOW}🌊 Summerwave 1.0 cannot upgrade it in place: 4.x allowed custom install${RESET}" >&2
+    echo -e "${YELLOW}🌊 directories, so this installer has no way to know where the old copy is.${RESET}" >&2
+    echo -e "${YELLOW}🌊 Uninstall the old version first, then run this installer again:${RESET}" >&2
+    echo -e "${YELLOW}🌊   $BASE_DIR/lib/uninstall.sh${RESET}" >&2
+    echo -e "${YELLOW}🌊   (if 4.6 was installed elsewhere, run that copy's uninstall.sh)${RESET}" >&2
+    exit 1
+}
+
+check_no_legacy_install
+
+# 自定义目录装的 4.x 我们找不到，只能在常见的默认位置提一句（只提示，不阻止）。
+for _legacy_root in "$HOME/.local/macwave" "/usr/local/macwave"; do
+    if [[ -f "$_legacy_root/var/config.sh" && "$_legacy_root" != "$BASE_DIR" ]]; then
+        mw_say "${YELLOW}🌊 Note: another (older) installation exists at $_legacy_root; it is not touched by this installer.${RESET}" \
+               "${YELLOW}🌊 注意：$_legacy_root 下还有一份（旧的）安装，本次安装不会动它。${RESET}"
+    fi
+done
 
 # ==========================================
 # 动手之前确认：装到这个位置，继续吗？
@@ -1079,97 +1126,43 @@ elif [[ -z "${MACWAVE_TEST:-}" ]] && [[ -r /dev/tty ]]; then
 fi
 
 # ==========================================
-# 版本号与代码分支（从自更新数据读取，不写死在脚本里）
+# 版本号（来自脚本自己）
 # ==========================================
 #
-# macwavedata/latest.toml 里的 version 是这次要安装的版本，branch 是配套的代码分支：
-# 两者一起读，保证「下载的代码」和「写进 var/config.sh 的版本号」对应同一个版本。
+# 1.0 起**没有自更新数据仓库**：这个脚本是某个 tag 的发布产物，版本号与逐文件清单
+# 都内嵌在它自己的头部（见 scripts/build_installer.py）。所以这里不联网、不读 TOML，
+# 只做两件事：确认「我确实是发布产物」，以及把 tag 拆成渠道与构建号。
 #
-# 格式是 TOML 的一个子集：平铺的 `key = "value"`，允许行尾 # 注释。
-# 这里用 sed 而不是引 TOML 解析器，因为此刻客户端还没有可用的 Python 环境。
+# 拿模板（lib/install.sh）直接跑会在这一步退出 —— 模板里没有 MACWAVE_MANIFEST_VERSION，
+# 那意味着它不知道这一版该装哪些文件，硬跑只会装出一棵半成品。
 
-# 渠道：只有两条流。preview 读自己的探针（prerelease/latest.toml），与正式版完全
-# 隔离。用环境变量而不是命令行旗标，是因为 install.sh 的参数要一路传到
-# update_commands 里那份手抄的帮助文本（scripts/message_test.sh 钉着它），而渠道是
-# 发布者/测试者视角的东西，不该出现在普通用户的用法里。
-MW_CHANNEL="stable"
-if [[ "${MACWAVE_CHANNEL:-}" == "preview" ]]; then
-    MW_CHANNEL="preview"
-    LATEST_DATA_URL="$SELFUPDATE_URL/prerelease/latest.toml"
-else
-    LATEST_DATA_URL="$SELFUPDATE_URL/macwavedata/latest.toml"
-fi
-# `|| true` 不能省：赋值语句的退出码就是 curl 的退出码，在 `set -e` 下取不到
-# 版本会直接静默退出（实测 exit 7，下面那段「读不到版本」的提示一个字都打不出来）。
-LATEST_VERSION_DATA="$(curl -fsSL --max-time 30 ${CURL_CACERT:+--cacert "$CURL_CACERT"} "$LATEST_DATA_URL" 2>/dev/null || true)"
-
-read_toml_string() {
-    # read_toml_string <文本> <键> —— 取平铺的字符串值，去掉引号与行尾注释
-    printf '%s\n' "$1" \
-        | sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\1/p" \
-        | head -n 1
-}
-
-# pre-release 的安装口：调用方可以用环境变量显式指定要装的版本与分支，
-# 覆盖上面从 configdata 读到的「最新正式版」。
-#
-# 为什么必须留这个口子：configdata 是 `wave selfupdate` 的唯一依据，beta 绝不能
-# 写进去 —— 一旦写进去，所有人的常规更新都会跳上 beta。所以「装 beta」只能由
-# 调用方显式指定，而这正是 beta Release 正文里那条命令做的事。
-#
-# 指向 releases/latest 的安装命令**不带**这两个变量，所以走那条路的人永远得到正式版。
-# 两个必须同时给：只给版本不给分支，会去取一条不含该版本文件的代码线。
-#
-# 名字被收成局部变量是必要的 —— 下面那两行赋值会直接覆盖同名环境变量。
-ENV_VERSION="${MACWAVE_VERSION:-}"
-ENV_BRANCH="${MACWAVE_BRANCH:-}"
-
-MACWAVE_VERSION="$(read_toml_string "$LATEST_VERSION_DATA" version)"
-LATEST_BRANCH="$(read_toml_string "$LATEST_VERSION_DATA" branch)"
-# 钉住即将被 bash 执行的那个脚本（空 = 这一版没带哈希）
-# 4.7 起的主轨：files.txt（这一版安装树该长什么样）。缺失或取不到时自动回退到
-# 下面那条 update_commands_sha256（4.6 及更早的机制）。
-EXPECTED_FILES_SHA256="$(read_toml_string "$LATEST_VERSION_DATA" files_sha256)"
-EXPECTED_UPDATE_COMMANDS_SHA256="$(read_toml_string "$LATEST_VERSION_DATA" update_commands_sha256)"
-# 构建号（`323R1250`）：同一秒发布两次时的兜底区分，必须落进 var/config.sh
-BUILD_NUMBER="$(read_toml_string "$LATEST_VERSION_DATA" build_number)"
-# 验 latest.toml 自己的签名（没有公钥 / 没有 .sig 时静默跳过）
-mw_verify_latest_signature "$LATEST_VERSION_DATA" "$LATEST_DATA_URL"
-
-if [[ -n "$ENV_VERSION" && -n "$ENV_BRANCH" ]]; then
-    # 版本号会进 URL 与 JSON，只接受安全的字符 —— 不给「拼个奇怪的值让后面的
-    # 拼接变成别的东西」留余地。分支名同理由 git 的规则限制（不能有空格等）。
-    if [[ ! "$ENV_VERSION" =~ ^[A-Za-z0-9._-]+$ || ! "$ENV_BRANCH" =~ ^[A-Za-z0-9._-]+$ ]]; then
-        echo -e "${RED_BOLD}🌊 Error: refusing to install '$ENV_VERSION' from branch '$ENV_BRANCH'.${RESET}" >&2
-        echo -e "${YELLOW}🌊 Version and branch may only contain letters, digits, dot, dash and underscore.${RESET}" >&2
-        exit 1
-    fi
-    MACWAVE_VERSION="$ENV_VERSION"
-    LATEST_BRANCH="$ENV_BRANCH"
-    mw_say "${YELLOW}🌊 Installing $MACWAVE_VERSION from branch $LATEST_BRANCH (explicitly requested, not the latest stable release)." \
-        "${YELLOW}🌊 将安装 ${MACWAVE_VERSION}（分支 ${LATEST_BRANCH}）—— 这是显式指定的版本，不是最新正式版。"
-fi
-
-if [[ -z "$MACWAVE_VERSION" || -z "$LATEST_BRANCH" ]]; then
+# 是不是模板（仓库里那份 lib/install.sh）？模板没有清单，只能在「真的要装」时拒绝，
+# 不能在这里就退出 —— --print-usage、平台守卫、--dry-run 这些路径根本不下载文件，
+# 却都要先跑这段。
+MW_IS_TEMPLATE=false
+[[ -n "${MACWAVE_MANIFEST_VERSION:-}" ]] || MW_IS_TEMPLATE=true
+if [[ -z "${MACWAVE_VERSION:-}" ]]; then
     if mw_dry_run; then
-        # 试运行可能只是想看输出，不该因为断网就断在第一行：用占位值把流程
-        # 走完，后面每一处都只打印、不落地。真实安装仍然在这里退出。
-        MACWAVE_VERSION="${MACWAVE_VERSION:-unknown}"
-        LATEST_BRANCH="${LATEST_BRANCH:-unknown}"
-        mw_say "${YELLOW}🌊 Dry run: could not read the latest version; using '$MACWAVE_VERSION'." \
-            "${YELLOW}🌊 试运行：读不到最新版本号，用占位值 '$MACWAVE_VERSION'。"
-        mw_say "${YELLOW}🌊   $(mw_redact "$LATEST_DATA_URL")" \
-            "${YELLOW}🌊   $(mw_redact "$LATEST_DATA_URL")"
+        MACWAVE_VERSION="unknown"
     else
-        echo -e "${RED_BOLD}🌊 Error: Cannot read the latest version from the self-update data.${RESET}" >&2
-        echo -e "${RED_BOLD}🌊   $(mw_redact "$LATEST_DATA_URL")${RESET}" >&2
-        echo -e "${RED_BOLD}🌊 Check your network or proxy, then run the installer again.${RESET}" >&2
-        exit 1
+        MW_IS_TEMPLATE=true
     fi
 fi
 
-BRANCH="$LATEST_BRANCH"
-BASE_URL="$CORE_URL/$BRANCH"
+# 渠道与构建号都从 tag 里来：`<版本>[-rc.N|-beta.N][@YYYY-MM-DDTHH:MMZ]`。
+# tag 协议的唯一解释口是 lib/taginfo.py；这里是它在 bash 里的最小镜像（只有发布号
+# 与渠道两件事），改动时必须两边一起动 —— scripts/taginfo_test.sh 盯着。
+MW_CHANNEL="stable"
+case "$MACWAVE_VERSION" in
+    *-rc.*|*-beta.*)
+        MW_CHANNEL="preview" ;;
+esac
+BUILD_NUMBER=""
+case "$MACWAVE_VERSION" in
+    *@*) BUILD_NUMBER="${MACWAVE_VERSION##*@}" ;;
+esac
+
+BASE_URL="$CORE_URL/$MACWAVE_VERSION"
 
 # ==========================================
 # 显示欢迎信息
@@ -1461,26 +1454,28 @@ if [[ "$NEED_SUDO" == "true" ]]; then
 fi
 
 # ==========================================
-# 文件清单（macwavedata/<版本>/files.txt）
+# 文件清单（内嵌在脚本头部）
 # ==========================================
 #
-# 这一版的安装树该长什么样，只有数据，没有代码：每行
+# 这一版的安装树该长什么样，只写在脚本开头那一段 heredoc 里：每行
 #
-#     <仓库内路径> <0|1 是否 +x> <sha256 或 ->
+#     <仓库内路径> <0|1 是否 +x> <sha256>
 #
-# 4.7 起「怎么装」全部收在本文件里（以前分两处：install.sh 负责全新安装，
-# macwavedata/<版本>/update_commands.sh 负责升级与迁移 —— 两份实现迟早会漂移，
-# 而漂移只会在某一条路径上出错）。现在升级也走 install.sh：
+# 为什么跟着脚本走而不是再下一个清单文件：装什么由**一份被签名的文件**说了算，
+# 读一个脚本就能完整审计；顺带少一次网络往返。清单与「怎么装」因此永远是同一个
+# 版本的 —— 以前它们分居两处，漂移只会在某一条路径上出错。
 #
-#   - 增量由 sha256 比对得出（本地那份与清单不符就重下），不必再单独维护一张
-#     「上一版 → 本版」的差异表；
-#   - 手工删掉过文件、上次升级中断，都能自愈 —— 只需要「清单里每一条都对得上」；
-#   - 没有人 bash 任何下载来的脚本，审计时看 install.sh + files.txt 两样就够。
-#
-# 这一步刻意放在「建目录 / 写配置 / 清旧版」之前：连不上自更新数据就直接退出，
-# 不会留下一个配置已写好、文件却一个都没下的半成品安装。
+# 清单的生成在服务端（scripts/build_installer.py），它同时把版本号写进脚本。
+# 这里只负责把它落到临时文件，好让下面的 sync_tree 用同一套 `while read` 逻辑。
 
-MANIFEST_URL="$SELFUPDATE_URL/macwavedata/$MACWAVE_VERSION/files.txt"
+read_toml_string() {
+    # read_toml_string <文本> <键> —— 取平铺的字符串值，去掉引号与行尾注释。
+    # 只剩 Python 引导那一步在用（pythondata/latest.toml），见文件末尾。
+    printf '%s\n' "$1" \
+        | sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\1/p" \
+        | head -n 1
+}
+
 MANIFEST_TMP=""
 
 cleanup_manifest() {
@@ -1490,97 +1485,25 @@ cleanup_manifest() {
 }
 trap cleanup_manifest EXIT
 
-fetch_manifest() {
-    # 取回并校验这一版的文件清单。失败时还没动过任何东西，直接退出是安全的。
-    local attempt ok=false
+prepare_manifest() {
+    # 把内嵌清单写进临时文件。校验只有一件事：格式对不对（路径 + 0/1 + 64 位哈希）。
+    # 内容不需要额外校验 —— 它就在正在被执行的这个脚本里。
+
+    if [[ "$MW_IS_TEMPLATE" == "true" ]]; then
+        echo -e "${RED_BOLD}🌊 Error: this install.sh carries no file list.${RESET}" >&2
+        echo -e "${YELLOW}🌊 It is a template, not a release artifact. Download the installer from:${RESET}" >&2
+        echo -e "${YELLOW}🌊   https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh${RESET}" >&2
+        echo -e "${YELLOW}🌊 Nothing was installed.${RESET}" >&2
+        exit 1
+    fi
+    if ! printf '%s\n' "$MANIFEST" | grep -qE '^[^ ]+ [01] [0-9a-f]{64}$'; then
+        echo -e "${RED_BOLD}🌊 Error: the embedded file list is malformed.${RESET}" >&2
+        echo -e "${RED_BOLD}🌊 Nothing was installed. Please report this to the administrator.${RESET}" >&2
+        exit 1
+    fi
 
     MANIFEST_TMP="$(mktemp)"
-    mw_say "🌊 Fetching the file list..." "🌊 正在获取文件清单……"
-
-    for attempt in 1 2 3; do
-        if mw_download "$MANIFEST_URL" "$MANIFEST_TMP" 60; then
-            ok=true
-            break
-        fi
-        if [[ "$attempt" -lt 3 ]]; then
-            mw_say "${YELLOW}🌊 Retrying the file list ($((attempt + 1))/3)...${RESET}" "${YELLOW}🌊 正在重试获取文件清单（$((attempt + 1))/3）……${RESET}"
-        fi
-    done
-
-    if [[ "$ok" != "true" ]]; then
-        # 双轨：拿不到清单就整段回退到旧轨（bash update_commands.sh）。真正的网络
-        # 故障会在旧轨里报出来，那里有更贴切的提示；这里只留一行说明为什么不走新轨。
-        mw_say "${YELLOW}🌊 No file list for $MACWAVE_VERSION; falling back to the update commands.${RESET}" \
-               "${YELLOW}🌊 这一版没有文件清单，回退到更新命令。${RESET}"
-        SYNC_MODE="legacy"
-        return 1
-    fi
-
-    # 清单决定「哪些字节会被写进安装树」，所以它必须与发布时那一份一致。
-    # 与 4.4 起的逐文件哈希同一条规则：默认只警告，MACWAVE_STRICT_HASHES=1 才失败。
-    mw_check_integrity "files.txt" "$MANIFEST_TMP" "$EXPECTED_FILES_SHA256"
-
-    if ! grep -qE '^[^ ]+ [01] (-|[0-9a-f]{64})$' "$MANIFEST_TMP"; then
-        echo -e "${RED_BOLD}🌊 Error: the file list for $MACWAVE_VERSION is malformed.${RESET}"
-        echo -e "${RED_BOLD}🌊 Nothing was installed. Please report this to the administrator.${RESET}"
-        exit 1
-    fi
-}
-
-# -------------------- 旧轨（4.6 及更早的机制）--------------------
-#
-# 保留到 4.8：4.6 的客户端不会读 files.txt，它们自己 download 并 **bash** 一份
-# 按版本生成的 update_commands.sh；而 mirrors / configdata 里那些 <= 4.6 的版本
-# 也只有那一份脚本。所以 install.sh 装着两个轨：
-#
-#   新轨：files.txt 清单 → sync_tree() 自己下载、自己迁移（4.7 起）
-#   旧轨：update_commands.sh → bash 它（4.6 及更早，或镜像还没同步 files.txt 时）
-#
-# 选择在 fetch_manifest 里做：能拿到清单就走新轨，拿不到就整段回退，**不做混用**
-# —— 混用的后果是「一半文件按清单下的、一半按脚本下的」，清单与脚本对不上时
-# 最难查。4.8 删掉这段和下面「执行更新脚本」那一段旧代码。
-
-UPDATE_COMMANDS_URL="$SELFUPDATE_URL/macwavedata/$MACWAVE_VERSION/update_commands.sh"
-UPDATE_COMMANDS_TMP=""
-
-cleanup_update_commands() {
-    if [[ -n "$UPDATE_COMMANDS_TMP" ]]; then
-        rm -f "$UPDATE_COMMANDS_TMP"
-    fi
-}
-trap cleanup_update_commands EXIT
-
-fetch_update_commands() {
-    # 取回并校验这一版的更新命令。失败时此时还没动过任何东西，直接退出是安全的。
-    local attempt ok=false
-
-    UPDATE_COMMANDS_TMP="$(mktemp)"
-    mw_say "🌊 Fetching the update commands..." "🌊 正在获取更新命令……"
-
-    for attempt in 1 2 3; do
-        if mw_download "$UPDATE_COMMANDS_URL" "$UPDATE_COMMANDS_TMP" 60; then
-            ok=true
-            break
-        fi
-        if [[ "$attempt" -lt 3 ]]; then
-            mw_say "${YELLOW}🌊 Retrying the update commands ($((attempt + 1))/3)...${RESET}" "${YELLOW}🌊 正在重试获取更新命令（$((attempt + 1))/3）……${RESET}"
-        fi
-    done
-
-    if [[ "$ok" != "true" ]]; then
-        echo -e "${RED_BOLD}🌊 Error: Cannot fetch the update commands.${RESET}"
-        echo -e "${RED_BOLD}🌊   $(mw_redact "$UPDATE_COMMANDS_URL")${RESET}"
-        echo -e "${RED_BOLD}🌊 Nothing was installed. Check your network or proxy, then run the installer again.${RESET}"
-        exit 1
-    fi
-
-    mw_check_integrity "update_commands.sh" "$UPDATE_COMMANDS_TMP" "$EXPECTED_UPDATE_COMMANDS_SHA256"
-
-    if ! /bin/bash -n "$UPDATE_COMMANDS_TMP" 2>/dev/null; then
-        echo -e "${RED_BOLD}🌊 Error: the update commands for $MACWAVE_VERSION are not valid shell.${RESET}"
-        echo -e "${RED_BOLD}🌊 Nothing was installed. Please report this to the administrator.${RESET}"
-        exit 1
-    fi
+    printf '%s\n' "$MANIFEST" > "$MANIFEST_TMP"
 }
 
 # -------------------- 新轨（4.7 起）--------------------
@@ -1600,7 +1523,7 @@ sync_tree() {
         # 清单里的空格是 \  转义的（格式先定死，现无这种路径）
         path="${path//\\ / }"
         destination="$BASE_DIR/$path"
-        # BASE_URL 就是「这一分支的代码在哪」（= CORE_URL/${BRANCH}）。用它而不是
+        # BASE_URL 就是「这一版的代码在哪」（= CORE_URL/${版本 tag}）。用它而不是
         # 自己拼：sandbox_test 只改 BASE_URL 这一行来指向离线镜像。
         url="$BASE_URL/$path"
 
@@ -1727,80 +1650,12 @@ prune_tree() {
     return 0
 }
 
-apply_migrations() {
-    # 目录结构变更的迁移。以前写在 update_commands.sh 里 —— 那是**按版本生成**的
-    # 脚本，而迁移是「和版本无关的一次性搬家」：只要旧位置还有那个文件、新位置已经
-    # 由清单下好，删掉旧的即可。所以搬到这里，只维护一份。
-    #
-    # 约束：幂等（重跑无副作用）、以当前用户身份执行、失败就 exit 非零。
-
-    # 1.0：包与依赖合并到 Shore/<名>/<版本>/，bin/ 只留无版本号链接。
-    # 逐条搬，不整目录 mv：旧树里可能同时有 bin/ 与 deps/，而两者都会落到
-    # Shore/ 下同构的位置；某一条搬失败只跳过它，别把整次安装搞崩。
-    local _old _new _owner _ver _pkgdir
-    if [[ -d "$BASE_DIR/deps" ]]; then
-        for _owner in "$BASE_DIR/deps"/*; do
-            [[ -d "$_owner" ]] || continue
-            for _pkgdir in "$_owner"/*; do
-                [[ -d "$_pkgdir" ]] || continue
-                _new="$SHORE_DIR/${_pkgdir##*/}"
-                [[ -e "$_new" ]] && continue
-                run_cmd mkdir -p "$SHORE_DIR"
-                run_cmd mv "$_pkgdir" "$_new" 2>/dev/null || true
-            done
-        done
-    fi
-    if [[ -d "$BASE_DIR/bin" ]]; then
-        for _pkgdir in "$BASE_DIR/bin"/*@*; do
-            [[ -d "$_pkgdir" ]] || continue
-            # bin/<名>@<版本> -> Shore/<名>/<版本>
-            _owner="${_pkgdir##*/}"
-            _ver="${_owner##*@}"
-            _owner="${_owner%@*}"
-            _new="$SHORE_DIR/$_owner/$_ver"
-            [[ -e "$_new" ]] && { run_cmd rm -rf "$_pkgdir"; continue; }
-            run_cmd mkdir -p "$SHORE_DIR/$_owner"
-            run_cmd mv "$_pkgdir" "$_new" 2>/dev/null || true
-        done
-    fi
-    # links/* -> bin/*（同名已存在就以新树为准，旧链接直接丢掉）
-    if [[ -d "$BASE_DIR/links" ]]; then
-        for _old in "$BASE_DIR/links"/*; do
-            [[ -e "$_old" || -L "$_old" ]] || continue
-            _new="$INSTALL_DIR/${_old##*/}"
-            [[ -e "$_new" || -L "$_new" ]] || run_cmd mv "$_old" "$_new" 2>/dev/null || true
-            run_cmd rm -f "$_old"
-        done
-        run_cmd rmdir "$BASE_DIR/links" 2>/dev/null || true
-    fi
-
-    for stale in "$LIB_DIR/tls.py" "$LIB_DIR/timeouts.py" "$LIB_DIR/domains.py" \
-                 "$LIB_DIR/configpaths.py" "$LIB_DIR/configerror.py" \
-                 "$LIB_DIR/help.py" "$LIB_DIR/flags.py" "$LIB_DIR/suggest.py" \
-                 "$LIB_DIR/silent.py" "$LIB_DIR/quiet.py" \
-                 "$REPO_DIR/pkgversionparser.py" "$SURFBOARD_DIR/depsversionparser.py" \
-                 "$LIB_DIR/versioncmp.py"; do
-        if [[ -f "$stale" ]]; then
-            run_cmd rm -f "$stale"
-        fi
-    done
-}
-
-# 决定走哪一轨。SYNC_MODE 之后在两处被读：下载阶段（这里）与应用阶段
-# （「执行更新脚本」那一节）。
-SYNC_MODE="legacy"
-if mw_dry_run; then
-    # 试运行不取清单（那是网络动作），但**按主轨报告**：4.7 起的正常路径就是它。
-    SYNC_MODE="manifest"
-    mw_plan "🌊 Dry run: would fetch $MANIFEST_URL and download only the files that differ." \
-        "🌊 试运行：将获取 ${MANIFEST_URL}，只下载与本地不一致的文件。"
-    mw_plan "🌊   If that list is unavailable, the update commands for $MACWAVE_VERSION would run instead." \
-        "🌊   如果拿不到清单，则改为执行 ${MACWAVE_VERSION} 的更新命令。"
-elif fetch_manifest; then
-    SYNC_MODE="manifest"
-fi
-if [[ "$SYNC_MODE" == "legacy" ]] && ! mw_dry_run; then
-    fetch_update_commands
+# 清单只有一条来源：脚本自带的那些行。落到临时文件，供下面 sync_tree 逐条比对。
+if ! mw_dry_run; then
+    prepare_manifest
+else
+    mw_plan "🌊 Dry run: would download only the files that differ from the embedded list." \
+        "🌊 试运行：将只下载与内嵌清单不一致的文件。"
 fi
 
 # ==========================================
@@ -1898,53 +1753,19 @@ else
 fi
 
 # ==========================================
-# 同步文件（按轨二选一）
+# ==========================================
+# 同步文件
 # ==========================================
 #
-# 新轨（4.7 起）：按 files.txt 里逐条的 sha256 比对，只下不一致的那些，然后做
-# 目录迁移。清单决定字节，逻辑全在本文件里，没有「下载一段代码去执行」这回事。
-#
-# 旧轨（4.6 及更早，或这一版没有 files.txt）：把更新命令交给 bash。它的环境变量
-# 就是它与客户端之间的全部契约（见 update_commands.template.sh 头部）。
-#
-# 两条轨**不混用**：混着走会出现「一半文件按清单下的、一半按脚本下的」，
-# 清单与脚本对不上时最难查。SYNC_MODE 在下载阶段就已经定下来。
+# 按清单里逐条的 sha256 比对，只下不一致的那些 —— 这就是「增量更新」：以前靠生成
+# 两张差异表（full / delta），现在靠比对。逻辑全在本文件里，没有「下载一段代码去
+# 执行」这回事。
 
-if [[ "$SYNC_MODE" == "manifest" ]]; then
-    if mw_dry_run; then
-        mw_plan "🌊 Dry run: would download the files that differ from the list, then apply directory migrations." \
-            "🌊 试运行：将下载与清单不一致的文件，然后执行目录结构迁移。"
-    else
-        sync_tree
-        apply_migrations
-    fi
+if mw_dry_run; then
+    mw_plan "🌊 Dry run: would download the files that differ from the list." \
+        "🌊 试运行：将下载与清单不一致的文件。"
 else
-    export MACWAVE_INSTALL_DIR="$BASE_DIR"
-    # 语言一路传到底下的更新脚本，否则安装过程会中英混杂。
-    export MACWAVE_LANG="$MW_LANG"
-    export MACWAVE_CORE_URL="$CORE_URL"
-    export MACWAVE_BRANCH="$BRANCH"
-    export MACWAVE_CURRENT_VERSION=""
-    export MACWAVE_FILE_TIMEOUT=60
-    MACWAVE_NEED_SUDO="$([ "$NEED_SUDO" = "true" ] && echo 1 || echo "")"
-    MACWAVE_SILENT="$([ "$CLI_CI" = "true" ] && echo 1 || echo "")"
-    # 更新脚本（update_commands.sh）自己也在打印，靠这个变量把 --raw 传下去。
-    # 老版本的更新脚本不认识它 —— 那时只是更新脚本自己带 🌊，不影响安装结果。
-    MACWAVE_RAW="$([ "$CLI_RAW" = "true" ] && echo 1 || echo "")"
-    # 这一版带了逐文件哈希才开校验；没带就不开，让更新脚本保持旧行为。
-    if [[ -n "$EXPECTED_UPDATE_COMMANDS_SHA256" ]]; then
-        export MACWAVE_WANT_HASHES=1
-    fi
-    export MACWAVE_NEED_SUDO MACWAVE_SILENT MACWAVE_RAW
-
-    if mw_dry_run; then
-        mw_plan "🌊 Dry run: the update commands would run now and download the program files." \
-            "🌊 试运行：更新命令本该在此执行并下载程序文件，实际未执行。"
-    elif ! /bin/bash "$UPDATE_COMMANDS_TMP"; then
-        echo -e "${RED_BOLD}🌊 Error: the update commands for $MACWAVE_VERSION failed.${RESET}"
-        echo -e "${RED_BOLD}🌊 Nothing was recorded as installed. Fix the cause above, then run the installer again.${RESET}"
-        exit 1
-    fi
+    sync_tree
 fi
 
 # ==========================================
