@@ -7,8 +7,6 @@
 
 面向 macOS 软件开发者的包管理器。
 
-Linux 用户？请看 [LinuxWave](https://github.com/LinuxWaveOrg/LinuxWave)
-
 [English](./README.md) · **简体中文**
 
 ## 🌊 官方网站
@@ -30,7 +28,7 @@ Catalina —— 但 12 以下没有做过端到端实测，所以我们只承诺
 
 ## 🌊 关于Summerwave
 
-Summerwave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开发者日常依赖的命令行工具。Linux 由兄弟项目 LinuxWave 覆盖。
+Summerwave 是一个**面向 macOS 的包管理器**，用于分发 macOS 软件开发者日常依赖的命令行工具。
 
 ## 🌊 为什么选择 Summerwave
 

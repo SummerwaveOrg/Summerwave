@@ -7,8 +7,6 @@
 
 A package manager for macOS software developers.
 
-Linux? View [LinuxWave](https://github.com/LinuxWaveOrg/LinuxWave)
-
 **English** · [简体中文](./README.zh-Hans.md)
 
 ## 🌊 Official Website
@@ -31,7 +29,7 @@ that is what we promise. Individual packages may declare their own minimum;
 
 ## 🌊 About Summerwave 
 
-Summerwave is a **package manager for macOS**, built to distribute the command-line tools that macOS software developers rely on. Its sibling project, LinuxWave, covers Linux.
+Summerwave is a **package manager for macOS**, built to distribute the command-line tools that macOS software developers rely on.
 
 ## 🌊 Why Summerwave
 
