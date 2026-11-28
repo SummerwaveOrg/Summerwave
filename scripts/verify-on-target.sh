@@ -72,10 +72,19 @@ OS_VERSION="$(sw_vers -productVersion 2>/dev/null)"
 ARCH="$(uname -m)"
 echo "🌊 macOS $OS_VERSION / $ARCH"
 
+# PATH 上的 python3 来自哪里，会影响「自带解释器到底有没有生效」的判断：
+# Intel Mac 上 Homebrew 装在 /usr/local，所以 /usr/local/bin/python3 多半是它。
 if command -v python3 > /dev/null 2>&1; then
-    echo "🌊 系统 python3：$(command -v python3) ($(python3 -V 2>&1))"
+    PY_PREFIX="$(python3 -c 'import sys; print(sys.base_prefix)' 2>/dev/null)"
+    echo "🌊 PATH 上的 python3：$(command -v python3) ($(python3 -V 2>&1))"
+    case "$PY_PREFIX" in
+        */Cellar/*|/opt/homebrew/*) echo "🌊 来源：Homebrew（$PY_PREFIX）" ;;
+        /Library/Frameworks/*)      echo "🌊 来源：python.org 安装包（$PY_PREFIX）" ;;
+        /Applications/Xcode*|/Library/Developer/*) echo "🌊 来源：Xcode 命令行工具（$PY_PREFIX）" ;;
+        *) echo "🌊 来源：$PY_PREFIX" ;;
+    esac
 else
-    echo "🌊 系统 python3：没有（正好检验自带解释器）"
+    echo "🌊 PATH 上的 python3：没有（正好检验自带解释器）"
 fi
 
 # ==========================================
@@ -142,6 +151,25 @@ if BASE_OUT="$("$WAVE" basedir --raw 2>&1)" && [[ "$BASE_OUT" == "$BASE_DIR" ]];
     pass "basedir 指向 $BASE_OUT"
 else
     fail "basedir 返回了 '$BASE_OUT'"
+fi
+
+# wave 到底用了哪个解释器。启动器的顺序是 venv → 自带 → 安装时记录 → PATH，
+# 所以「venv 建在谁身上」就是答案。自带 Python 在目标系统上跑不起来时，安装会
+# 静默回退到 PATH 上的那个（很可能是 Homebrew），表面上看一切正常 —— 这一步就是
+# 把那种假绿认出来。
+if [[ -x "$BASE_DIR/venv/bin/python3" ]]; then
+    VENV_BASE="$("$BASE_DIR/venv/bin/python3" -c 'import sys; print(sys.base_prefix)' 2>/dev/null)"
+    VENV_VERSION="$("$BASE_DIR/venv/bin/python3" -V 2>&1)"
+    echo "🌊 venv 解释器：$VENV_VERSION，base_prefix=$VENV_BASE"
+    case "$VENV_BASE" in
+        "$BASE_DIR"/*) pass "venv 建在自带解释器上（自带 Python 真的生效了）" ;;
+        *)
+            fail "venv 建在 $VENV_BASE —— 自带 Python 没生效，回退到了系统的那个"
+            echo "🌊   这意味着这套安装依赖目标机上原有的 Python，换台没装过的机器就会坏。"
+            ;;
+    esac
+else
+    fail "没有 $BASE_DIR/venv/bin/python3"
 fi
 
 # ==========================================
