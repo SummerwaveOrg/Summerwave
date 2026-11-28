@@ -12,9 +12,9 @@ set -uo pipefail
 
 # 站点根目录 —— 必须与 nginx 里 `alias` 指的那棵树一致，否则本脚本会拿另一棵树
 # 去和 HTTP 比大小。mirror.repohub.top 上 nginx 指的是 /srv/mirror，
-# 而同步脚本默认写 /www/wwwroot/mirror.repohub.top/MacWave；两者不一致时
+# 而同步脚本默认写 /www/wwwroot/mirror.repohub.top/Summerwave；两者不一致时
 # 第 6.5 节会直接报红。先确认：
-#   nginx -T 2>/dev/null | grep -A2 'location ^~ /MacWave/'
+#   nginx -T 2>/dev/null | grep -A2 'location ^~ /Summerwave/'
 BASE=${BASE:-/www/wwwroot/mirror.repohub.top}
 DOMAIN=${DOMAIN:-https://mirror.repohub.top}
 LW_PASS_DIR=${LW_PASS_DIR:-/root/LinuxWaveMirror/password}
@@ -61,7 +61,7 @@ pick_rel() {   # 挑一个「能当靶子」的文件，输出相对路径（不
     # 就是这次「第 6 段修好了、第 7 段还在用旧逻辑」的由来。
     # 注意：这里**不能**写成 `... | sort | head -1`。`head` 读完一行就退出，
     # `sort` 继续写会吃到 SIGPIPE，而 `set -o pipefail` 会把那个 141 当成整条管道的结果。
-    # 后果很隐蔽：输出明明有值，函数却返回非零 —— 大目录（MacWave 886 个文件、
+    # 后果很隐蔽：输出明明有值，函数却返回非零 —— 大目录（Summerwave 886 个文件、
     # 路径约 62 KB，正好塞满管道）必失败，小目录（LinuxWave 69 个）正常。
     # 所以先收全量，再在 bash 里取第一行，不让任何一段提前退出。
     local all
@@ -80,7 +80,7 @@ pick() {   # pick 子目录 → 输出 URL 路径（@ 编码成 %40）
     [[ -n "$rel" ]] || return 1
     printf '/%s' "${rel//@/%40}"
 }
-MAC_URL=$(pick MacWave)          || MAC_URL=""
+MAC_URL=$(pick Summerwave)          || MAC_URL=""
 LW_BOTTLE_URL=$(pick LinuxWave/bottle) || LW_BOTTLE_URL=""
 LW_DEPS_URL=$(pick LinuxWave/deps)     || LW_DEPS_URL=""
 
@@ -104,15 +104,15 @@ section "环境"
 note "站点      $DOMAIN"
 note "根目录    $BASE"
 [[ -n "$LW_PASS"  ]] && ok "LinuxWave 口令可读" "$LW_PASS_DIR/10001" || no "LinuxWave 口令可读" "读不到" "存在"
-[[ -n "$MAC_PASS" ]] && ok "MacWave 口令可读"   "$MACPASS_FILE"      || no "MacWave 口令可读"   "读不到" "存在"
-note "MacWave  测试文件 ${MAC_URL:-（没有，MacWave/ 是空的？）}"
+[[ -n "$MAC_PASS" ]] && ok "Summerwave 口令可读"   "$MACPASS_FILE"      || no "Summerwave 口令可读"   "读不到" "存在"
+note "Summerwave  测试文件 ${MAC_URL:-（没有，Summerwave/ 是空的？）}"
 note "LW bottle 测试文件 ${LW_BOTTLE_URL:-（空）}"
 note "LW deps   测试文件 ${LW_DEPS_URL:-（空）}"
 
 # ─────────────────────────────────────────────────────────────
 section "0. 数据规模（空目录必须报错，不能静默通过）"
 cnt() { find "$BASE/$1" -type f 2>/dev/null | wc -l | tr -d ' '; }
-for sub in MacWave LinuxWave/bottle LinuxWave/deps; do
+for sub in Summerwave LinuxWave/bottle LinuxWave/deps; do
     n=$(cnt "$sub")
     if [[ "$n" -gt 0 ]]; then
         ok "$sub 有产物" "$n 个"
@@ -133,7 +133,7 @@ done
 
 # ─────────────────────────────────────────────────────────────
 section "2. 无口令：数据目录必须 401"
-need "GET /MacWave/…"          "$MAC_URL"       ""       ""         401
+need "GET /Summerwave/…"          "$MAC_URL"       ""       ""         401
 need "GET /LinuxWave/bottle/…" "$LW_BOTTLE_URL" ""       ""         401
 need "GET /LinuxWave/deps/…"   "$LW_DEPS_URL"   ""       ""         401
 
@@ -144,15 +144,15 @@ if [[ -z "$LW_PASS" ]]; then
 else
     need "GET /LinuxWave/bottle/…（放行）" "$LW_BOTTLE_URL" "$LW_USER" "$LW_PASS" 200
     need "GET /LinuxWave/deps/…（放行）"   "$LW_DEPS_URL"   "$LW_USER" "$LW_PASS" 200
-    need "GET /MacWave/…（隔离）"          "$MAC_URL"       "$LW_USER" "$LW_PASS" 401
+    need "GET /Summerwave/…（隔离）"          "$MAC_URL"       "$LW_USER" "$LW_PASS" 401
 fi
 
 # ─────────────────────────────────────────────────────────────
-section "4. MacWave 账号 $MAC_USER"
+section "4. Summerwave 账号 $MAC_USER"
 if [[ -z "$MAC_PASS" ]]; then
     note "读不到口令，无法验证隔离"; FAIL=$((FAIL+1))
 else
-    need "GET /MacWave/…（放行）"                "$MAC_URL"       "$MAC_USER" "$MAC_PASS" 200
+    need "GET /Summerwave/…（放行）"                "$MAC_URL"       "$MAC_USER" "$MAC_PASS" 200
     need "GET /LinuxWave/bottle/…（隔离）"       "$LW_BOTTLE_URL" "$MAC_USER" "$MAC_PASS" 401
     need "GET /LinuxWave/deps/…（隔离）"         "$LW_DEPS_URL"   "$MAC_USER" "$MAC_PASS" 401
 fi
@@ -160,9 +160,9 @@ fi
 # ─────────────────────────────────────────────────────────────
 section "5. 认证域（realm）应各不同"
 realm() { curl -sI --max-time 20 "$DOMAIN$1" | awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/{gsub(/\r/,"");print}' | head -1; }
-MA=$(realm "${MAC_URL:-/MacWave/}")
+MA=$(realm "${MAC_URL:-/Summerwave/}")
 LA=$(realm "${LW_BOTTLE_URL:-/LinuxWave/}")
-note "MacWave   $MA"
+note "Summerwave   $MA"
 note "LinuxWave $LA"
 if [[ -n "$MA" && -n "$LA" && "$MA" != "$LA" ]]; then ok "两边 realm 不同" "已区分"; else no "两边 realm 不同" "相同或为空" "不同"; fi
 
@@ -179,8 +179,8 @@ for v in \
     "/linuxwave$B" \
     "//LinuxWave$B" \
     "/./LinuxWave$B" \
-    "/MacWave/../LinuxWave$B" \
-    "/LinuxWave/../MacWave/" \
+    "/Summerwave/../LinuxWave$B" \
+    "/LinuxWave/../Summerwave/" \
     "/Linux%57ave$B" \
     "/LinuxWave%2F${B#/}" \
     ; do
@@ -192,8 +192,8 @@ done
 # ─────────────────────────────────────────────────────────────
 section "6.5 站点 alias 指向的就是 ROOT 这棵树"
 #
-# 这是踩过的坑：nginx 把 /MacWave/ 指到 /srv/mirror/，而同步脚本往
-# /www/wwwroot/mirror.repohub.top/MacWave 写。同步日志全绿、体检的其他项也全过
+# 这是踩过的坑：nginx 把 /Summerwave/ 指到 /srv/mirror/，而同步脚本往
+# /www/wwwroot/mirror.repohub.top/Summerwave 写。同步日志全绿、体检的其他项也全过
 # —— 但客户端读的是另一棵没人更新的树，症状是某个新发布的包「不在索引里」，
 # 其余包都正常。
 #
@@ -213,7 +213,7 @@ alias_probe() {   # alias_probe 相对路径
            "两边相等（alias 指的是另一棵树？）"
     fi
 }
-alias_probe "MacWave/sealane/HEAD/README.md"
+alias_probe "Summerwave/sealane/HEAD/README.md"
 
 # ─────────────────────────────────────────────────────────────
 section "7. 真实产物内容长度（确认不是空壳 200）"
@@ -228,7 +228,7 @@ check_len() {   # check_len 说明 相对路径 用户 口令
         no "$label" "远端 ${remote_bytes:-?}" "本地 ${local_bytes:-?}"
     fi
 }
-for pair in "MacWave:$MAC_USER:$MAC_PASS" "LinuxWave/bottle:$LW_USER:$LW_PASS" "LinuxWave/deps:$LW_USER:$LW_PASS"; do
+for pair in "Summerwave:$MAC_USER:$MAC_PASS" "LinuxWave/bottle:$LW_USER:$LW_PASS" "LinuxWave/deps:$LW_USER:$LW_PASS"; do
     sub=${pair%%:*}; rest=${pair#*:}; u=${rest%%:*}; p=${rest#*:}
     rel=$(pick_rel "$sub")
     [[ -z "${rel:-}" ]] && { note "$sub 下没有可用作靶子的文件"; FAIL=$((FAIL+1)); continue; }

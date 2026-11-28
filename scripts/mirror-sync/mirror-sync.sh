@@ -1,5 +1,5 @@
 #!/bin/bash
-# 镜像站同步：在服务器上把 MacWave/ 对齐到上游
+# 镜像站同步：在服务器上把 Summerwave/ 对齐到上游
 #
 # 五类东西来源不同，不能一把梭：
 #   SeaLane / core/<分支> / selfupdate / python  ← git 分支
@@ -12,7 +12,7 @@
 #   bash mirror-sync.sh              全量同步
 #
 # 环境变量（都有默认值，正常不用设）：
-#   ROOT            站点根目录（DEST=$ROOT/MacWave）
+#   ROOT            站点根目录（DEST=$ROOT/Summerwave）
 #   MIRROR_ROOT     bottle/、deps/ 所在的那一层；不设就按标准布局自动判定
 #   SRC             工作区（浅克隆与锁都在这里）
 #   KEEP_BRANCHES   除当前发布线外额外保留的 core 分支
@@ -27,16 +27,16 @@ set -uo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 ROOT=${ROOT:-/www/wwwroot/mirror.repohub.top}
-DEST=$ROOT/MacWave
+DEST=$ROOT/Summerwave
 
-# 站点的目录形状有两种（实测都见过），产物树不一定在 MacWave/ 下面：
-#   A. <ROOT>/MacWave/{bottle,deps,sealane,core,selfupdate,python}
-#   B. <ROOT>/{bottle,deps}, MacWave/{sealane,core,selfupdate,python}
+# 站点的目录形状有两种（实测都见过），产物树不一定在 Summerwave/ 下面：
+#   A. <ROOT>/Summerwave/{bottle,deps,sealane,core,selfupdate,python}
+#   B. <ROOT>/{bottle,deps}, Summerwave/{sealane,core,selfupdate,python}
 # 下面这几个步骤（产物同步的 --out、清单重建的 --mirror）都要指向**真正有
 # bottle/ 的那一层**，选错就会出现「同步全绿、客户端却读不到新包」，
 # 或者在最后一步才炸出 `does not look like a mirror root (no bottle/)`。
 #
-# 顺序：环境变量 > ${DEST}（标准布局）> ${ROOT}（产物在上面一层）> ${DEST}/MacWave
+# 顺序：环境变量 > ${DEST}（标准布局）> ${ROOT}（产物在上面一层）> ${DEST}/Summerwave
 # （有人手工把那棵嵌套了一层）。都没有就按 $DEST 当首次铺设。
 if [[ -n "${MIRROR_ROOT:-}" ]]; then
     :                                    # 显式指定，原样用
@@ -44,14 +44,14 @@ elif [[ -d "$DEST/bottle" ]]; then
     MIRROR_ROOT=$DEST
 elif [[ -d "$ROOT/bottle" ]]; then
     MIRROR_ROOT=$ROOT
-elif [[ -d "$DEST/MacWave/bottle" ]]; then
-    MIRROR_ROOT=$DEST/MacWave
+elif [[ -d "$DEST/Summerwave/bottle" ]]; then
+    MIRROR_ROOT=$DEST/Summerwave
 else
     MIRROR_ROOT=$DEST
 fi
 SRC=${SRC:-/root/mirror-src}
 GH=${GH:-https://github.com}
-ORG=${ORG:-MacWaveOrg}
+ORG=${ORG:-SummerwaveOrg}
 # 发布线由 configdata/versiondata/latest_version 的 branch 字段决定（见第 1 步）。
 # 这里额外保留 N-1 与 N-2 两条退路：第 3 步会删掉「不在 当前发布线+KEEP_BRANCHES
 # 里」的 core 分支，而老客户端的 update_command 还指着自己那一版的分支 ——
@@ -212,7 +212,7 @@ tree() {
 
 # -------------------- 主流程 --------------------
 
-mw_say "镜像同步 · MacWave"
+mw_say "镜像同步 · Summerwave"
 mw_say "  站点根目录 $ROOT"
 mw_say "  产物树     ${MIRROR_ROOT}（bottle/、deps/ 所在的那一层）"
 mw_say "  工作区     $SRC"
@@ -224,10 +224,10 @@ mw_say "第 1/6 步 · 取同步工具与当前发布线"
 if (( DRY_RUN )); then
     note "演练模式：跳过工具克隆"
 else
-    if git_update tools MacWave main; then
+    if git_update tools Summerwave main; then
         ok "同步工具" "$SRC/tools"
     else
-        no "同步工具" "取不到 MacWave 仓库，后面都做不了"
+        no "同步工具" "取不到 Summerwave 仓库，后面都做不了"
         hr; mw_say "❌ 中止：拿不到工具就没有可信的命名规则"; exit 1
     fi
 fi
@@ -262,7 +262,7 @@ mw_say "第 2/6 步 · 同步索引、解释器与发布接口"
 # SeaLane（索引仓）要铺进一层 `HEAD/`：客户端默认地址是
 # `…/SummerwaveOrg/SeaLane/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
 # `<名>/_<名>@<版本>.macos-<arch>`（0.1.0 起单一命名空间，平台标签编在记录名里）。站点上那层
-# HEAD 是真实目录（nginx 只做 `alias /…/MacWave/sealane/`），所以数据必须落在 HEAD 里。
+# HEAD 是真实目录（nginx 只做 `alias /…/Summerwave/sealane/`），所以数据必须落在 HEAD 里。
 infosource_publish() {
     tree sealane SeaLane main "$DEST/sealane/HEAD" || return 1
 
@@ -358,7 +358,7 @@ hr
 mw_say "第 3/6 步 · 同步 core 分支（客户端拼的是 <CORE>/<分支>/…）"
 CORE_OK=1
 for b in $BRANCHES; do
-    tree "core-$b" MacWave "$b" "$DEST/core/$b" || CORE_OK=0
+    tree "core-$b" Summerwave "$b" "$DEST/core/$b" || CORE_OK=0
 done
 
 # 每个 core 目录旁边再放一个整包，客户端取 <CORE>/<ref>/archive.tar.gz。

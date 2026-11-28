@@ -1,6 +1,6 @@
-# 搭建 MacWave 镜像站（宝塔 + 香港轻量服务器）
+# 搭建 Summerwave 镜像站（宝塔 + 香港轻量服务器）
 
-面向国内用户。**为什么要做镜像**：从大陆访问 `github.com` 极不稳定 —— 实测连测三次，两次在 20 秒内连 TCP 都没建立；同一时刻国内镜像站 37~78 ms 就返回了。MacWave 的产物又偏大（pandoc 40 MB、ollama 172.9 MB），这种链路基本下不完。
+面向国内用户。**为什么要做镜像**：从大陆访问 `github.com` 极不稳定 —— 实测连测三次，两次在 20 秒内连 TCP 都没建立；同一时刻国内镜像站 37~78 ms 就返回了。Summerwave 的产物又偏大（pandoc 40 MB、ollama 172.9 MB），这种链路基本下不完。
 
 ## 整体链路
 
@@ -8,10 +8,10 @@
 上游（jqlang/jq、conda-forge…）
    │  ① GitHub Actions 抓取（Runner 就在 GitHub 机房内，不受大陆出口影响）
    ▼
-MacWaveOrg/Bottle · Releases      每个包一个 tag，资产名 <包名>@<版本>.<架构><扩展名>
+SummerwaveOrg/Bottle · Releases      每个包一个 tag，资产名 <包名>@<版本>.<架构><扩展名>
    │  ② 香港服务器同步（国际链路，正常）
    ▼
-mirror.repohub.top/MacWave       宝塔 + nginx，纯静态文件树
+mirror.repohub.top/Summerwave       宝塔 + nginx，纯静态文件树
    │  ③ 大陆用户下载（20~50 ms）
    ▼
 用户机器
@@ -30,7 +30,7 @@ mirror.repohub.top/MacWave       宝塔 + nginx，纯静态文件树
 | 列包名 / 列版本 | 同上 | `<api>/versions`、`<api>/<名>/versions` |
 | 包载荷 | `SUMMERWAVE_BOTTLE_DOMAIN` | `<包名>/<文件名>` |
 | 依赖载荷 | `SUMMERWAVE_DEPS_DOMAIN` | `<依赖名>/<文件名>` |
-| MacWave 自身的文件 | `SUMMERWAVE_CORE_DOMAIN` | `<版本>/<路径>` |
+| Summerwave 自身的文件 | `SUMMERWAVE_CORE_DOMAIN` | `<版本>/<路径>` |
 | 自更新（发布列表、install.sh 与其签名） | `SUMMERWAVE_RELEASE_DOMAIN` | `…/releases/latest`、`…/releases/tags/<tag>`、`…/releases/assets/<id>` |
 | 自带 CPython | `SUMMERWAVE_PYTHON_DOMAIN` | `<文件名>`（摊平放四个 tar.gz） |
 | pip | `MACWAVE_PIP_INDEX` | 一个 PEP 503 索引 |
@@ -73,14 +73,14 @@ id 是递增整数，静态站无法对应，所以那些地方只能连 GitHub�
 `SUMMERWAVE_API_DOMAIN` 之后客户端改读镜像自己产出的 `<api>/versions` 与
 `<api>/<名>/versions`（一行一个名字）。
 
-## 为什么根目录是 `MacWave/` 而不是整个域名
+## 为什么根目录是 `Summerwave/` 而不是整个域名
 
 域名顶层留给别的产品。LinuxWave 很可能也要镜像站，那时它用 `mirror.repohub.top/LinuxWave`，
 两套互不干扰：
 
 ```
 /www/wwwroot/mirror.repohub.top/
-├── MacWave/          ← 本项目
+├── Summerwave/          ← 本项目
 │   ├── bottle/
 │   ├── deps/
 │   └── selfupdate/
@@ -90,8 +90,8 @@ id 是递增整数，静态站无法对应，所以那些地方只能连 GitHub�
 `LinuxWave/` 只是**预留位置**，知道有这回事即可，本文任何一步都不需要建它。将来 LinuxWave
 要镜像时，它用 `mirror.repohub.top/LinuxWave`，与这里互不干扰。
 
-所以本文所有路径都带 `MacWave/` 这一层，环境变量的值也要带上。
-**注意大小写**：目录名是 `MacWave`，首字母大写，与仓库名一致。Linux 上无所谓，但保持一致省得以后混。
+所以本文所有路径都带 `Summerwave/` 这一层，环境变量的值也要带上。
+**注意大小写**：目录名是 `Summerwave`，首字母大写，与仓库名一致。Linux 上无所谓，但保持一致省得以后混。
 
 ## 前置条件
 
@@ -140,7 +140,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 | 项 | 值 |
 | --- | --- |
 | 域名 | `mirror.repohub.top` |
-| 根目录 | `/www/wwwroot/mirror.repohub.top`（站点根；MacWave 的数据在它下面的 `MacWave/`） |
+| 根目录 | `/www/wwwroot/mirror.repohub.top`（站点根；Summerwave 的数据在它下面的 `Summerwave/`） |
 | PHP 版本 | **纯静态** |
 | 数据库 | 不创建 |
 
@@ -153,20 +153,20 @@ mirror.repohub.top    A    <服务器公网 IP>
 > `mirror.repohub.top` 的 nginx 把它指到了 `/srv/mirror/`：
 >
 > ```nginx
-> location ^~ /MacWave/infosource/ {
->     alias /srv/mirror/MacWave/infosource/;
+> location ^~ /Summerwave/infosource/ {
+>     alias /srv/mirror/Summerwave/infosource/;
 > }
 > ```
 >
-> 同步脚本默认往 `/www/wwwroot/mirror.repohub.top/MacWave` 写。**两棵树对不上时，
+> 同步脚本默认往 `/www/wwwroot/mirror.repohub.top/Summerwave` 写。**两棵树对不上时，
 > 同步照样「成功」，日志全绿，而客户端读的是另一棵没人更新的树** —— 症状是某个
 > 新发布的包在客户端「不在索引里」，其余包一切正常，排查时最容易被误判成上游数据
 > 没同步。两行命令先确认现场：
 >
 > ```bash
-> nginx -T 2>/dev/null | grep -A2 'location .*MacWave' | grep -E 'location|alias'
-> curl -sI https://mirror.repohub.top/MacWave/sealane/HEAD/README.md | grep -i content-length
-> ls -l "$ROOT/MacWave/sealane/HEAD/README.md"    # 大小要与上一条一致
+> nginx -T 2>/dev/null | grep -A2 'location .*Summerwave' | grep -E 'location|alias'
+> curl -sI https://mirror.repohub.top/Summerwave/sealane/HEAD/README.md | grep -i content-length
+> ls -l "$ROOT/Summerwave/sealane/HEAD/README.md"    # 大小要与上一条一致
 > ```
 >
 > 自查一律走 `https://` 或带 `Host` 头：`http://127.0.0.1/…` 在开了「强制 HTTPS」的
@@ -176,27 +176,27 @@ mirror.repohub.top    A    <服务器公网 IP>
 > `ROOT`（例如把 `/srv/mirror` 换成指向同一棵树的符号链接，注意先迁移数据）。
 >
 > 还有一种常见的历史包袱：**站点被一个个 `location` 手工拼出来**，于是同一台机器上
-> 同时存在 `MacWave/MacWave/`（放着 `bottle`、`deps`）、`MacWave/infosource/`、
-> `MacWave/core/` 等不同的树。这种情况下 `DEST=$ROOT/MacWave` 里没有 `bottle/`，
+> 同时存在 `Summerwave/Summerwave/`（放着 `bottle`、`deps`）、`Summerwave/infosource/`、
+> `Summerwave/core/` 等不同的树。这种情况下 `DEST=$ROOT/Summerwave` 里没有 `bottle/`，
 > 清单重建会在最后一步失败。两条路：
 >
 > - 用 `MIRROR_ROOT` 指到真正有 `bottle/` 的那一层（不必搬数据）：
->   `ROOT=/srv/mirror MIRROR_ROOT=/srv/mirror/MacWave/MacWave ./mirror-sync.sh --no-payloads`
->   （`ls` 一下确认哪一层有 `bottle/`：`ls -d /srv/mirror/MacWave/*/bottle`）
+>   `ROOT=/srv/mirror MIRROR_ROOT=/srv/mirror/Summerwave/Summerwave ./mirror-sync.sh --no-payloads`
+>   （`ls` 一下确认哪一层有 `bottle/`：`ls -d /srv/mirror/Summerwave/*/bottle`）
 > - 或者一次搬干净，让站点只剩一层：
 >
 >   ```
->   /srv/mirror/MacWave/{bottle,deps,infosource/HEAD,core,selfupdate,python}
+>   /srv/mirror/Summerwave/{bottle,deps,infosource/HEAD,core,selfupdate,python}
 >   ```
 >
->   然后把 nginx 收成一条 `location ^~ /MacWave/ { alias /srv/mirror/MacWave/; }`。
+>   然后把 nginx 收成一条 `location ^~ /Summerwave/ { alias /srv/mirror/Summerwave/; }`。
 >   这条最省事：客户端的六类地址全都落在这一个前缀下面。
 
 结构：
 
 ```
 /www/wwwroot/mirror.repohub.top/
-└── MacWave/
+└── Summerwave/
     ├── infosource/
     │   └── HEAD/                     ← ref 那一层，客户端默认地址里就有
     │       ├── README.md
@@ -228,8 +228,8 @@ mirror.repohub.top    A    <服务器公网 IP>
 
 | 做法 | 做法细节 |
 | --- | --- |
-| A. 铺进真实目录（**`mirror-sync.sh` 从 4.4 起默认这么做**） | `rsync` 目标就是 `$DEST/sealane/HEAD/`，站点只写一条 `alias /…/MacWave/infosource/` 即可 |
-| B. nginx 别名 / 符号链接 | 数据放 `$DEST/infosource/`，用 `location ~ ^/MacWave/sealane/HEAD/(.*)$ { alias …/MacWave/infosource/$1; }` 顶上（早先的服务器是这么做的） |
+| A. 铺进真实目录（**`mirror-sync.sh` 从 4.4 起默认这么做**） | `rsync` 目标就是 `$DEST/sealane/HEAD/`，站点只写一条 `alias /…/Summerwave/infosource/` 即可 |
+| B. nginx 别名 / 符号链接 | 数据放 `$DEST/infosource/`，用 `location ~ ^/Summerwave/sealane/HEAD/(.*)$ { alias …/Summerwave/infosource/$1; }` 顶上（早先的服务器是这么做的） |
 
 两种都能用，**但别名指错地方的后果很隐蔽**：客户端照样 200、`wave install` 却发现
 某个新包「不在索引里」，因为 `/HEAD` 指向的是一份没人再更新的旧拷贝。判断办法是比
@@ -237,7 +237,7 @@ mirror.repohub.top    A    <服务器公网 IP>
 
 ```bash
 curl -sI "$SUMMERWAVE_API_DOMAIN/README.md" | grep -iE 'content-length|last-modified'
-ls -l /www/wwwroot/mirror.repohub.top/MacWave/SeaLane/README.md
+ls -l /www/wwwroot/mirror.repohub.top/Summerwave/SeaLane/README.md
 # 两行不一致 = /HEAD 没有指向同步出来的那棵树
 ```
 
@@ -249,8 +249,8 @@ ls -l /www/wwwroot/mirror.repohub.top/MacWave/SeaLane/README.md
 检查方法：
 
 ```bash
-ls /www/wwwroot/mirror.repohub.top/MacWave/
-# 必须直接看到 bottle 和 deps，不能再多一层 MacWave/MacWave/
+ls /www/wwwroot/mirror.repohub.top/Summerwave/
+# 必须直接看到 bottle 和 deps，不能再多一层 Summerwave/Summerwave/
 ```
 
 文件怎么来，两种方式：
@@ -265,7 +265,7 @@ git clone --depth 1 https://github.com/SummerwaveOrg/SeaLane /tmp/infosource
 
 python3 /tmp/macwave-src/scripts/sync_payloads.py \
   --infosource /tmp/infosource \
-  --out /www/wwwroot/mirror.repohub.top/MacWave \
+  --out /www/wwwroot/mirror.repohub.top/Summerwave \
   --source payload \
   --jobs 6
 ```
@@ -283,7 +283,7 @@ python3 /tmp/macwave-src/scripts/sync_payloads.py \
 一次请求就拿全，而且**整包里的每个文件仍然逐条对 sha256**，打包不降低安全性。
 
 ```
-<ROOT>/MacWave/core/<分支>/
+<ROOT>/Summerwave/core/<分支>/
 ├── lib/  cli/  config/  …     ← 逐文件（备份路径，整包失效时用）
 └── archive.tar.gz             ← 整包，顶层目录是 <分支>/
 ```
@@ -298,13 +298,13 @@ python3 /tmp/macwave-src/scripts/sync_payloads.py \
 
 ```bash
 # 1) 文件在、大小合理（约 1–2 MB）
-ls -lh /srv/mirror/MacWave/core/<分支>/archive.tar.gz
+ls -lh /srv/mirror/Summerwave/core/<分支>/archive.tar.gz
 
 # 2) 顶层目录必须是 <分支>/
-tar -tzf /srv/mirror/MacWave/core/<分支>/archive.tar.gz | head -3
+tar -tzf /srv/mirror/Summerwave/core/<分支>/archive.tar.gz | head -3
 
 # 3) 能被客户端的解包参数正确吃掉
-mkdir -p /tmp/chk && tar -xzf /srv/mirror/MacWave/core/<分支>/archive.tar.gz \
+mkdir -p /tmp/chk && tar -xzf /srv/mirror/Summerwave/core/<分支>/archive.tar.gz \
     -C /tmp/chk --strip-components=1 && ls /tmp/chk   # 应直接看到 lib cli config
 ```
 
@@ -334,7 +334,7 @@ location ~* \.(tar\.gz|tgz|zip|tar\.bz2|tar\.xz|conda)$ {
 
 宝塔建的 vhost 末尾自带一条按**文件名**一刀切的规则，把 `LICENSE`、`README.md`、
 `pyproject.toml`、`*.log`、`.gitignore`、`go.mod` 之类的名字一律 `return 404`。它防的是
-「误传到站点根目录的源码文件」，但 `MacWave/core/<分支>/` 本来就是**整棵源码树**，
+「误传到站点根目录的源码文件」，但 `Summerwave/core/<分支>/` 本来就是**整棵源码树**，
 更新清单会逐文件下载，其中就有 `info/LICENSE`：
 
 ```
@@ -350,9 +350,9 @@ curl: (56) The requested URL returned error: 404
 `/www/server/panel/vhost/nginx/extension/<站点>/*.conf` 就自然排在它前面）：
 
 ```nginx
-# /MacWave/core/<分支>/ 是整棵源码树，info/LICENSE 这类名字必须能取到；
+# /Summerwave/core/<分支>/ 是整棵源码树，info/LICENSE 这类名字必须能取到；
 # auth_basic 不写 off，仍然要密码。
-location ~* ^/MacWave/core/[^/]+/ {
+location ~* ^/Summerwave/core/[^/]+/ {
     add_header Cache-Control "public, max-age=300";
 }
 ```
@@ -363,13 +363,13 @@ location ~* ^/MacWave/core/[^/]+/ {
 ```bash
 # 1) 被误杀的那个文件：应为 200，字节数与服务器上 ls 一致
 curl -sS -u '<用户>:<密码>' -o /dev/null -w '%{http_code} %{size_download}\n' \
-     https://mirror.repohub.top/MacWave/core/4.6/info/LICENSE
+     https://mirror.repohub.top/Summerwave/core/4.6/info/LICENSE
 # 2) 普通代码文件：应为 200
 curl -sS -u '<用户>:<密码>' -o /dev/null -w '%{http_code}\n' \
-     https://mirror.repohub.top/MacWave/core/4.6/cli/silent.py
+     https://mirror.repohub.top/Summerwave/core/4.6/cli/silent.py
 # 3) 不带凭据：应为 401（放行不等于公开）
 curl -sS -o /dev/null -w '%{http_code}\n' \
-     https://mirror.repohub.top/MacWave/core/4.6/info/LICENSE
+     https://mirror.repohub.top/Summerwave/core/4.6/info/LICENSE
 ```
 
 顺手确认敏感名字在**别处**仍然被挡：在站点根目录临时 `touch zz-probe.gitignore`，
@@ -384,14 +384,14 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 浏览器直接打开（注意 `@` 在 URL 里写作 `%40`）：
 
 ```
-https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64
+https://mirror.repohub.top/Summerwave/bottle/jq/jq%401.7.1.macos-arm64
 ```
 
 能下载就说明镜像站可用。再量一下速度：
 
 ```bash
 curl -o /dev/null -w '速度 %{speed_download} B/s\n' \
-  https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64
+  https://mirror.repohub.top/Summerwave/bottle/jq/jq%401.7.1.macos-arm64
 ```
 
 **在服务器上自查时不要用 `http://127.0.0.1/…`。** 站点开了「强制 HTTPS」，这个地址
@@ -401,65 +401,65 @@ curl -o /dev/null -w '速度 %{speed_download} B/s\n' \
 ```bash
 # A. 带 Host 头，让 nginx 用对 server 块（http 会 301，所以用 https）
 curl -sk --resolve mirror.repohub.top:443:127.0.0.1 \
-     https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/versions | wc -l
+     https://mirror.repohub.top/Summerwave/sealane/HEAD/pkg/pkginfo/versions | wc -l
 
 # B. 直接走域名（最省事）
-curl -s https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/versions | wc -l
+curl -s https://mirror.repohub.top/Summerwave/sealane/HEAD/pkg/pkginfo/versions | wc -l
 
 # C. 只看状态码时记得跟随跳转
 curl -sL -o /dev/null -w '%{http_code}\n' \
-     https://mirror.repohub.top/MacWave/sealane/HEAD/pkg/pkginfo/columbula/versions
+     https://mirror.repohub.top/Summerwave/sealane/HEAD/pkg/pkginfo/columbula/versions
 ```
 
 另外 `nginx -T` 里还有一个 `server_name 127.0.0.1` 的监控块（只放 `nginx_status`），
-它没有 MacWave 那套 `alias` —— 用 `127.0.0.1` 自查时容易被它或 301 误导。
+它没有 Summerwave 那套 `alias` —— 用 `127.0.0.1` 自查时容易被它或 301 误导。
 
 同时确认校验值没被中间环节改坏：
 
 ```bash
-curl -fsSL https://mirror.repohub.top/MacWave/bottle/jq/jq%401.7.1.macos-arm64 | shasum -a 256
+curl -fsSL https://mirror.repohub.top/Summerwave/bottle/jq/jq%401.7.1.macos-arm64 | shasum -a 256
 # 与 infosource 里 _jq@1.7.1.macos-arm64 的 sha256 应当逐字相同
 ```
 
 ## 第八步：首次安装就走镜像
 
-前面几节假设 MacWave 已经装好了。但首次安装时用户还没有 `~/.zshrc` 里的那几行，所以要把变量
+前面几节假设 Summerwave 已经装好了。但首次安装时用户还没有 `~/.zshrc` 里的那几行，所以要把变量
 写在**同一条命令的前面**：
 
 ```bash
-SUMMERWAVE_CORE_DOMAIN=https://mirror.repohub.top/MacWave/core \
-SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate \
-SUMMERWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
-/bin/bash -c "$(curl -fsSL https://mirror.repohub.top/MacWave/core/lib/install.sh)"
+SUMMERWAVE_CORE_DOMAIN=https://mirror.repohub.top/Summerwave/core \
+SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/Summerwave/selfupdate \
+SUMMERWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/Summerwave/python \
+/bin/bash -c "$(curl -fsSL https://mirror.repohub.top/Summerwave/core/lib/install.sh)"
 ```
 
 **注意 `install.sh` 那一行本身也要能取到。** 如果镜像开了 HTTP 基本认证（401），
-上面这条命令会停在 `curl` 那一步 —— 而 `MACWAVE_*_DOMAIN` 只管 MacWave 自己发的
+上面这条命令会停在 `curl` 那一步 —— 而 `MACWAVE_*_DOMAIN` 只管 Summerwave 自己发的
 请求，管不到外层的 `curl`。三条出路，按推荐顺序：
 
 1. **给这一条路径开匿名只读**（推荐）。`install.sh` 是 Apache-2.0 的公开代码，挡它没有
    意义；二进制与索引继续要认证即可：
 
    ```nginx
-   location = /MacWave/core/lib/install.sh {
+   location = /Summerwave/core/lib/install.sh {
        auth_basic off;
-       alias /www/wwwroot/mirror.repohub.top/MacWave/core/lib/install.sh;
+       alias /www/wwwroot/mirror.repohub.top/Summerwave/core/lib/install.sh;
    }
    ```
 
    分支目录同理，若客户端按 `<CORE>/<分支>/lib/install.sh` 取：
-   `location ~ ^/MacWave/core/[^/]+/lib/install\.sh$ { auth_basic off; }`
+   `location ~ ^/Summerwave/core/[^/]+/lib/install\.sh$ { auth_basic off; }`
 
 2. **把凭据写进 URL**（只适合自己人，且要当成口令保管）：
 
    ```bash
-   /bin/bash -c "$(curl -fsSL https://USER:TOKEN@mirror.repohub.top/MacWave/core/lib/install.sh)"
+   /bin/bash -c "$(curl -fsSL https://USER:TOKEN@mirror.repohub.top/Summerwave/core/lib/install.sh)"
    ```
 
 3. **先把脚本存到本机再跑**（校园网 / 内网最省事，也便于逐字核对）：
 
    ```bash
-   curl -fsSL -o /tmp/mw-install.sh https://mirror.repohub.top/MacWave/core/lib/install.sh
+   curl -fsSL -o /tmp/mw-install.sh https://mirror.repohub.top/Summerwave/core/lib/install.sh
    less /tmp/mw-install.sh          # 看一眼再执行
    SUMMERWAVE_CORE_DOMAIN=… /bin/bash /tmp/mw-install.sh
    ```
@@ -468,15 +468,15 @@ SUMMERWAVE_PYTHON_DOMAIN=https://mirror.repohub.top/MacWave/python \
 
 | 变量 | 取什么 | 镜像要承载 |
 | --- | --- | --- |
-| `SUMMERWAVE_API_DOMAIN` | 软件包索引与「列出版本」清单 | `<根>/MacWave/infosource/<ref>/…` |
-| `SUMMERWAVE_CORE_DOMAIN` | MacWave 自身的代码（`lib/`、`pkg/`、`surfboard/`） | `<根>/MacWave/core/<分支>/…` |
-| `SUMMERWAVE_PYTHON_DOMAIN` | 自带 CPython（独立仓库） | `<根>/MacWave/python/pythondata/…` |
+| `SUMMERWAVE_API_DOMAIN` | 软件包索引与「列出版本」清单 | `<根>/Summerwave/infosource/<ref>/…` |
+| `SUMMERWAVE_CORE_DOMAIN` | Summerwave 自身的代码（`lib/`、`pkg/`、`surfboard/`） | `<根>/Summerwave/core/<分支>/…` |
+| `SUMMERWAVE_PYTHON_DOMAIN` | 自带 CPython（独立仓库） | `<根>/Summerwave/python/pythondata/…` |
 
-`infosource/` 底下那层 ref **必须写在变量值里**（MacWave 用 `HEAD`）：
+`infosource/` 底下那层 ref **必须写在变量值里**（Summerwave 用 `HEAD`）：
 
 ```
-export SUMMERWAVE_API_DOMAIN=https://<根>/MacWave/sealane/HEAD   ← 正确
-export SUMMERWAVE_API_DOMAIN=https://<根>/MacWave/infosource        ← 错误，全部 404
+export SUMMERWAVE_API_DOMAIN=https://<根>/Summerwave/sealane/HEAD   ← 正确
+export SUMMERWAVE_API_DOMAIN=https://<根>/Summerwave/infosource        ← 错误，全部 404
 ```
 
 与下面 `core/` 的分支层是同一类坑，但后果更广：少了 ref 不是某个包出问题，
@@ -487,8 +487,8 @@ export SUMMERWAVE_API_DOMAIN=https://<根>/MacWave/infosource        ← 错误�
 （`BASE_URL="$CORE_URL/$BRANCH"`），所以分支名必须是一层真实目录：
 
 ```
-MacWave/core/4.0/lib/wave.py        ← 正确
-MacWave/core/lib/wave.py            ← 错误，缺了分支这一层，会 404
+Summerwave/core/4.0/lib/wave.py        ← 正确
+Summerwave/core/lib/wave.py            ← 错误，缺了分支这一层，会 404
 ```
 
 在镜像服务器上按分支铺：
@@ -496,31 +496,31 @@ MacWave/core/lib/wave.py            ← 错误，缺了分支这一层，会 404
 ```bash
 for branch in 4.0 3.2; do
   git clone --depth 1 --branch "$branch" https://github.com/SummerwaveOrg/Summerwave \
-    "/www/wwwroot/mirror.repohub.top/MacWave/core/$branch"
-  rm -rf "/www/wwwroot/mirror.repohub.top/MacWave/core/$branch/.git"
+    "/www/wwwroot/mirror.repohub.top/Summerwave/core/$branch"
+  rm -rf "/www/wwwroot/mirror.repohub.top/Summerwave/core/$branch/.git"
 done
 ```
 
-⚠️ 但这里有个现实问题：**MacWave 自身的代码更新频率高**，而 `core/` 是 git 克隆的副本，
+⚠️ 但这里有个现实问题：**Summerwave 自身的代码更新频率高**，而 `core/` 是 git 克隆的副本，
 不会自动跟着走。镜像它意味着你要定期重新拉取，否则用户拿到的是旧代码。
 
 **所以我的建议是：`core` 保持官方地址，不去镜像它。** 它只有几百 KB、只在下
-载 MacWave 本身时请求一次，不是慢的主要来源——真正大的是 `bottle` 的几十到几百 MB。
+载 Summerwave 本身时请求一次，不是慢的主要来源——真正大的是 `bottle` 的几十到几百 MB。
 绝大多数用户只需要镜像 `bottle` 和 `deps`。
 
-## 第九步：让已装好的 MacWave 用它
+## 第九步：让已装好的 Summerwave 用它
 
 已经装好、只是下载慢的情况。三行写进 `~/.zshrc`：
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
-export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/MacWave/selfupdate
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/Summerwave/deps
+export SUMMERWAVE_SELFUPDATE_DOMAIN=https://mirror.repohub.top/Summerwave/selfupdate
 ```
 
 写进 `~/.zshrc` 长期生效，然后 `source ~/.zshrc`。
 
-前两个变量的值里带 `/bottle` 与 `/deps`，因为镜像根目录下就是这两棵子树。想再镜像自更新数据的话，把 `MacWaveOrg/Selfupdate` 的内容放到 `.../selfupdate/`，第三个变量才需要设。
+前两个变量的值里带 `/bottle` 与 `/deps`，因为镜像根目录下就是这两棵子树。想再镜像自更新数据的话，把 `SummerwaveOrg/Selfupdate` 的内容放到 `.../selfupdate/`，第三个变量才需要设。
 
 验证真的走了镜像：
 
@@ -550,8 +550,8 @@ echo "${SUMMERWAVE_BOTTLE_DOMAIN:-(未设置 → 用官方地址)}"
 **可以只镜像一部分。** 三个变量互相独立，没设的那个继续用官方地址。例如只镜像二进制、自更新仍走官方：
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.repohub.top/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/Summerwave/deps
 # 不设 SUMMERWAVE_SELFUPDATE_DOMAIN
 ```
 
@@ -566,20 +566,20 @@ export SUMMERWAVE_DEPS_DOMAIN=https://mirror.repohub.top/MacWave/deps
 | `curl … install.sh` 首次安装 | ❌ | 除非按第十步把变量写在命令前 |
 | `git clone` 源码 | ❌ | git 不认这些变量 |
 
-最后一行最容易误会：**`MACWAVE_*_DOMAIN` 只管 MacWave 自己发的请求**，管不到 `git` 和 `curl` 的下载。
+最后一行最容易误会：**`MACWAVE_*_DOMAIN` 只管 Summerwave 自己发的请求**，管不到 `git` 和 `curl` 的下载。
 
 ## 可选的第三块：自更新数据与解释器
 
 这两块不是二进制，体积很小（解释器归档除外，每架构约 26 MB），直接从仓库复制即可：
 
 ```bash
-git clone --depth 1 https://github.com/MacWaveOrg/Selfupdate \
-  /www/wwwroot/mirror.repohub.top/MacWave/selfupdate
-rm -rf /www/wwwroot/mirror.repohub.top/MacWave/selfupdate/.git
+git clone --depth 1 https://github.com/SummerwaveOrg/Selfupdate \
+  /www/wwwroot/mirror.repohub.top/Summerwave/selfupdate
+rm -rf /www/wwwroot/mirror.repohub.top/Summerwave/selfupdate/.git
 
-git clone --depth 1 https://github.com/MacWaveOrg/Python \
-  /www/wwwroot/mirror.repohub.top/MacWave/python
-rm -rf /www/wwwroot/mirror.repohub.top/MacWave/python/.git
+git clone --depth 1 https://github.com/SummerwaveOrg/Python \
+  /www/wwwroot/mirror.repohub.top/Summerwave/python
+rm -rf /www/wwwroot/mirror.repohub.top/Summerwave/python/.git
 ```
 
 目录形状与每类数据的确切规则见 [DATA-LAYER.md](DATA-LAYER.md)。
@@ -589,13 +589,13 @@ rm -rf /www/wwwroot/mirror.repohub.top/MacWave/python/.git
 手动 rsync 的问题是**会忘**：发了新版、镜像还是旧的，而客户端拿到 404 只会说「下载失败」，
 没人会来告诉你。所以同步也交给服务器自己。
 
-`MacWave/` 下五类东西来源不同，脚本按来源分别处理：
+`Summerwave/` 下五类东西来源不同，脚本按来源分别处理：
 
 | 目标 | 来源 | 处理 |
 | --- | --- | --- |
 | `infosource/HEAD/` | `SummerwaveOrg/SeaLane` 的 `main` | 浅克隆 + `rsync --delete`，铺进一层 `HEAD/`（客户端地址里就有这层；见第四步） |
-| `selfupdate/` | `MacWaveOrg/Selfupdate` 的 `main` | 同上 |
-| `python/` | `MacWaveOrg/Python` 的 `main` | 同上 |
+| `selfupdate/` | `SummerwaveOrg/Selfupdate` 的 `main` | 同上 |
+| `python/` | `SummerwaveOrg/Python` 的 `main` | 同上 |
 | `core/<分支>/` | `SummerwaveOrg/Summerwave` 的对应分支 | 同上；分支表 = `configdata` 的当前发布线 + `KEEP_BRANCHES` |
 | `python/pythondata/<版本>/*.tar.gz` | `python_url.toml` 里记的**上游**地址 | 自己下载并校验 sha256；仓库里没有二进制 |
 | `bottle/` `deps/` | 我们自己的 Bottle / Deps **Release** | `sync_payloads.py --source payload`，只增不删；坏记录按 `scripts/known-bad-records.txt` 跳过 |
@@ -648,7 +648,7 @@ ssh -o ControlPath=$HOME/.ssh/cm-lw root@<服务器> \
 
 ```bash
 ssh -o ControlPath=$HOME/.ssh/cm-lw root@mirror.repohub.top \
-  'M=/www/wwwroot/mirror.repohub.top/MacWave
+  'M=/www/wwwroot/mirror.repohub.top/Summerwave
    grep ^version $M/selfupdate/macwavedata/latest.toml
    grep ^version $M/selfupdate/prerelease/latest.toml
    ls -l $M/core/4.4/lib/selfupdate.sh $M/selfupdate/macwavedata/latest.toml.sig'
@@ -661,7 +661,7 @@ ssh -o ControlPath=$HOME/.ssh/cm-lw root@mirror.repohub.top \
 for u in selfupdate/macwavedata/latest.toml selfupdate/prerelease/latest.toml \
          core/4.4/lib/selfupdate.sh; do
   printf '%-46s ' "$u"
-  curl -u '<账号>' -s -o /dev/null -w '%{http_code}\n' "https://mirror.repohub.top/MacWave/$u"
+  curl -u '<账号>' -s -o /dev/null -w '%{http_code}\n' "https://mirror.repohub.top/Summerwave/$u"
 done
 ```
 
@@ -673,7 +673,7 @@ done
 for u in selfupdate/macwavedata/latest.toml selfupdate/macwavedata/latest.toml.sig \
          selfupdate/macwavedata/4.4.0/update_commands.sh core/4.4/lib/install.sh; do
   printf '%-52s ' "$u"
-  curl -s -o /dev/null -w '%{http_code}\n' "https://mirror.repohub.top/MacWave/$u"   # 不加 -u
+  curl -s -o /dev/null -w '%{http_code}\n' "https://mirror.repohub.top/Summerwave/$u"   # 不加 -u
 done
 ```
 
@@ -703,7 +703,7 @@ done
 
 ### 为什么解释器压缩包要单独一步
 
-`MacWaveOrg/Python` 里只有 toml，没有那两个约 26 MB 的压缩包 —— 二进制不进 git。
+`SummerwaveOrg/Python` 里只有 toml，没有那两个约 26 MB 的压缩包 —— 二进制不进 git。
 但客户端默认不是回上游取，而是取镜像上那份：
 
 ```python
@@ -726,7 +726,7 @@ def python_archive_url(version, filename):
 | **同步失败时不能清理旧分支目录** | 发布线刚切到 `4.5`、而 `4.5` 分支还没建时，清理会把仍在服务的 `4.1` 删掉 —— 一次上游打嗝变成镜像全站不可用。脚本里只要有一个 core 分支没同步成功就跳过清理 |
 | **`pythondata/*.tar.gz` 必须排除在 `--delete` 之外** | 它们在仓库里不存在，rsync 的 `--delete` 会当成「上游删了」而清掉。实测确认：不排除时两个压缩包会被删，镜像从此装不了自带解释器 |
 | **`bottle/deps` 只增不删** | 上游删掉一个旧包时，镜像里已有的文件不该跟着消失：客户端的索引缓存可能还指着它 |
-| **代码树与产物树可以在两个根下** | 历史机器上出现过 `/www/…/MacWave/bottle`（产物）+ `/srv/mirror/MacWave/infosource`（代码树）。这时 `ROOT` 填代码树那个根，`MIRROR_ROOT` 指向有 `bottle/` 的那一层 |
+| **代码树与产物树可以在两个根下** | 历史机器上出现过 `/www/…/Summerwave/bottle`（产物）+ `/srv/mirror/Summerwave/infosource`（代码树）。这时 `ROOT` 填代码树那个根，`MIRROR_ROOT` 指向有 `bottle/` 的那一层 |
 
 另外，产物那一步走的是 `--source payload`，即从**我们自己的 Release** 取，不打扰上游。
 它依赖 `domains.py` 的内置默认值，所以脚本开头会显式 `unset MACWAVE_*_DOMAIN` ——
@@ -743,8 +743,8 @@ def python_archive_url(version, filename):
 
 清理原则：**先移到隔离目录，确认一周没问题再删**，不要 `rm -rf` 上线。
 
-> **按名字猜哪棵树在服务，一定会错。** 实测遇到过这样的站点：同一个 `/MacWave/`
-> 前缀下，`location ^~ /MacWave/infosource/` 指向 `/srv/mirror/…`，而
+> **按名字猜哪棵树在服务，一定会错。** 实测遇到过这样的站点：同一个 `/Summerwave/`
+> 前缀下，`location ^~ /Summerwave/infosource/` 指向 `/srv/mirror/…`，而
 > `core`、`selfupdate`、`python`、`bottle`、`deps` 根本没有自己的 location ——
 > 它们落到通用的 `location /`，由它的 `root` 从 `/www/wwwroot/…` 取。
 > 于是「把 `/www` 下那几份没人读的代码树挪走」直接让 `wave install` 全线 404，
@@ -758,7 +758,7 @@ def python_archive_url(version, filename):
 >   | grep -iE 'macwave|core|bottle|deps|python|selfupdate'
 >
 > # b) 有没有人真的在读某个前缀（读访问日志，不靠感觉）
-> grep -cE 'MacWave/(Selfupdate|Python|MacWave)/' /www/wwwlogs/*.log 2>/dev/null
+> grep -cE 'Summerwave/(Selfupdate|Python|Summerwave)/' /www/wwwlogs/*.log 2>/dev/null
 > ```
 >
 > 只看 (a) 还不够：`core`/`deps`/`bottle` 这类**没有自己的 location** 的前缀，
@@ -767,11 +767,11 @@ def python_archive_url(version, filename):
 ```bash
 # 0) 先给现状留个底
 STAMP=$(date +%F)
-ls -la /srv/mirror/MacWave > /root/macwave-mirror-$STAMP.txt
-du -sh /www/wwwroot/mirror.repohub.top/MacWave/* /srv/mirror/MacWave/* 2>/dev/null
+ls -la /srv/mirror/Summerwave > /root/macwave-mirror-$STAMP.txt
+du -sh /www/wwwroot/mirror.repohub.top/Summerwave/* /srv/mirror/Summerwave/* 2>/dev/null
 
 # 1) 看清每个 location 到底指向哪棵树（决定哪些目录能删）
-nginx -T 2>/dev/null | grep -A2 'location .*MacWave' | grep -E 'location|alias'
+nginx -T 2>/dev/null | grep -A2 'location .*Summerwave' | grep -E 'location|alias'
 ```
 
 **真正被服务的那棵树**要留下；其余都可以挪走。典型的两类废数据：
@@ -781,15 +781,15 @@ QUAR=/root/trash-macwave-$STAMP
 mkdir -p "$QUAR"
 
 # A. /www 下只留 bottle 与 deps —— 代码树现在只写 /srv
-for d in infosource core selfupdate python MacWave; do
-    [ -d "/www/wwwroot/mirror.repohub.top/MacWave/$d" ] || continue
-    mv "/www/wwwroot/mirror.repohub.top/MacWave/$d" "$QUAR/www-$d"
+for d in infosource core selfupdate python Summerwave; do
+    [ -d "/www/wwwroot/mirror.repohub.top/Summerwave/$d" ] || continue
+    mv "/www/wwwroot/mirror.repohub.top/Summerwave/$d" "$QUAR/www-$d"
 done
 
 # B. /srv 下按仓库名建的大写目录（客户端用的是小写 selfupdate/python）
 for d in Selfupdate Python; do
-    [ -d "/srv/mirror/MacWave/$d" ] || continue
-    mv "/srv/mirror/MacWave/$d" "$QUAR/srv-$d"
+    [ -d "/srv/mirror/Summerwave/$d" ] || continue
+    mv "/srv/mirror/Summerwave/$d" "$QUAR/srv-$d"
 done
 ```
 
@@ -804,12 +804,12 @@ done
 ```bash
 MP=$(awk '$1=="REPOHUBUSER1"{print $2; exit}' /root/macwave-passwords.txt)
 for u in \
-  /MacWave/sealane/HEAD/pkg/pkginfo/versions \
-  /MacWave/selfupdate/macwavedata/latest.toml \
-  /MacWave/python/pythondata/latest.toml \
-  /MacWave/core/4.4/lib/wave.py \
-  /MacWave/core/4.0/lib/wave.py \
-  /MacWave/bottle/jq/jq%401.8.2.macos-arm64 ; do
+  /Summerwave/sealane/HEAD/pkg/pkginfo/versions \
+  /Summerwave/selfupdate/macwavedata/latest.toml \
+  /Summerwave/python/pythondata/latest.toml \
+  /Summerwave/core/4.4/lib/wave.py \
+  /Summerwave/core/4.0/lib/wave.py \
+  /Summerwave/bottle/jq/jq%401.8.2.macos-arm64 ; do
     printf '%s  %s\n' \
       "$(curl -s -o /dev/null -w '%{http_code}' -u "REPOHUBUSER1:$MP" "https://mirror.repohub.top$u")" "$u"
 done
@@ -940,7 +940,7 @@ limit_req_zone  $remote_user zone=bottle_rate:10m rate=60r/m;
 然后在**站点**的 `server { }` 里（宝塔：网站 → 设置 → 配置文件）加：
 
 ```nginx
-location /MacWave/bottle/ {
+location /Summerwave/bottle/ {
     limit_conn bottle_per_user 4;      # 每个用户名同时 4 个连接
     limit_req  zone=bottle_rate burst=20 nodelay;
 
@@ -952,7 +952,7 @@ location /MacWave/bottle/ {
 }
 
 # 大包单独再压一档：装一次就很少重装，慢一点没关系
-location ~ /MacWave/bottle/ollama/ {
+location ~ /Summerwave/bottle/ollama/ {
     limit_rate 2m;
 }
 ```
@@ -1040,7 +1040,7 @@ limit_req_status 429;
 
 ```nginx
 # 索引与记录：客户端启动必经，一个连接都不限
-location ~ ^/MacWave/(sealane|core/.+/info)/ {
+location ~ ^/Summerwave/(sealane|core/.+/info)/ {
     auth_basic off;
     add_header Cache-Control "public, max-age=300";
 }
@@ -1056,7 +1056,7 @@ location ~* \.(tar\.gz|tgz|zip|tar\.bz2|tar\.xz|conda)$ {
 }
 
 # 大包再压一档：装一次能用很久，慢点没关系
-location ~ /MacWave/bottle/(ollama|docker-compose|ipsw)/ {
+location ~ /Summerwave/bottle/(ollama|docker-compose|ipsw)/ {
     limit_conn mw_conn 2;
     limit_rate 2m;
 }
@@ -1108,7 +1108,7 @@ User-Agent: Summerwave/<版本> (<os>-<arch>)
 
 ```bash
 # 今天有多少流量不是客户端发的
-grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
+grep "/Summerwave/bottle/" /www/wwwlogs/<站点>.log \
   | grep -vc "Summerwave/" 
 ```
 
@@ -1118,7 +1118,7 @@ grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
 
 ```bash
 # 宝塔「任务计划」→ Shell 脚本，每天 03:00
-BYTES=$(grep "/MacWave/" /www/wwwlogs/<站点>.log | awk '{s+=$10} END {print s+0}')
+BYTES=$(grep "/Summerwave/" /www/wwwlogs/<站点>.log | awk '{s+=$10} END {print s+0}')
 if [ "$BYTES" -gt $((80*1024*1024*1024)) ]; then
     sed -i 's/^    limit_rate .*/    limit_rate 512k;/' /www/server/panel/vhost/nginx/extension/<站点>/mw.conf
     nginx -s reload
@@ -1133,7 +1133,7 @@ fi
 
 ```bash
 # 按月看各路径实际发出去多少
-grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
+grep "/Summerwave/bottle/" /www/wwwlogs/<站点>.log \
   | awk '{sum += $10} END {printf "%.1f GB\n", sum/1024/1024/1024}'
 ```
 
@@ -1144,10 +1144,10 @@ grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
 
 **404，但文件确实在。** 按顺序查这三条：
 
-1. 目录是不是多套了一层（`MacWave/MacWave/bottle`）：
-   `ls /www/wwwroot/mirror.repohub.top/MacWave/` 应当直接列出 `bottle`、`deps`；
-2. 环境变量是不是漏了 `MacWave`：
-   要写 `https://mirror.repohub.top/MacWave/bottle`，不是 `https://mirror.repohub.top/bottle`；
+1. 目录是不是多套了一层（`Summerwave/Summerwave/bottle`）：
+   `ls /www/wwwroot/mirror.repohub.top/Summerwave/` 应当直接列出 `bottle`、`deps`；
+2. 环境变量是不是漏了 `Summerwave`：
+   要写 `https://mirror.repohub.top/Summerwave/bottle`，不是 `https://mirror.repohub.top/bottle`；
 3. 环境变量是不是又漏了 `bottle` / `deps` 后缀（客户端只往后再接 `/<包名>/<文件名>`）。
 
 **`@` 到底要不要编码。** 两种形式 nginx 都接受：`jq%401.7.1.macos-arm64` 与 `jq@1.7.1.macos-arm64` 指向同一个文件。客户端拼地址时会编码（与 GitHub 给出的规范地址一致）。

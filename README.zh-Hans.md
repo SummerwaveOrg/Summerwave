@@ -144,23 +144,23 @@ Summerwave 用到的每个地址都能替换，所以换镜像是一组环境变
 
 ### 换成镜像站
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
 ```
 其余地址继续用官方源，所以镜像站只需要镜像它承载的那部分内容。
 
-路径里的 `MacWave/` 是为了让一个镜像域名能共用：同一台机器可以给多个产品的镜像各留一个顶级目录，谁都不独占域名根。
+路径里的 `Summerwave/` 是为了让一个镜像域名能共用：同一台机器可以给多个产品的镜像各留一个顶级目录，谁都不独占域名根。
 
 ### 全量镜像
 
 上面两行只覆盖大文件的下载。当 `github.com` 与 `raw.githubusercontent.com` 是**连不上**而不是慢的时候，让 Summerwave 能跑起来的那几个文件仍然在 GitHub 上：软件包索引、自更新数据、自带解释器、Summerwave 自身代码。把它们全部指向镜像：
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/Summerwave/sealane/HEAD
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/Summerwave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/Summerwave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
@@ -169,8 +169,8 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 布局，`SeaLane` 是一个 git 仓库，所以 ref 那一段必须真实存在一层目录：
 
 ```
-…/MacWave/sealane/HEAD/versions       ← 正确
-…/MacWave/sealane/versions            ← 错误，404
+…/Summerwave/sealane/HEAD/versions       ← 正确
+…/Summerwave/sealane/versions            ← 错误，404
 ```
 
 少了它的症状是**所有**软件包都装不上（`wave install` 停在「读不到版本清单」，
@@ -186,11 +186,11 @@ export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 cat >> ~/.zshrc <<'MWMIRROR'
 
 # Summerwave mirror — 删掉这一块就恢复官方地址
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/Summerwave/sealane/HEAD
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/Summerwave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/Summerwave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 MWMIRROR
 source ~/.zshrc
@@ -210,13 +210,13 @@ source ~/.zshrc
 ### 受信任用户专用镜像
 
 除了自己搭，还有一个**由项目维护的国内镜像**，地址列在 [summerwave.org](https://summerwave.org) 的「镜像站」一栏。账号只发给受信任的用户。
-需要的话写信给 [hi@macwave.org](mailto:hi@macwave.org?subject=申请%20MacWave%20镜像账号) 索取账号和密码。
+需要的话写信给 [hi@macwave.org](mailto:hi@macwave.org?subject=申请%20Summerwave%20镜像账号) 索取账号和密码。
 
 账号是一组用户名 + 密码，直接写进 URL：
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/bottle"
-export SUMMERWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/MacWave/deps"
+export SUMMERWAVE_BOTTLE_DOMAIN="https://<用户名>:<密码>@<镜像地址>/Summerwave/bottle"
+export SUMMERWAVE_DEPS_DOMAIN="https://<用户名>:<密码>@<镜像地址>/Summerwave/deps"
 ```
 
 要全量的话，同一组凭据分别写进五个路径即可 —— 镜像站五个都提供。
@@ -585,7 +585,7 @@ shallow clone 会报：
 | --- | --- |
 | `SummerwaveOrg/Summerwave` | 程序本体 |
 | `SummerwaveOrg/SeaLane` | 软件包索引，每个软件包、每种架构各一个目录 |
-| `MacWaveOrg/configdata` | 已发布的版本、自更新的文件清单、自带的解释器 |
+| `SummerwaveOrg/configdata` | 已发布的版本、自更新的文件清单、自带的解释器 |
 
 ### 源码结构
 
