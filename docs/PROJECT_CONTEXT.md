@@ -1,4 +1,4 @@
-# 🌊 MacWave 项目结构
+# 🌊 Summerwave 项目结构
 
 > ✅ **已按 0.1.0（Summerwave 合并线）复核**：安装位置写死、没有配置文件、没有
 > `--dir-option`；状态只有 `<base>/var/config.sh`；运行时布局是 `Shore/<名>/<版本>/`
@@ -12,6 +12,47 @@
 - `main` 与版本分支（当前的 `4.1`）：程序代码，两者保持同步
 - `MacWaveOrg/configdata` 仓库的 `main` 分支：**发布线的单一事实来源**（`versiondata/latest_version`：`version` / `release_date` / `branch`）。镜像同步据此决定同步哪些 `core/<分支>/`，工具与人据此知道当前发布线；**客户端不再读它** —— 4.4 起客户端读的是 `MacWaveOrg/Selfupdate` 的探针（`macwavedata/latest.toml`；`preview` 渠道读 `prerelease/latest.toml`），那份文件才决定装哪个版本、从哪个分支取代码、以及要执行的 `update_commands.sh` 的哈希
 - `SummerwaveOrg/SeaLane` 仓库的 `main` 分支：纯数据（包与依赖的元数据、下载地址、校验值），依赖数据在 `deps/` 目录下
+
+---
+
+## 〇、组织与仓库格局（2026-11-28）
+
+三个 GitHub 组织，**只有一个还在开发**：
+
+| 组织 | 仓库数 | 状态 | 说明 |
+| --- | --- | --- | --- |
+| **`SummerwaveOrg`** | 5 | **活跃** | `Summerwave`（本体）、`SeaLane`（索引）、`Bottle`（产物）、`Python`（自带解释器）、`Pages`（官网） |
+| `MacWaveOrg` | 14 | 全部归档 | MacWave 4.x 及以前：本体、Ports、Bottle、Deps、Selfupdate、configdata、infosource、pkgtest、docs、Pages、Bottle-src、Python |
+| `LinuxWaveOrg` | 10 | 全部归档 | LinuxWave 4.x 及以前：本体、Bottle、Deps、Selfupdate、configdata、infosource、pkgtest、Ports、Pages、legacy-LinuxWave |
+
+**归档 = 只读，不是删除**：代码、Release、Issue 都还在，能 clone、能查历史，只是不能推送。
+所以 `Ports`、`pkgtest` 这类没迁移过来的东西也安全，需要时照样读。
+
+### 归档前必须做的事
+
+**先把 README 写好，再归档。** 归档之后仓库只读，README 就改不了了 ——
+要补只能「临时解归档 → 改 → 重新归档」，每个仓库三步。
+
+两个旧组织的每个 README 开头都有这段（中英双语）：
+
+- 迁移提示：已并入 Summerwave，官网 301 到 summerwave.org，开发转到 `SummerwaveOrg/Summerwave`
+- 旧安装继续可用：`wave` / `wave install` / `wave selfupdate` 不受影响，Release 保持可下载
+- 新安装、issue、PR 一律去新仓库；本仓库只读
+
+`docs/` 里有可直接复用的脚本写法（解归档 → 前置提示 → 重新归档），见
+`~/MD/Summerwave/Summerwave-仓库归档与三组织格局.md`。
+
+### 域名
+
+| 域名 | 指向 | 现状 |
+| --- | --- | --- |
+| `summerwave.org` | `SummerwaveOrg/Pages`（GitHub Pages） | HTTP 正常；**HTTPS 证书待签发**（`https_certificate: 无`） |
+| `macwave.org` | 同上（显示 Summerwave 内容） | 200，未设跨域 301 |
+| `linuxwave.org` | `LinuxWaveOrg/Pages`（已归档） | 200，仍是 LinuxWave 旧站，未设 301 |
+
+GitHub Pages **不做真正的 301**（纯静态托管）。要让旧域名跳过去，只有三条路：
+旧 Pages 仓库放一个跳转页（`<meta http-equiv="refresh">` + JS，对用户等效但不是 301）、
+把 DNS 迁到 Cloudflare 用 Page Rules 做 301、或者自己起服务器做 301。
 
 ---
 
