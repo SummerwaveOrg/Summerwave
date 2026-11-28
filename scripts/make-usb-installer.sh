@@ -43,8 +43,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -n "$REF" ]] || REF="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 1.0)"
-[[ -n "$VERSION" ]] || VERSION="0.1.0@$(date -u +%Y-%m-%dT%H:%MZ)"
+# 默认取「最近的发布 tag」，版本号由它派生 —— 两者必须一致，否则装的时候会去
+# 取一个不存在的 ref（第一次真机安装就是这么失败的：版本号带构建时刻，而那个
+# 名字根本打不成 git tag）。
+[[ -n "$REF" ]] || REF="$(git -C "$REPO_DIR" describe --tags --abbrev=0 2>/dev/null || true)"
+if [[ -z "$REF" ]]; then
+    echo -e "${RED_BOLD}🌊 Error: no release tag found; pass --ref and --version explicitly.${RESET}" >&2
+    exit 1
+fi
+[[ -n "$VERSION" ]] || VERSION="${REF#v}"
+
+# ref 必须是远端真的有的东西 —— 本地能读、远端没有，装到目标机上才会 404
+if ! git -C "$REPO_DIR" rev-parse --verify --quiet "$REF^{commit}" > /dev/null; then
+    echo -e "${RED_BOLD}🌊 Error: $REF is not a commit in this repository.${RESET}" >&2
+    exit 1
+fi
+if ! git -C "$REPO_DIR" ls-remote --exit-code --tags origin "$REF" > /dev/null 2>&1; then
+    echo -e "${YELLOW}🌊 Warning: $REF is not on origin yet; the target machine will get 404s.${RESET}" >&2
+    echo "🌊   git push origin $REF" >&2
+    exit 1
+fi
+echo "🌊 ref      $REF  (version $VERSION)"
 
 # ==========================================
 # 卷的探测
