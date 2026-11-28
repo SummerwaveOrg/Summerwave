@@ -31,7 +31,7 @@ that is what we promise. Individual packages may declare their own minimum;
 
 ## 🌊 Latest Version
 
-4.5.2, Release on 2026-11-23
+0.1.0, released 2026-11-28
 
 ## 🌊 About Summerwave 
 
@@ -152,22 +152,22 @@ Every address Summerwave contacts is configurable, so switching mirrors is a set
 
 ### Switch to a mirror
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
 ```
 Everything else keeps using the official addresses, so a mirror only needs to carry what it mirrors.
 
-The `MacWave/` segment keeps a mirror's domain shareable: one host can serve several products' mirrors under distinct top-level paths without any of them owning the root.
+The `Summerwave/` segment keeps a mirror's domain shareable: one host can serve several products' mirrors under distinct top-level paths without any of them owning the root.
 
 ### Mirror everything
 Those two lines only cover the bulk downloads. When `github.com` and `raw.githubusercontent.com` are **blocked** rather than slow, the files that let Summerwave work at all still come from GitHub: the package index, the bundled interpreter and Summerwave's own code (the installer itself comes from a release asset). Point all of them at the mirror:
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/Summerwave/sealane/HEAD
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/Summerwave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/Summerwave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
@@ -177,8 +177,8 @@ as `<org>/<repo>/<ref>/…`, and `SeaLane` is a git repository, so the ref has t
 real directory level:
 
 ```
-…/MacWave/sealane/HEAD/versions       ← correct
-…/MacWave/sealane/versions            ← wrong, 404
+…/Summerwave/sealane/HEAD/versions       ← correct
+…/Summerwave/sealane/versions            ← wrong, 404
 ```
 
 Without it **every** package fails to install (`wave install` stops at "cannot read the
@@ -194,11 +194,11 @@ version list", and so do `wave search` and `wave latest`), not just one. The oth
 cat >> ~/.zshrc <<'MWMIRROR'
 
 # Summerwave mirror — delete this block to go back to the official addresses
-export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/MacWave/bottle
-export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/MacWave/deps
-export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/MacWave/sealane/HEAD
-export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/MacWave/python
-export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/MacWave/core
+export SUMMERWAVE_BOTTLE_DOMAIN=https://mirror.example.cn/Summerwave/bottle
+export SUMMERWAVE_DEPS_DOMAIN=https://mirror.example.cn/Summerwave/deps
+export SUMMERWAVE_API_DOMAIN=https://mirror.example.cn/Summerwave/sealane/HEAD
+export SUMMERWAVE_PYTHON_DOMAIN=https://mirror.example.cn/Summerwave/python
+export SUMMERWAVE_CORE_DOMAIN=https://mirror.example.cn/Summerwave/core
 export MACWAVE_PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 MWMIRROR
 source ~/.zshrc
@@ -219,14 +219,14 @@ Whatever you end up with, `wave mirror` reports the effective address for every 
 
 Besides running your own, there is **a mirror hosted by the project** for users in mainland China,
 listed under *Mirrors* on [summerwave.org](https://summerwave.org). Accounts are invite-only: write to
-[hi@macwave.org](mailto:hi@macwave.org?subject=Request%20a%20MacWave%20mirror%20account)
+[hi@macwave.org](mailto:hi@macwave.org?subject=Request%20a%20Summerwave%20mirror%20account)
 to ask for a username and password.
 
 The credentials go straight into the URL:
 
 ```bash
-export SUMMERWAVE_BOTTLE_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/bottle"
-export SUMMERWAVE_DEPS_DOMAIN="https://<user>:<password>@<mirror-host>/MacWave/deps"
+export SUMMERWAVE_BOTTLE_DOMAIN="https://<user>:<password>@<mirror-host>/Summerwave/bottle"
+export SUMMERWAVE_DEPS_DOMAIN="https://<user>:<password>@<mirror-host>/Summerwave/deps"
 ```
 
 The same credentials go into each of the five paths when you want the full set — the mirror serves all of them.
@@ -561,11 +561,11 @@ Read the section below before running anything from that directory.
 
 ### Branch From the Latest Release
 
-Start every new piece of work from the newest release branch (currently `4.1`),
+Start every new piece of work from the newest release branch (currently `1.0`),
 not from an older one:
 
 ```bash
-git switch -c 4.2 4.1
+git switch -c <new-branch> 1.0
 ```
 
 Older branches stay where they are — they are missing later fixes, so branching
@@ -603,7 +603,8 @@ install a throwaway copy under a temporary root, or run the scripts in
 | --- | --- |
 | `SummerwaveOrg/Summerwave` | The program itself |
 | `SummerwaveOrg/SeaLane` | The package index, one directory per package and architecture |
-| `MacWaveOrg/configdata` | The published version, the updater's file list, and the bundled interpreter |
+| `SummerwaveOrg/Bottle` | Prebuilt packages and dependency payloads, one release per package |
+| `SummerwaveOrg/Python` | The bundled CPython builds |
 
 ### Source layout
 
@@ -697,10 +698,9 @@ Everything up to and including `4.5.2` was published under the MIT License and s
 nothing is retroactively relicensed. `4.6.0` is where the Apache-2.0 terms begin, which is also
 why that release asks you to accept the agreement again.
 
-> **Note the version reset.** After the MacWave / LinuxWave merge the version number was
-> renumbered from `4.6.x` to `0.1.0`, so **`0.1.x` is newer than `4.6.0`** even though the
-> number is smaller. The Apache-2.0 terms apply to it just the same — compare by release date,
-> never by numeric version, when crossing that boundary.
+> **`0.1.x` is Apache-2.0.** The version numbering was restarted at `0.1.0`, so the number is
+> smaller than `4.6.0` while the release is newer — compare by release date, not by version
+> number, when crossing that point.
 
 ## 🌊 Contact Us
 
