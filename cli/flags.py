@@ -70,7 +70,7 @@ silent = {"-s", "--silent", "-S", "--show-error"}
 # 下做不同的事 —— 就像 -a 在 upgrade 与 link 上都是「所有」。
 install = {"-F", "--force", "--raw"} | set(NO_LINK) | silent
 # -a/--all：这个包的全部版本。与显式版本互斥，uninstaller 里会拒绝混用。
-uninstall = set(NO_LINK) | {"-a", "--all"} | silent
+uninstall = set(NO_LINK) | {"-a", "--all", "-F", "--force"} | silent
 upgrade = {"-X", "--remove-old-version", "--remove-old-versions", "--rov",
            "-a", "--all", "-F", "--force", "--raw"} | silent
 link = {"-a", "--all"} | silent

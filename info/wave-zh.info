@@ -22,7 +22,7 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
 * list::	列出已安装的软件包及其版本，排成两竖列。
 * search::	在软件包索引（线上）里搜索。
 * info::	显示作者、简介、主页，以及已安装版本与索引里的可用版本。
-* selfupdate::	把 MacWave 自身更新到自更新仓库里发布的版本。
+* selfupdate::	把 Summerwave 自身更新到自更新仓库里发布的版本。
 * link::	创建一个不带版本号的快捷方式，或把它改指到另一个已安装版本。
         之后的安装与卸载会自动维护它。
 * unlink::	删掉那个不带版本号的快捷方式。之后再卸载也不会重新创建。
@@ -31,17 +31,17 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
         列。
 * mirror::	显示每一类数据实际获取地址，包括仍在使用内置默认值的项。
 * latest::	将本机已装的版本与索引里的最新版本比较，不下载。
-* basedir::	打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树
-        下。这个路径是写死的（macOS 是 /opt/macwave，Linux 是
+* basedir::	打印 Summerwave 的安装根目录，可执行文件、链接与依赖都在这棵
+        树下。这个路径是写死的（macOS 是 /opt/macwave，Linux 是
         /home/linuxwave/.linuxwave），没有配置文件，也搬不动。家目录
         下的路径写作 ~。加 --raw 只输出原样的绝对路径。
 * doctor::	只读体检：找出已经坏了、但平时不容易发现的地方 —— 版本目录里
         没有可执行文件、悬空的链接、装了却没链接的包、没人引用的依赖
         树、还写着绝对路径的产物。什么都不会改动，每条发现都附上该跑
         哪条命令；退出码是发现的问题数，可以进脚本。
-* shellenv::	打印一段把 MacWave 的目录加到 PATH 前面的 shell 代码。在
+* shellenv::	打印一段把 Summerwave 的目录加到 PATH 前面的 shell 代码。在
         shell 配置里 eval 一次即可；它自己什么也不改。
-* version::	打印当前安装的 MacWave 版本。
+* version::	打印当前安装的 Summerwave 版本。
 * manual::	显示完整手册（与 man / info 里的是同一份内容），可按命令名只
         看一节。
 
@@ -88,7 +88,7 @@ File: wave-zh.info, Node: 全局旗标, Up: Top
       当前 macOS 版本低于软件包声明要求时仍继续安装
 
   --install-python-from-source
-      从上游地址取自带的 Python，而不是 MacWave 自己的仓库
+      从上游地址取自带的 Python，而不是 Summerwave 自己的仓库
 
   MACWAVE_PIP_INDEX
       环境变量。Python 依赖的 pip 源，默认 pypi.org/simple
@@ -258,6 +258,9 @@ File: wave-zh.info, Node: uninstall, Next: list, Prev: reinstall, Up: Top
   --no-link
       不动此软件包不带版本号的软链接（旧写法 --unlink 仍然可用）
 
+  -F, --force
+      即使还有别的软件包依赖它，也照删
+
 Examples:
 
      wave uninstall jq
@@ -318,7 +321,7 @@ Examples:
 File: wave-zh.info, Node: selfupdate, Next: link, Prev: info, Up: Top
 
 
-把 MacWave 自身更新到自更新仓库里发布的版本。
+把 Summerwave 自身更新到自更新仓库里发布的版本。
 
   --max-time <string>
       单次请求最大时长（40s、1min、1min20s、2h；不输入单位默认 s）
@@ -330,7 +333,7 @@ File: wave-zh.info, Node: selfupdate, Next: link, Prev: info, Up: Top
       接收数据的最大时长
 
   --install-python-from-source
-      从上游地址取自带的 Python，而不是 MacWave 自己的仓库
+      从上游地址取自带的 Python，而不是 Summerwave 自己的仓库
 
   --dry-run
       只打印会更新到什么、会做什么，不做任何改动（不下载、不询问协议）
@@ -456,8 +459,8 @@ Examples:
 File: wave-zh.info, Node: basedir, Next: doctor, Prev: latest, Up: Top
 
 
-打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路径
-是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
+打印 Summerwave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路
+径是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
 没有配置文件，也搬不动。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
 路径。
 
@@ -496,7 +499,7 @@ Examples:
 File: wave-zh.info, Node: shellenv, Next: version, Prev: doctor, Up: Top
 
 
-打印一段把 MacWave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里
+打印一段把 Summerwave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里
 eval 一次即可；它自己什么也不改。
 
 Examples:
@@ -508,7 +511,7 @@ Examples:
 File: wave-zh.info, Node: version, Next: manual, Prev: shellenv, Up: Top
 
 
-打印当前安装的 MacWave 版本。
+打印当前安装的 Summerwave 版本。
 
 Examples:
 

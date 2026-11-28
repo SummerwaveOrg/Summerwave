@@ -113,7 +113,7 @@ v<版本>[@<构建时刻>][-<渠道>.<序号>]
 
 - **只有一处**：macOS `/opt/macwave`（配置 `/opt/macwave_config`）、
   Linux `/home/linuxwave/.linuxwave`。没有自定义目录、没有用户级安装、没有 `--dir-option`。
-- **系统地板按架构**：`arm64` = macOS 15.0、`x86_64` = macOS 12.0
+- **系统地板按架构**：`arm64` = macOS 15.0、`x86_64` = macOS 13.0
   （`config/platforminfo.py` 的 `MIN_SUPPORTED_OS`，构建时由 `scripts/build-env.sh` 落成
   `-mmacosx-version-min`）。对外承诺就是这两句。
 - 平台只认内核：`macos` / `linux` / `unknown`；iOS / Android / ChromeOS 不识别。

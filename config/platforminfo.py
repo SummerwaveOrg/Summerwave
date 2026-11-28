@@ -53,13 +53,16 @@ _ARCH_ALIASES = {"x86_64": "amd64", "amd64": "amd64", "x64": "amd64",
                  "arm64": "arm64", "aarch64": "arm64"}
 
 
-# 对外承诺的支持范围：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
+# 对外承诺的支持范围：Apple Silicon 要 Sequoia 15，Intel 要 Ventura 13。
 #
 # 为什么按架构分而不是全库一个值：任何 Apple Silicon Mac 都跑得动 15，所以 15 这个
 # 地板排除不了任何硬件，只排除「能升但不升」的人；而 Intel 侧由构建机的 SDK 决定
-# （Ports 用一台 Monterey 12 的机器），天然就是 12，白捡了老 Intel Mac 的兼容面。
+# 但构建机器的 SDK 只是下限的一半：索引里 54 条 amd64 记录声明 min_os >= 13
+# （fzf / gh / yq / age / shfmt / vhs / kubecolor / kustomize … 几乎就是最常用的
+# 那批 CLI），留在 12 会变成「装得上、常用的都装不了」。上调到 13 之后
+# 324/348 条可用，只剩 24 条 min_os >= 14 的装不了。
 # 理由与构建侧的地板表见 Ports/README.md。
-MIN_SUPPORTED_OS = {"arm64": (15, 0), "amd64": (12, 0)}
+MIN_SUPPORTED_OS = {"arm64": (15, 0), "amd64": (13, 0)}
 
 
 def arch_of(machine=None):

@@ -424,11 +424,10 @@ mw_write_deps_file() {
 mw_tag_add_depender() {
     # 在依赖目录下记录“谁依赖了我”
     local dir="$1"
-    local kind="$2"
-    local name="$3"
-    local version="$4"
+    local name="$2"
+    local version="$3"
 
-    tagger_create "$dir" "$kind" "$name" "$version"
+    tagger_create "$dir" "$name" "$version"
 }
 
 mw_tag_remove_depender() {
@@ -437,7 +436,7 @@ mw_tag_remove_depender() {
     local name="$3"
     local version="$4"
 
-    tagger_delete "$dir" "$kind" "$name" "$version"
+    tagger_delete "$dir" "$name" "$version"
 }
 
 mw_tag_has_marks() {

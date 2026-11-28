@@ -195,6 +195,8 @@ COMMANDS = (
                           "(cannot be combined with @<version>)"),
             ("--no-link", "Do not touch the unversioned link (the old name --unlink "
                           "still works)"),
+            ("-F, --force", "Remove it even when another installed package still "
+                            "depends on it"),
         ],
         examples=[
             "wave uninstall jq",

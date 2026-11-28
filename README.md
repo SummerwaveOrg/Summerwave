@@ -15,9 +15,15 @@ A package manager for macOS software developers.
 
 ## 🌊 Supported macOS Version
 
-**macOS Monterey 12 and above.**
+**Apple Silicon needs macOS Sequoia 15; Intel needs macOS Ventura 13.**
 
-Verified on macOS 12.7.6 (2015 MacBook Air, Intel, Xcode CLT 14.2). The bundled
+Why Intel is 13 and not lower: 54 of the 348 amd64 records in the index declare
+`min_os >= 13`, and they are almost exactly the most-used command line tools
+(`fzf`, `gh`, `yq`, `age`, `shfmt`, `vhs`, `kubecolor`, `kustomize` …). With the
+floor at 12 you could install Summerwave but not the packages you came for.
+At 13, 324 of 348 are installable.
+
+The bundled
 CPython declares `minos 10.15` on x86_64 and `11.0` on arm64, so Catalina is the
 theoretical floor on Intel — but nothing below 12 has been tested end to end, so
 that is what we promise. Individual packages may declare their own minimum;
@@ -84,7 +90,7 @@ pinning the script is the same as pinning everything it will download.)
 
 (If you are using bash instead of zsh, run ```source ~/.bashrc```)
 
-**Requirements: macOS Monterey 12 or later, Xcode Command Line Tools.**
+**Requirements: macOS 15 on Apple Silicon, macOS 13 on Intel, plus Xcode Command Line Tools.**
 
 **You do not need to install Python.** Summerwave ships its own CPython under
 `<install-dir>/python/` and runs from a private environment beside it, so the

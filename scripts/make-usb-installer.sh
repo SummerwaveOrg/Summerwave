@@ -11,7 +11,7 @@
 #
 # 为什么要在 Mac（有 git + python3 的那台）上构建：
 #   build_installer.py 用 `git ls-tree` 读清单，并且要 python3。目标机若是刚装的
-#   Monterey，这两样都可能没有 —— 在那边构建会先卡在工具链上，而不是卡在我们要
+#   一台干净的机器，这两样都可能没有 —— 在那边构建会先卡在工具链上，而不是卡在我们要
 #   验证的事情上。产物 install.sh 是纯文本 + 哈希，与构建机的架构无关。
 
 set -o pipefail

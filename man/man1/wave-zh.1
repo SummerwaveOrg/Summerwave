@@ -38,7 +38,7 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
 显示作者、简介、主页，以及已安装版本与索引里的可用版本。
 .TP
 .B selfupdate
-把 MacWave 自身更新到自更新仓库里发布的版本。
+把 Summerwave 自身更新到自更新仓库里发布的版本。
 .TP
 .B link
 创建一个不带版本号的快捷方式，或把它改指到另一个已安装版本。之后的安装与
@@ -58,8 +58,8 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
 将本机已装的版本与索引里的最新版本比较，不下载。
 .TP
 .B basedir
-打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路径
-是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
+打印 Summerwave 的安装根目录，可执行文件、链接与依赖都在这棵树下。这个路
+径是写死的（macOS 是 /opt/macwave，Linux 是 /home/linuxwave/.linuxwave），
 没有配置文件，也搬不动。家目录下的路径写作 ~。加 --raw 只输出原样的绝对
 路径。
 .TP
@@ -70,11 +70,11 @@ MacWave 把每个软件包装进安装根目录下、带版本号的独立目录
 脚本。
 .TP
 .B shellenv
-打印一段把 MacWave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里
+打印一段把 Summerwave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里
 eval 一次即可；它自己什么也不改。
 .TP
 .B version
-打印当前安装的 MacWave 版本。
+打印当前安装的 Summerwave 版本。
 .TP
 .B manual
 显示完整手册（与 man / info 里的是同一份内容），可按命令名只看一节。
@@ -116,7 +116,7 @@ HTTP/HTTPS 代理（例如 http://127.0.0.1:8080）
 当前 macOS 版本低于软件包声明要求时仍继续安装
 .TP
 .B \-\-install\-python\-from\-source
-从上游地址取自带的 Python，而不是 MacWave 自己的仓库
+从上游地址取自带的 Python，而不是 Summerwave 自己的仓库
 .TP
 .B MACWAVE_PIP_INDEX
 环境变量。Python 依赖的 pip 源，默认 pypi.org/simple

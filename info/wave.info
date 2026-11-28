@@ -31,7 +31,7 @@ nothing is compiled on the user's machine.
 * search::	Search the online package index.
 * info::	Show author, description, homepage and the installed /
         available versions.
-* selfupdate::	Update MacWave itself to the version published in the
+* selfupdate::	Update Summerwave itself to the version published in the
         self-update repository.
 * link::	Create a versionless shortcut, or re-point it at another
         installed version. Installs and uninstalls keep it up to
@@ -47,8 +47,8 @@ nothing is compiled on the user's machine.
         by an environment variable.
 * latest::	Compare what you have with the newest version in the index;
         nothing is downloaded.
-* basedir::	Print MacWave's install root, which is where the binaries,
-        the links and the dependencies live. It is fixed:
+* basedir::	Print Summerwave's install root, which is where the
+        binaries, the links and the dependencies live. It is fixed:
         /opt/macwave on macOS and /home/linuxwave/.linuxwave on
         Linux, with no configuration file involved. A path under
         your home directory is shown with ~. With --raw it prints
@@ -60,10 +60,10 @@ nothing is compiled on the user's machine.
         Nothing is changed; every finding comes with the command
         that fixes it. The exit status is the number of problems
         found, so it can be used in scripts.
-* shellenv::	Print the shell code that prepends MacWave's directories to
-        PATH. You eval it once from your shell profile; it does
+* shellenv::	Print the shell code that prepends Summerwave's directories
+        to PATH. You eval it once from your shell profile; it does
         nothing on its own.
-* version::	Print the installed MacWave version.
+* version::	Print the installed Summerwave version.
 * manual::	Show the full manual — the same text that ships as man pages
         and info files — or just one command's section.
 
@@ -115,7 +115,7 @@ File: wave.info, Node: GLOBAL FLAGS, Up: Top
 
   --install-python-from-source
       Fetch the bundled Python from its upstream URL instead of
-      MacWave's own repository
+      Summerwave's own repository
 
   MACWAVE_PIP_INDEX
       Env var. pip index for the Python deps; default pypi.org/simple
@@ -306,6 +306,9 @@ remaining version, and goes away with the last one.
       Do not touch the unversioned link (the old name --unlink still
       works)
 
+  -F, --force
+      Remove it even when another installed package still depends on it
+
 Examples:
 
      wave uninstall jq
@@ -368,7 +371,7 @@ Examples:
 File: wave.info, Node: selfupdate, Next: link, Prev: info, Up: Top
 
 
-Update MacWave itself to the version published in the self-update
+Update Summerwave itself to the version published in the self-update
 repository.
 
   --max-time <string>
@@ -383,7 +386,7 @@ repository.
 
   --install-python-from-source
       Fetch the bundled Python from its upstream URL instead of
-      MacWave's own repository
+      Summerwave's own repository
 
   --dry-run
       Print what would be updated and change nothing (no download, no
@@ -518,8 +521,8 @@ Examples:
 File: wave.info, Node: basedir, Next: doctor, Prev: latest, Up: Top
 
 
-Print MacWave's install root, which is where the binaries, the links and
-the dependencies live. It is fixed: /opt/macwave on macOS and
+Print Summerwave's install root, which is where the binaries, the links
+and the dependencies live. It is fixed: /opt/macwave on macOS and
 /home/linuxwave/.linuxwave on Linux, with no configuration file
 involved. A path under your home directory is shown with ~. With --raw
 it prints the absolute path as-is and nothing else.
@@ -563,7 +566,7 @@ Examples:
 File: wave.info, Node: shellenv, Next: version, Prev: doctor, Up: Top
 
 
-Print the shell code that prepends MacWave's directories to PATH. You
+Print the shell code that prepends Summerwave's directories to PATH. You
 eval it once from your shell profile; it does nothing on its own.
 
 Examples:
@@ -575,7 +578,7 @@ Examples:
 File: wave.info, Node: version, Next: manual, Prev: shellenv, Up: Top
 
 
-Print the installed MacWave version.
+Print the installed Summerwave version.
 
 Examples:
 

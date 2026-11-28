@@ -766,17 +766,20 @@ mw_platform() {
     esac
 }
 
-# 支持范围（对外承诺）：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
+# 支持范围（对外承诺）：Apple Silicon 要 Sequoia 15，Intel 要 Ventura 13。
 #
 # 与 config/platforminfo.py 的 MIN_SUPPORTED_OS 是同一张表 —— 那边给客户端与构建侧读，
 # 这边给「还没装任何东西」的安装脚本读（这时树都还不存在，导入不了 python 常量）。
 # scripts/install_flags_test.sh 会核对两边是不是同一组值。
 #
 # 为什么按架构分而不是全库一个值：任何 Apple Silicon Mac 都跑得动 15，所以这个地板
-# 排除不了任何硬件，只排除「能升但不升」的人；Intel 侧由构建机的 SDK 决定（一台
-# Monterey 12 的机器），天然就是 12，白捡了停更老 Intel Mac 的兼容面。
+# 排除不了任何硬件，只排除「能升但不升」的人。
+#
+# Intel 侧定在 13 而不是 12：索引里 54 条 amd64 记录写着 min_os >= 13（fzf、gh、yq、
+# age、shfmt、vhs、kubecolor、kustomize …… 几乎就是最常用的那批），留在 12 会得到
+# 「装得上、常用的都装不了」的割裂体验。定 13 之后 324/348 条可用。
 MW_MIN_MACOS_ARM64="15.0"
-MW_MIN_MACOS_X86_64="12.0"
+MW_MIN_MACOS_X86_64="13.0"
 
 # 读不到版本号时不判：宁可放行，也不要在读不出信息时把一台正常机器挡在门外。
 MACWAVE_OLD_MACOS=""
@@ -834,8 +837,8 @@ mw_require_supported_platform() {
         macos)
             # 版本地板只在 macOS 有意义（Linux 那边看的是 glibc，交给发行版自己保证）。
             if ! mw_macos_version_ok; then
-                mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} on ${ARCH} is too old — Apple Silicon needs macOS ${MW_MIN_MACOS_ARM64} (Sequoia), Intel needs macOS ${MW_MIN_MACOS_X86_64} (Monterey)." \
-                       "🌊 ${ARCH} 上的 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— Apple Silicon 需要 macOS ${MW_MIN_MACOS_ARM64}（Sequoia），Intel 需要 macOS ${MW_MIN_MACOS_X86_64}（Monterey）或更高。"
+                mw_say "🌊 macOS ${MACWAVE_OLD_MACOS} on ${ARCH} is too old — Apple Silicon needs macOS ${MW_MIN_MACOS_ARM64} (Sequoia), Intel needs macOS ${MW_MIN_MACOS_X86_64} (Ventura)." \
+                       "🌊 ${ARCH} 上的 macOS ${MACWAVE_OLD_MACOS} 版本过低 —— Apple Silicon 需要 macOS ${MW_MIN_MACOS_ARM64}（Sequoia），Intel 需要 macOS ${MW_MIN_MACOS_X86_64}（Ventura）或更高。"
                 mw_say "🌊 Nothing was changed. Upgrade macOS, then run this installer again." \
                        "🌊 什么都没改。升级 macOS 之后再跑一次这个安装脚本。"
                 exit 2

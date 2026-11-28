@@ -203,11 +203,12 @@ def add_depender_tag(dep_path, depender):
 
     # 已安装的依赖被新对象依赖时，补一个标记文件。
 
-    depender_kind, depender_name, depender_version = depender
-    if not depender_kind or not depender_name or not depender_version:
+    # depender 的第一位（kind）已经不用了：标记名只看「谁」，不看它是什么
+    _depender_kind, depender_name, depender_version = depender
+    if not depender_name or not depender_version:
         return
 
-    action = "create-pkg" if depender_kind == "pkg" else "create-dep"
+    action = "create"
     result = subprocess.run(
         ['bash', str(TAGGER_SCRIPT), action, str(dep_path), depender_name, depender_version],
         capture_output=True, text=True

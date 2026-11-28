@@ -109,9 +109,8 @@ def run_tagger(*args):
     )
 
 
-def delete_depender_tag(dep_path, depender_kind, depender_name, depender_version):
-    action = "delete-pkg" if depender_kind == "pkg" else "delete-dep"
-    result = run_tagger(action, str(dep_path), depender_name, depender_version)
+def delete_depender_tag(dep_path, depender_name, depender_version):
+    result = run_tagger("delete", str(dep_path), depender_name, depender_version)
 
     if result.returncode != 0:
         if result.stdout.strip():
@@ -144,7 +143,7 @@ def remove_dep_links(dep_path):
             link.unlink()
 
 
-def remove_dependency(artifact_dir, depender_kind, depender_name, depender_version, visited=None):
+def remove_dependency(artifact_dir, depender_name, depender_version, visited=None):
     # 递归清理：删除自己的依赖者标记，没有其他依赖者时连同其依赖一起删除。
     # visited 记录本轮已处理过的依赖目录，避免循环依赖（A→B→A）导致无限递归
     if visited is None:
@@ -157,7 +156,7 @@ def remove_dependency(artifact_dir, depender_kind, depender_name, depender_versi
         if not dep_path.is_dir():
             continue
 
-        delete_depender_tag(dep_path, depender_kind, depender_name, depender_version)
+        delete_depender_tag(dep_path, depender_name, depender_version)
 
         if has_depender_tag(dep_path):
             continue
@@ -172,7 +171,7 @@ def remove_dependency(artifact_dir, depender_kind, depender_name, depender_versi
 
         remove_dep_links(dep_path)
 
-        remove_dependency(dep_path, "dep", dep_name, dep_version, visited)
+        remove_dependency(dep_path, dep_name, dep_version, visited)
         shutil.rmtree(dep_path)
 
         owner_dir = dep_path.parent
@@ -202,7 +201,7 @@ def remove_one(pkg_name, version):
 
     if target.is_dir():
         # 先按 _DEPS 清理依赖标记与孤立依赖，再删除整个目录
-        remove_dependency(target, "pkg", pkg_name, version)
+        remove_dependency(target, pkg_name, version)
         shutil.rmtree(target)
     elif target.exists():
         target.unlink()
@@ -273,7 +272,7 @@ def broken_link_target(pkg_name, versions):
     return None
 
 
-def uninstall_versions(pkg_name, versions, keep_link=False):
+def uninstall_versions(pkg_name, versions, keep_link=False, force=False):
     if keep_link:
         broken = broken_link_target(pkg_name, versions)
         if broken:
@@ -284,6 +283,8 @@ def uninstall_versions(pkg_name, versions, keep_link=False):
 
     from lock import tree_lock
     with tree_lock(f"uninstall {pkg_name}"):
+        # 闸放在锁内：检查与删除之间不能有别的进程把标记加回来
+        refuse_if_required(pkg_name, versions, force)
         # 卸载不下载，但它是用户清空间的时刻：顺手把放太久的 .partial 收掉，
         # 免得「我明明卸了那么多包，磁盘怎么还是满的」。
         from downloads import sweep_stale_partials
@@ -335,9 +336,70 @@ def select_versions(pkg_name, versions):
     return selected
 
 
+# -------------------- 卸载闸：谁在依赖它 --------------------
+
+MARK_PREFIX = ".depped_"
+
+
+def read_depender_marks(dep_path):
+    """目标目录里的「谁依赖我」标记，返回依赖者标识列表（如 `wget@1.25.0`）。
+
+    标记由 surfboard/tagger.sh 写，一个依赖者一个空文件。文件名本身就是答案，
+    所以「谁在用」不用扫全树。
+
+    0.1.0 之前标记名里还带 `pkg_` / `dep_` 前缀（`.depped_pkg_wget@1.25.0`）。
+    前缀已经不用了，但读的时候仍然认 —— 装过旧版本的机器上还留着那种文件，
+    认不出来就会把「还有人依赖」误判成「没人依赖」。
+    """
+    marks = []
+    try:
+        entries = sorted(Path(dep_path).iterdir())
+    except OSError:
+        return marks
+    for entry in entries:
+        name = entry.name
+        if not name.startswith(MARK_PREFIX):
+            continue
+        who = name[len(MARK_PREFIX):]
+        for prefix in ("pkg_", "dep_"):
+            if who.startswith(prefix):
+                who = who[len(prefix):]
+                break
+        if who:
+            marks.append(who)
+    return marks
+
+
+def refuse_if_required(pkg_name, versions, force=False):
+    """卸载前的一道闸：不许直接把还被别的软件依赖着的东西删掉。
+
+    没有它时 `wave uninstall oniguruma` 会把 wget 的依赖连目录带标记一起删掉：
+    wget 静默坏掉，而标记也随目录消失，事后再也查不出因果。
+    """
+    blockers = []
+    for version in versions:
+        for who in read_depender_marks(pkg_dir(pkg_name, version)):
+            blockers.append((version, who))
+    if not blockers:
+        return
+
+    if force:
+        for version, who in blockers:
+            print(f"{YELLOW}🌊 Warning: {pkg_name}@{version} is still required by {who}; "
+                  f"removing it anyway (-F).{RESET}")
+        return
+
+    print(f"{RED_BOLD}🌊 Error: {pkg_name} is still required by other installed software:{RESET}")
+    for version, who in blockers:
+        print(f"{RED_BOLD}🌊   {pkg_name}@{version} ← {who}{RESET}")
+    print(f"{RED_BOLD}🌊 Uninstall that first, or pass -F/--force to remove it anyway.{RESET}")
+    print(f"🌊   wave uninstall {blockers[0][1].split('@')[0]}")
+    sys.exit(1)
+
+
 # -------------------- 命令入口 --------------------
 
-def _uninstall_spec(spec, keep_link, all_versions):
+def _uninstall_spec(spec, keep_link, all_versions, force=False):
     """卸掉一个条目：`名字`、`名字@版本`、`名字@版本@版本`，或 `名字@all`。"""
     if "@" not in spec:
         pkg_name = spec
@@ -346,12 +408,12 @@ def _uninstall_spec(spec, keep_link, all_versions):
             print(f"{RED_BOLD}🌊 Error: Package '{pkg_name}' is not installed.{RESET}")
             sys.exit(1)
         if all_versions:
-            uninstall_versions(pkg_name, versions, keep_link)
+            uninstall_versions(pkg_name, versions, keep_link, force)
             return
         if len(versions) == 1:
-            uninstall_versions(pkg_name, versions, keep_link)
+            uninstall_versions(pkg_name, versions, keep_link, force)
             return
-        uninstall_versions(pkg_name, select_versions(pkg_name, versions), keep_link)
+        uninstall_versions(pkg_name, select_versions(pkg_name, versions), keep_link, force)
         return
 
     pkg_name, *raw_versions = spec.split("@")
@@ -369,7 +431,7 @@ def _uninstall_spec(spec, keep_link, all_versions):
         if not versions:
             print(f"{RED_BOLD}🌊 Error: Package '{pkg_name}' is not installed.{RESET}")
             sys.exit(1)
-        uninstall_versions(pkg_name, versions, keep_link)
+        uninstall_versions(pkg_name, versions, keep_link, force)
         return
 
     installed_versions = find_installed_versions(pkg_name)
@@ -383,7 +445,7 @@ def _uninstall_spec(spec, keep_link, all_versions):
     for version in missing:
         print(f"{YELLOW}🌊 Warning: {pkg_name}@{version} is not installed, skipping.{RESET}")
 
-    uninstall_versions(pkg_name, targets, keep_link)
+    uninstall_versions(pkg_name, targets, keep_link, force)
 
 
 def handle_uninstall(input_string):
@@ -394,11 +456,12 @@ def handle_uninstall(input_string):
     operands = [word for word in parts[2:] if not word.startswith("-")]
     keep_link = bool(set(NO_LINK) & flags)
     all_versions = bool({"-a", "--all"} & flags)
+    force = bool({"-F", "--force"} & flags)
 
     # `-C` / `-v` / `--proxy` 这些在帮助里写着「can be used with any command」，
     # 却在这里被当成未知旗标告警 —— 于是 `wave uninstall x -sv` 在静默模式下
     # 也会漏出一行，而那句话本身还是错的。帮助是承诺，这里按承诺放行。
-    tolerated = set(NO_LINK) | {"-a", "--all"} | GLOBAL_FLAGS
+    tolerated = set(NO_LINK) | {"-a", "--all", "-F", "--force"} | GLOBAL_FLAGS
     for unknown in sorted(flags - tolerated):
         # 「属于别的命令」与「拼错了」是两种错，说法要分开：
         # 前者提示去用对命令，后者才提示拼写。
@@ -435,7 +498,7 @@ def handle_uninstall(input_string):
         if total > 1:
             silent.say(f"🌊 [{index}/{total}] {spec}")
         try:
-            _uninstall_spec(spec, keep_link, all_versions)
+            _uninstall_spec(spec, keep_link, all_versions, force)
             removed.append(spec)
         except SystemExit as exit_error:
             code = exit_error.code

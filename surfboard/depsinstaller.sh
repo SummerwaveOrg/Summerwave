@@ -40,7 +40,7 @@ if [[ -n "$MW_DEPENDER" ]]; then
         exit 1
     fi
 
-    mw_tag_add_depender "$MW_TARGET_DIR" "$DEPENDER_KIND" "$DEPENDER_NAME" "$DEPENDER_VERSION"
+    mw_tag_add_depender "$MW_TARGET_DIR" "$DEPENDER_NAME" "$DEPENDER_VERSION"
 fi
 
 # -------------------- 输出成功 --------------------

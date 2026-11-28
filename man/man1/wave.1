@@ -47,7 +47,7 @@ Show author, description, homepage and the installed / available
 versions.
 .TP
 .B selfupdate
-Update MacWave itself to the version published in the self-update
+Update Summerwave itself to the version published in the self-update
 repository.
 .TP
 .B link
@@ -73,8 +73,8 @@ Compare what you have with the newest version in the index; nothing is
 downloaded.
 .TP
 .B basedir
-Print MacWave's install root, which is where the binaries, the links and
-the dependencies live. It is fixed: /opt/macwave on macOS and
+Print Summerwave's install root, which is where the binaries, the links
+and the dependencies live. It is fixed: /opt/macwave on macOS and
 /home/linuxwave/.linuxwave on Linux, with no configuration file
 involved. A path under your home directory is shown with ~. With --raw
 it prints the absolute path as-is and nothing else.
@@ -88,11 +88,11 @@ the command that fixes it. The exit status is the number of problems
 found, so it can be used in scripts.
 .TP
 .B shellenv
-Print the shell code that prepends MacWave's directories to PATH. You
+Print the shell code that prepends Summerwave's directories to PATH. You
 eval it once from your shell profile; it does nothing on its own.
 .TP
 .B version
-Print the installed MacWave version.
+Print the installed Summerwave version.
 .TP
 .B manual
 Show the full manual — the same text that ships as man pages and info
@@ -137,8 +137,8 @@ Install a specific version (install only; --ver=1.0 works too)
 Install anyway when the running macOS is older than the package declares
 .TP
 .B \-\-install\-python\-from\-source
-Fetch the bundled Python from its upstream URL instead of MacWave's own
-repository
+Fetch the bundled Python from its upstream URL instead of Summerwave's
+own repository
 .TP
 .B MACWAVE_PIP_INDEX
 Env var. pip index for the Python deps; default pypi.org/simple

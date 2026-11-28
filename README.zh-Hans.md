@@ -15,12 +15,20 @@
 
 ## 🌊 支持的 macOS 版本
 
-**macOS Monterey 12 及以上。**
+**Apple Silicon 要 macOS Sequoia 15，Intel 要 macOS Ventura 13。**
 
-实测于 macOS 12.7.6（2015 款 MacBook Air，Intel，Xcode CLT 14.2）。自带 CPython
-在 x86_64 上声明 `minos 10.15`、arm64 上是 `11.0`，所以 Intel 的理论地板是
-Catalina —— 但 12 以下没有做过端到端实测，所以我们只承诺 12。单个软件包可能有
-自己的下限，`wave info <包名>` 可以看到，安装时也会先问一句。
+Intel 为什么是 13 而不是更低：索引里 348 条 amd64 记录中有 54 条声明
+`min_os >= 13`，而它们几乎就是最常用的那批命令行工具（`fzf`、`gh`、`yq`、
+`age`、`shfmt`、`vhs`、`kubecolor`、`kustomize` …）。地板定在 12 的话，机器能装
+Summerwave，但最想装的那批包装不上——那种割裂比直接说「不支持」更难解释。
+定在 13 之后 324/348 条可用。
+
+自带 CPython 3.14.9 在 x86_64 上声明 `minos 10.15`、arm64 上是 `11.0`，在
+macOS 12.7.6（Intel）上端到端实测通过——也就是说 12 技术上跑得动，只是索引里
+可用的包太少。
+
+单个软件包可能有自己的下限（比如 `jq@1.8.2` 声明 14.0），`wave info <包名>`
+可以看到，安装时也会先问一句。
 
 ## 🌊 最新版本
 
@@ -80,7 +88,7 @@ openssl dgst -sha256 -verify pub.pem -signature install.sh.sig install.sh && /bi
 
 **安装后建议阅读手册。点击阅读（这个词以后做成链接）**。
 
-**环境要求：macOS Monterey 12 及以上、Xcode Command Line Tools。**
+**环境要求：Apple Silicon 要 macOS 15、Intel 要 macOS 13，以及 Xcode Command Line Tools。**
 
 **你不需要自己安装 Python。** Summerwave 自带一份 CPython，放在
 `<安装目录>/python/` 下，并在旁边建私有运行环境；因此 PATH 上的 `python3`

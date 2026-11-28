@@ -356,9 +356,10 @@ fi
 
 # -------------------- 7c. macOS 版本地板：按架构分 --------------------
 #
-# 对外承诺：Apple Silicon 要 Sequoia 15，Intel 要 Monterey 12。
+# 对外承诺：Apple Silicon 要 Sequoia 15，Intel 要 Ventura 13。
 # 为什么不同：任何 Apple Silicon Mac 都跑得动 15（这个地板只排除「能升不升」的人）；
-# Intel 侧由构建机的 SDK 决定，天然是 12，白捡老 Intel Mac 的兼容面。
+# Intel 侧定 13 是因为索引里 54 条 amd64 记录声明 min_os >= 13，留在 12 会变成
+# 「装得上、常用的（fzf/gh/yq/age/shfmt）都装不了」。
 #
 # 一张表两个地方用：install.sh（树还不存在，导入不了 python 常量）与
 # config/platforminfo.py 的 MIN_SUPPORTED_OS（客户端与构建侧）。这里核对两边一致。
@@ -402,17 +403,17 @@ for ok_version in 15.0 15.5 26.0; do
 done
 
 write_uname Darwin x86_64
-for old_version in 10.13.6 11.7; do
+for old_version in 10.13.6 11.7 12.0 12.7.6; do
     write_sw_vers macOS "$old_version"
     run_bare --dry-run
-    if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "12.0" && has "$OUT" "Monterey"; then
-        pass "Intel + macOS ${old_version}：拒绝，并说明 Intel 要 12"
+    if [[ "$RC" -eq 2 ]] && has "$OUT" "$old_version" && has "$OUT" "13.0" && has "$OUT" "Ventura"; then
+        pass "Intel + macOS ${old_version}：拒绝，并说明 Intel 要 13"
     else
         fail "Intel + macOS ${old_version} 没有被拒绝（rc=${RC}）"
     fi
 done
 
-for ok_version in 12.0 12.7.6 14.4 26.0; do
+for ok_version in 13.0 13.6.9 14.4 26.0; do
     write_sw_vers macOS "$ok_version"
     run_bare --dry-run
     if [[ "$RC" -eq 0 ]] && has "$OUT" "Dry run" && hasnt "$OUT" "too old"; then
