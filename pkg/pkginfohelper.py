@@ -89,12 +89,18 @@ def fetch_remote_versions(pkg_name, arch, budget=None):
                             **tls.request_kwargs())
         if resp.status_code != 200:
             return []
+        # 索引里同一个版本有 macos/linux × arm64/amd64 四条记录，而「可安装版本」
+        # 只该列出本机能装的那一份 —— 不过滤就会把同一个版本号显示四遍。
+        wanted = "." + platforminfo.bottle_tag(arch)
         versions = []
         for fname in domains.listing_names(resp.text):
-            if fname.endswith("@common"):
+            if fname.endswith("@common") or "@" not in fname:
                 continue
-            if "@" in fname:
-                versions.append(platforminfo.strip_bottle_tag(fname.split("@", 1)[1]))
+            if not fname.endswith(wanted):
+                continue
+            version = platforminfo.strip_bottle_tag(fname.split("@", 1)[1])
+            if version not in versions:
+                versions.append(version)
         return versions
     except Exception:
         return []

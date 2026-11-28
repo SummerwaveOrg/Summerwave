@@ -424,7 +424,7 @@ def report_dry_run(current, latest, data, options, overall_timeout,
     def line(label, text):
         print(f"🌊   {label:<12} {text}")
 
-    print(f"🌊 Dry run: MacWave would be updated from {current or 'unknown'} to {latest}.")
+    print(f"🌊 Dry run: Summerwave would be updated from {current or 'unknown'} to {latest}.")
 
     if channel == versioncompare.CHANNEL_PREVIEW:
         line("channel", "preview (follows prerelease/latest.toml)")
@@ -457,7 +457,7 @@ def report_dry_run(current, latest, data, options, overall_timeout,
 
 def handle_selfupdate(input_string=""):
     if internal_state_dir() is None:
-        print(f"{RED_BOLD}🌊 Error: MacWave is not installed at "
+        print(f"{RED_BOLD}🌊 Error: Summerwave is not installed at "
               f"{load_base_dir()}. Run lib/install.sh first.{RESET}")
         sys.exit(1)
 
@@ -534,7 +534,7 @@ def _handle_selfupdate_locked(input_string=""):
 
     if not probe_is_newer(data, current, current_build):
         where = f"build {current_build}" if current_build else "no build number"
-        print(f"{GREEN}🌊 MacWave is already up to date (current: {current}, {where}).{RESET}")
+        print(f"{GREEN}🌊 Summerwave is already up to date (current: {current}, {where}).{RESET}")
         if dry_run:
             print("🌊 Dry run: nothing would be downloaded or changed.")
         sys.exit(0)
@@ -571,7 +571,7 @@ def _handle_selfupdate_locked(input_string=""):
     print_agreement_notice()
 
     if current:
-        print(f"🌊 Updating MacWave from {current} to {latest}...")
+        print(f"🌊 Updating Summerwave from {current} to {latest}...")
     else:
         print(f"{YELLOW}🌊 No installed version found, updating to {latest}...{RESET}")
 
@@ -631,7 +631,7 @@ def _handle_selfupdate_locked(input_string=""):
         sys.exit(1)
 
     print("")
-    print(f"{GREEN}🌊 MacWave has been updated to {final}"
+    print(f"{GREEN}🌊 Summerwave has been updated to {final}"
           f"{f' (build {final_build})' if final_build else ''}!{RESET}")
 
     # wave.py 会被覆盖，但当前进程已经加载完了，直接退出即可

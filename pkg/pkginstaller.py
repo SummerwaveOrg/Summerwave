@@ -181,7 +181,7 @@ def current_macos_version():
 
 
 def confirm_min_client_version(record_text, pkg_name, pkg_version, force=False):
-    """版本记录声明了 min_client_version 且本机 MacWave 更旧时中止安装。
+    """版本记录声明了 min_client_version 且本机 Summerwave 更旧时中止安装。
 
     与 min_os 不是一回事：min_os 是「构建时声明的最低系统，可能偏保守」，所以问一句
     由用户决定；min_client_version 说的是「这个包要求客户端具备某种安装形态」——
@@ -222,7 +222,7 @@ def confirm_min_client_version(record_text, pkg_name, pkg_version, force=False):
 
     if force:
         if not silent.is_silent():
-            print(f"{YELLOW}🌊 Warning: {pkg_name}@{pkg_version} needs MacWave "
+            print(f"{YELLOW}🌊 Warning: {pkg_name}@{pkg_version} needs Summerwave "
                   f"{required_text} or later, this is {running_text}; installing anyway "
                   f"because of --force.{RESET}")
         return True
@@ -838,7 +838,7 @@ def fetch_common_fields(package_name, timeout=DEFAULT_TIMEOUT):
                 request=url,
                 response=f"HTTP {response.status_code}",
                 hint=[f"check the package exists: `wave search {package_name}`",
-                      "check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
+                      "check SUMMERWAVE_API_DOMAIN points at <mirror>/Summerwave/sealane/HEAD"])
     except SystemExit:
         raise
     except Exception as e:
@@ -889,7 +889,7 @@ def _explain_missing_version_list(package_name, api_url, timeout):
         steplog.fail(
             f"cannot reach the package list, so {package_name} cannot be checked",
             request=api_url,
-            hint=["check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD",
+            hint=["check SUMMERWAVE_API_DOMAIN points at <mirror>/Summerwave/sealane/HEAD",
                   "if every package fails this way, the mirror has no versions lists "
                   "yet (see docs/MIRROR-SETUP.md)",
                   "check the network and any --proxy setting, then retry"])
@@ -1198,7 +1198,7 @@ def _install_single_locked(input_string):
                     request=pkg_version_url,
                     response="404 Not Found",
                     hint=[f"run `wave search {ParsePkgName}` to see the available versions",
-                          "check SUMMERWAVE_API_DOMAIN points at <mirror>/MacWave/sealane/HEAD"])
+                          "check SUMMERWAVE_API_DOMAIN points at <mirror>/Summerwave/sealane/HEAD"])
             else:
                 steplog.fail(
                     "could not read the version record",
@@ -1269,10 +1269,10 @@ def _install_single_locked(input_string):
     if not confirm_min_client_version(resp.text, ParsePkgName, ParsePkgVersion,
                                       config["force"]):
         steplog.fail(
-            f"not installing {ParsePkgName}@{ParsePkgVersion}: it needs a newer MacWave",
+            f"not installing {ParsePkgName}@{ParsePkgVersion}: it needs a newer Summerwave",
             request=pkg_version_url,
             hint=["nothing was downloaded or installed",
-                  "run `wave selfupdate` to get the current MacWave, then try again",
+                  "run `wave selfupdate` to get the current Summerwave, then try again",
                   "add --force to install it anyway (the result will most likely be broken)"])
 
     # 5.2 实验性：版本记录可以声明 min_os，低于它时警告并问一句（4.3 转正）。

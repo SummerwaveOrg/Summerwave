@@ -264,14 +264,14 @@ COMMANDS = (
         handler="handle_selfupdate",
         takes_input=True,
         listed=True,
-        summary="Update MacWave itself to the latest version",
+        summary="Update Summerwave itself to the latest version",
         usage="wave selfupdate [flags]",
-        desc="Update MacWave itself to the version published in the self-update repository.",
+        desc="Update Summerwave itself to the version published in the self-update repository.",
         flags=[
             ("--max-time <string>", "Maximum total time for one request (40s, 1min, 1min20s, 2h; a bare number means seconds)"),
             ("--connect-timeout <string>", "Maximum time for the handshake"),
             ("--content-time <string>", "Maximum time to receive data"),
-            ("--install-python-from-source", "Fetch the bundled Python from its upstream URL instead of MacWave's own repository"),
+            ("--install-python-from-source", "Fetch the bundled Python from its upstream URL instead of Summerwave's own repository"),
             ("--dry-run", "Print what would be updated and change nothing (no download, no agreement prompt)"),
         ],
         examples=[
@@ -391,9 +391,9 @@ COMMANDS = (
         handler="handle_basedir",
         takes_input=True,
         listed=True,
-        summary="Print the directory MacWave is installed into",
+        summary="Print the directory Summerwave is installed into",
         usage="wave basedir [--raw]",
-        desc="Print MacWave's install root, which is where the binaries, the links and the dependencies live. It is fixed: /opt/macwave on macOS and /home/linuxwave/.linuxwave on Linux, with no configuration file involved. A path under your home directory is shown with ~. With --raw it prints the absolute path as-is and nothing else.",
+        desc="Print Summerwave's install root, which is where the binaries, the links and the dependencies live. It is fixed: /opt/macwave on macOS and /home/linuxwave/.linuxwave on Linux, with no configuration file involved. A path under your home directory is shown with ~. With --raw it prints the absolute path as-is and nothing else.",
         flags=[
             ("--raw", "Print the absolute path as-is, with no emoji or colour (for scripts)"),
         ],
@@ -409,9 +409,9 @@ COMMANDS = (
         handler="handle_shellenv",
         takes_input=False,
         listed=True,
-        summary="Print the shell code that puts MacWave on your PATH",
+        summary="Print the shell code that puts Summerwave on your PATH",
         usage="wave shellenv",
-        desc="Print the shell code that prepends MacWave's directories to PATH. You eval it once from your shell profile; it does nothing on its own.",
+        desc="Print the shell code that prepends Summerwave's directories to PATH. You eval it once from your shell profile; it does nothing on its own.",
         flags=[
         ],
         examples=[
@@ -445,9 +445,9 @@ COMMANDS = (
         handler="print_version",
         takes_input=False,
         listed=False,
-        summary="Print the installed MacWave version",
+        summary="Print the installed Summerwave version",
         usage="wave version",
-        desc="Print the installed MacWave version.",
+        desc="Print the installed Summerwave version.",
         flags=[
         ],
         examples=[

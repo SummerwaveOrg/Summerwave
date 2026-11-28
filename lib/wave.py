@@ -30,7 +30,7 @@ except ModuleNotFoundError as exc:
     # 那次正是两者同时失效，用户试了七八次都以为是自己敲错了。
     # 用 print 而不是 steplog：那些模块现在恰恰就是缺的那一批。
     import sys as _sys
-    print(f"🌊 Error: this MacWave installation is incomplete: {exc}", file=_sys.stderr)
+    print(f"🌊 Error: this Summerwave installation is incomplete: {exc}", file=_sys.stderr)
     print(f"🌊 At        {Path(__file__).resolve()}", file=_sys.stderr)
     print("🌊 Next      reinstall it (nothing you installed will be removed):", file=_sys.stderr)
     print('🌊             /bin/bash -c "$(curl -fsSL '

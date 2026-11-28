@@ -4,7 +4,7 @@
 #
 # **本仓库唯一允许判断平台的地方。**
 #
-# 合并 MacWave / LinuxWave 时最容易发生的退化是「这里加个 if darwin」——于是平台判断
+# 合并 Summerwave / LinuxWave 时最容易发生的退化是「这里加个 if darwin」——于是平台判断
 # 从一处扩散到几十处，谁也不知道哪些路径在 Linux 上没测过。所以定一条规矩：
 #
 #   * 只有这个文件可以出现 `sys.platform`；

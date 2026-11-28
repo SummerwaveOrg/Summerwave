@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # flags.py
-# argv 的拆解规则，以及 MacWave 认得的全部旗标。
+# argv 的拆解规则，以及 Summerwave 认得的全部旗标。
 #
 # 两件事，性质不同，别混：
 #
@@ -13,11 +13,11 @@
 #      以及 pkginfohelper 里那句 `word.partition("=")[0]`。四份实现的差异只有
 #      「谁的词法更全」，于是 `-sX` 在一处能拆、另一处要另写一遍才认。
 #
-#   2. **清单**（本文件上半部分）：MacWave 认得的旗标全集 ——
+#   2. **清单**（本文件上半部分）：Summerwave 认得的旗标全集 ——
 #      **只用于诊断，不用于校验**。校验仍然在各命令自己的白名单里
 #      （pkginstaller.ALLOWED_FLAGS 等），那份才是权威。这里是给「命令名写错」
 #      那种场合用的：那时一条命令的白名单都还没被选中，唯一能回答
-#      「--unkown-flag 到底是不是 MacWave 的旗标」的就是全体并集。
+#      「--unkown-flag 到底是不是 Summerwave 的旗标」的就是全体并集。
 #
 #   用户：wave update jq --unkown-flag
 #   期望：既说 update 不是命令，也说 --unkown-flag 不是旗标

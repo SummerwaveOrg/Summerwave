@@ -10,7 +10,7 @@
 # 拿什么验、怎么验」定下来，接入下载路径留到签名对普及之后。
 #
 # 公钥在哪：仓库 `Keys/`，安装树 `<base_dir>/Keys/`，同一份。`Keys/` 列在
-# scripts/assets.txt 里，随安装清单下发，所以装过 MacWave 的机器本地就有公钥 ——
+# scripts/assets.txt 里，随安装清单下发，所以装过 Summerwave 的机器本地就有公钥 ——
 # 验签不依赖「再去官网下载一个公钥」，那一步恰恰是最容易被换掉的。
 #
 # 可能的形态（两把）：轮换期间目录里同时有旧钥与新钥，**任意一把验通即可**。
@@ -56,7 +56,7 @@ NO_SIGNATURE = "no-signature"    # 这个版本压根没带签名（2026-12-01 �
 
 _HINT = {
     OK: ["the download matches the signature"],
-    NO_KEYS: ["no public keys found: reinstall MacWave to restore them",
+    NO_KEYS: ["no public keys found: reinstall Summerwave to restore them",
               "manual check: gpg --verify SHA256SUMS.asc SHA256SUMS"],
     NO_GPG: ["gpg is not installed, so the signature cannot be checked",
              "install it (Homebrew: brew install gnupg) if you want the check",

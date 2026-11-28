@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # basedir.py
-# `wave basedir` —— 打印 MacWave 的安装根目录。
+# `wave basedir` —— 打印 Summerwave 的安装根目录。
 #
 # 安装根是**写死**的（config/platforminfo.py）：macOS 是 /opt/macwave，Linux 是
 # /home/linuxwave/.linuxwave。没有配置文件可读，也没有 `--set` 可搬 —— 位置是

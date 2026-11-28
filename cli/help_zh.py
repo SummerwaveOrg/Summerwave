@@ -27,7 +27,7 @@ GLOBAL_FLAGS_ZH = {
     "--content-time <string>": "接收数据的最大时长",
     "--ver <string>": "安装指定版本（仅 install；`--ver=1.0` 这种写法也认）",
     "-F, --force": "当前 macOS 版本低于软件包声明要求时仍继续安装",
-    "--install-python-from-source": "从上游地址取自带的 Python，而不是 MacWave 自己的仓库",
+    "--install-python-from-source": "从上游地址取自带的 Python，而不是 Summerwave 自己的仓库",
     "MACWAVE_PIP_INDEX": "环境变量。Python 依赖的 pip 源，默认 pypi.org/simple",
     "MACWAVE_CACERT": "环境变量。额外的根证书（PEM），用于企业网络重签或私有 CA 的镜像；"
                       "不设则用系统证书库",
@@ -89,7 +89,7 @@ COMMANDS_ZH = {
         },
     },
     "basedir": {
-        "desc": "打印 MacWave 的安装根目录，可执行文件、链接与依赖都在这棵树下。"
+        "desc": "打印 Summerwave 的安装根目录，可执行文件、链接与依赖都在这棵树下。"
                 "这个路径是写死的（macOS 是 /opt/macwave，Linux 是"
                 " /home/linuxwave/.linuxwave），没有配置文件，也搬不动。"
                 "家目录下的路径写作 ~。加 --raw 只输出原样的绝对路径。",
@@ -98,7 +98,7 @@ COMMANDS_ZH = {
         },
     },
     "shellenv": {
-        "desc": "打印一段把 MacWave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里 "
+        "desc": "打印一段把 Summerwave 的目录加到 PATH 前面的 shell 代码。在 shell 配置里 "
                 "eval 一次即可；它自己什么也不改。",
         "flags": {},
     },
@@ -163,12 +163,12 @@ COMMANDS_ZH = {
         },
     },
     "selfupdate": {
-        "desc": "把 MacWave 自身更新到自更新仓库里发布的版本。",
+        "desc": "把 Summerwave 自身更新到自更新仓库里发布的版本。",
         "flags": {
             "--max-time <string>": "单次请求最大时长（40s、1min、1min20s、2h；不输入单位默认 s）",
             "--connect-timeout <string>": "握手最大时长",
             "--content-time <string>": "接收数据的最大时长",
-            "--install-python-from-source": "从上游地址取自带的 Python，而不是 MacWave 自己的仓库",
+            "--install-python-from-source": "从上游地址取自带的 Python，而不是 Summerwave 自己的仓库",
             "--dry-run": "只打印会更新到什么、会做什么，不做任何改动（不下载、不询问协议）",
         },
     },
@@ -194,7 +194,7 @@ COMMANDS_ZH = {
         },
     },
     "version": {
-        "desc": "打印当前安装的 MacWave 版本。",
+        "desc": "打印当前安装的 Summerwave 版本。",
         "flags": {},
     },
     "manual": {
@@ -229,7 +229,7 @@ OVERVIEW_DESC = {
         "list": "列出已安装的软件包",
         "search": "在软件包索引（线上）里搜索",
         "info": "显示软件包的详细信息",
-        "selfupdate": "把 MacWave 自身更新到最新版本",
+        "selfupdate": "把 Summerwave 自身更新到最新版本",
         "link": "给已装软件包创建不带版本号的链接",
         "unlink": "删除那些不带版本号的链接",
         "linkquery": "查看不带版本号的链接指向哪个版本",
@@ -237,8 +237,8 @@ OVERVIEW_DESC = {
         "latest": "显示哪些软件包有新版本",
         "reinstall": "重装已装的那个版本（不升级）",
         "transfer": "让已装的软件包不再依赖安装目录的绝对路径",
-        "shellenv": "打印把 MacWave 加进 PATH 的 shell 代码",
-        "basedir": "打印 MacWave 的安装根目录（base_dir）",
+        "shellenv": "打印把 Summerwave 加进 PATH 的 shell 代码",
+        "basedir": "打印 Summerwave 的安装根目录（base_dir）",
         "manual": "显示完整手册（与 man、info 里的是同一份）",
     },
     "flags": {

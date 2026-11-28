@@ -165,7 +165,7 @@ def as_raw(rows, only_set=False):
     # only_set=True 时只导出用户真的设过的项。区别在于「默认值要不要钉死」：
     # 全写的话，官方将来换默认地址，这份配置仍停在旧地址上；只写设过的项，
     # 没设的部分继续跟着官方默认走。两种都合理，所以做成开关而不是替用户选。
-    lines = ["# MacWave mirror"]
+    lines = ["# Summerwave mirror"]
     for row in rows:
         if row["source"] == "env":
             lines.append(f'export {row["env"]}="{row["value"]}"')

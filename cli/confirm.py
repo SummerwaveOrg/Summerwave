@@ -199,7 +199,7 @@ def confirmation_sentence(new_path):
 def confirm_basedir_switch(old_path, new_path):
     """三段确认一次跑完。任何一段没过都抛 NotConfirmed。"""
     require_exact_word("Yes", [
-        "WARNING: you are about to copy the whole MacWave install tree",
+        "WARNING: you are about to copy the whole Summerwave install tree",
         f"    from  {old_path}",
         f"    to    {new_path}",
         "Running packages keep pointing at the old tree until your PATH changes,",

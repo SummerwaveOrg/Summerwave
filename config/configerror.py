@@ -41,7 +41,7 @@ def check_dependencies():
         return
 
     print(f"{RED_BOLD}🌊 Error: Missing Python dependencies: {', '.join(missing)}.{RESET}")
-    print(f"{RED_BOLD}🌊 The current interpreter cannot run MacWave:{RESET}")
+    print(f"{RED_BOLD}🌊 The current interpreter cannot run Summerwave:{RESET}")
     print(f"{YELLOW}   {sys.executable}{RESET}")
     print(f"{RED_BOLD}🌊 Install them and try again:{RESET}")
     print(f"{YELLOW}   python3 -m pip install --user requests packaging rich{RESET}")
@@ -91,21 +91,21 @@ def check_environment():
         repo_root = ""
 
     if is_shallow:
-        print(f"{RED_BOLD}🌊 Error: MacWave is a shallow clone!{RESET}")
+        print(f"{RED_BOLD}🌊 Error: Summerwave is a shallow clone!{RESET}")
     else:
-        print(f"{RED_BOLD}🌊 Error: MacWave is a git clone!{RESET}")
+        print(f"{RED_BOLD}🌊 Error: Summerwave is a git clone!{RESET}")
 
     config_paths = str(base_dir / STATE_DIR_NAME / STATE_FILE_NAME)
 
     print("")
-    print(f"MacWave is not distributed as a shallow clone. Instead, it uses install.sh to download various files to {base_dir}. Among other things, install.sh writes a state file to {config_paths}, which records the installed version. Without it, many programs will not be able to find the installation.")
+    print(f"Summerwave is not distributed as a shallow clone. Instead, it uses install.sh to download various files to {base_dir}. Among other things, install.sh writes a state file to {config_paths}, which records the installed version. Without it, many programs will not be able to find the installation.")
     print("")
     if is_shallow:
-        print("We have detected that you are using a shallow clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
+        print("We have detected that you are using a shallow clone, which will cause Summerwave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install Summerwave.")
     else:
-        print("We have detected that you are using a git clone, which will cause MacWave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install MacWave.")
+        print("We have detected that you are using a git clone, which will cause Summerwave to fail to work properly. To continue using it, please run $ /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/SummerwaveOrg/Summerwave/HEAD/lib/install.sh)\". You can also run $ bash " + repo_root + "/lib/install.sh or $ /bin/bash " + repo_root + "/lib/install.sh to fully install Summerwave.")
     print("")
-    print("If you are a collaborator of MacWave, or if you cloned the source code for a specific purpose, please do not run it locally, or at least do not run it in the Git directory.")
+    print("If you are a collaborator of Summerwave, or if you cloned the source code for a specific purpose, please do not run it locally, or at least do not run it in the Git directory.")
     print("")
     print("If you have any other questions, please contact hi@macwave.org.")
 

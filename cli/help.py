@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MacWave Help Module
+Summerwave Help Module
 负责展示命令行帮助信息（简版和详细版）。
 """
 
@@ -98,7 +98,7 @@ GLOBAL_FLAGS = [
     ("--ver <string>", "Install a specific version (install only; --ver=1.0 works too)"),
     ("-F, --force", "Install anyway when the running macOS is older than the package declares"),
     ("--install-python-from-source",
-                "Fetch the bundled Python from its upstream URL instead of MacWave's own repository"),
+                "Fetch the bundled Python from its upstream URL instead of Summerwave's own repository"),
     ("MACWAVE_PIP_INDEX", "Env var. pip index for the Python deps; default pypi.org/simple"),
     ("MACWAVE_CACERT", "Env var. PEM file with extra root certificates for corporate TLS "
                        "inspection or a private-CA mirror (unset = system trust store)"),
@@ -211,7 +211,7 @@ def print_custom_help(lang="en"):
     version = get_project_version()
     print(f"{PURPLE}usage: {ORANGE}{USAGE_LINE[lang]}{RESET}")
     print()
-    print(f"MacWave {version} 🌊")
+    print(f"Summerwave {version} 🌊")
     print(TAGLINE[lang])
 
     sections, notes = overview_for(lang)
@@ -282,9 +282,9 @@ def print_command_help(command, lang="en"):
 # -------------------- 版本与错误提示 --------------------
 
 def print_version():
-    """输出当前 MacWave 的版本号"""
+    """输出当前 Summerwave 的版本号"""
     version = get_project_version()
-    print(f"🌊 MacWave {version}")
+    print(f"🌊 Summerwave {version}")
 
 
 def _caret_line(prefix, words, bad_index):

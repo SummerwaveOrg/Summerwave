@@ -513,7 +513,7 @@ def handle_linkquery_command(input_string=""):
         name = target.partition("@")[0]
         version = linked_version(name)
         if version is None:
-            # 整树包的附属命令：名字不是包，但链接确实是 MacWave 建的。
+            # 整树包的附属命令：名字不是包，但链接确实是 Summerwave 建的。
             # 说它「is not linked」是假话，还会让人以为坏了。
             owner = _link_owner(name)
             if owner is None:

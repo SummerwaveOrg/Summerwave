@@ -465,5 +465,5 @@ if __name__ == "__main__":
         assert_links_inside(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else sys.argv[2])
         sys.exit(0)
     print("🌊 This module is not meant to be run directly.")
-    print("🌊 It is used internally by the other MacWave modules.")
+    print("🌊 It is used internally by the other Summerwave modules.")
     sys.exit(1)

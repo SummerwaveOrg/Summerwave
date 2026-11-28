@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # domains.py
-# MacWave 4.0 起，所有对外地址都由环境变量决定，代码里不再出现字面量。
+# Summerwave 4.0 起，所有对外地址都由环境变量决定，代码里不再出现字面量。
 #
 # 为什么：以前每个软件包只有一条指向上游的 URL，下载压力与可用性都押在别人的
 # 服务器上。4.0 把这些内容搬到自己管理的仓库（Bottle / Deps），于是「从哪儿取」
@@ -11,7 +11,7 @@
 #   | SUMMERWAVE_API_DOMAIN            | 索引（软件包与依赖的元数据）              |
 #   | SUMMERWAVE_BOTTLE_DOMAIN         | 预编译二进制包（Bottle）                  |
 #   | SUMMERWAVE_DEPS_DOMAIN           | 依赖的二进制包                            |
-#   | SUMMERWAVE_CORE_DOMAIN           | MacWave 自身文件                          |
+#   | SUMMERWAVE_CORE_DOMAIN           | Summerwave 自身文件                          |
 #   | SUMMERWAVE_PYTHON_DOMAIN         | 独立 CPython 解释器                       |
 #   | SUMMERWAVE_SELFUPDATE_DOMAIN     | 自更新信息（版本号、文件清单、迁移脚本）   |
 #
@@ -189,11 +189,11 @@ def listing_names(text, dirs_only=False):
 # 默认域名指向 GitHub Releases，它的下载路径恰好也是 /<tag>/<资产>：
 #
 #   默认：https://github.com/SummerwaveOrg/Bottle/releases/download/jq/jq%401.7.1.arm64
-#   镜像：https://mirror.example.cn/MacWave/bottle/jq/jq%401.7.1.arm64
+#   镜像：https://mirror.example.cn/Summerwave/bottle/jq/jq%401.7.1.arm64
 #                                  ↑ 域名之后完全相同
 #
 # 于是换镜像只是换一个环境变量，镜像站不需要理解任何协议。
-# 镜像路径里的 MacWave/ 是为了让镜像域名能被多个产品共用（LinuxWave 将来用
+# 镜像路径里的 Summerwave/ 是为了让镜像域名能被多个产品共用（LinuxWave 将来用
 # /LinuxWave），所以它不是固定前缀，而是环境变量值的一部分。
 #
 # 为什么用 Releases 而不是仓库里的文件：git 有 100 MiB 单文件硬限，而 ollama 已有
@@ -219,7 +219,7 @@ def require_domain(kind):
     value = domain(kind)
     if not value:
         print(f"{RED_BOLD}🌊 Error: {envvar.name(kind)} is not set.{RESET}")
-        print(f"{RED_BOLD}🌊 MacWave 4.0 downloads {envvar.description(kind)} from its own mirror; "
+        print(f"{RED_BOLD}🌊 Summerwave 4.0 downloads {envvar.description(kind)} from its own mirror; "
               f"set {envvar.name(kind)} to that address.{RESET}")
         sys.exit(1)
     return value
@@ -421,5 +421,5 @@ def fetch_text(url, timeout=30):
 
 if __name__ == "__main__":
     print("🌊 This module is not meant to be run directly.")
-    print("🌊 It is used internally by the other MacWave modules.")
+    print("🌊 It is used internally by the other Summerwave modules.")
     sys.exit(1)

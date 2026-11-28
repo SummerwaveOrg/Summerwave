@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 # shellenv.py
-# `wave shellenv` —— 打印把 MacWave 放进 PATH 的 shell 代码，供 eval 使用。
+# `wave shellenv` —— 打印把 Summerwave 放进 PATH 的 shell 代码，供 eval 使用。
 #
 #   eval "$(~/.local/macwave/lib/wave shellenv)"
 #
 # 为什么是命令而不是安装器直接改 rc 文件：
 #   - 写进别人的 ~/.zshrc 相当于替用户做了决定，删掉时又得靠字符串匹配去猜 ——
-#     猜错就是删掉别人的行（`# MacWave mirror` 这种注释就曾被误伤）。
+#     猜错就是删掉别人的行（`# Summerwave mirror` 这种注释就曾被误伤）。
 #   - Homebrew / MacPorts 都是这个形状：一行 eval 归用户自己管，升级、换目录、
 #     卸载都不用去动别人的文件。
 #

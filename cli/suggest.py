@@ -146,6 +146,6 @@ def name_examples(query, names, limit=5):
 
 if __name__ == "__main__":
     print("🌊 This module is not meant to be run directly.")
-    print("🌊 It is used internally by the other MacWave modules.")
+    print("🌊 It is used internally by the other Summerwave modules.")
     import sys
     sys.exit(1)
