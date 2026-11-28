@@ -40,6 +40,7 @@ KIND_REPO = {
 # GitHub 的写接口偶尔会返回 5xx 或 429。一次 30 分钟的任务不该被这种抖动整个打死：
 # 发布本身是幂等的（同名资产不覆盖、已存在就跳过），所以重试是安全的。
 TRANSIENT_MARKERS = ("HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504", "HTTP 429")
+COMMAND_TIMEOUT = 600
 RUN_ATTEMPTS = 5
 
 
@@ -48,7 +49,17 @@ def run(args, check=True):
 
     result = None
     for attempt in range(1, RUN_ATTEMPTS + 1):
-        result = subprocess.run(args, capture_output=True, text=True)
+        # 必须带超时：`gh release upload` 在网络不好时会无限期挂着（实测过 10 分钟
+        # 不动），而不带 timeout 的 subprocess.run 只能等它一辈子。
+        try:
+            result = subprocess.run(args, capture_output=True, text=True,
+                                    timeout=COMMAND_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            print(f"  ⏱ {args[1] if len(args) > 1 else args[0]} timed out after "
+                  f"{COMMAND_TIMEOUT}s ({attempt}/{RUN_ATTEMPTS})")
+            if attempt == RUN_ATTEMPTS:
+                raise SystemExit(f"gave up: {args[0]} kept timing out")
+            continue
         if not check or result.returncode == 0:
             return result
 
@@ -152,7 +163,7 @@ def upload_files(repo, package, files, release, write):
             continue
 
         run(["gh", "release", "upload", package, str(path), "--repo", repo, "--clobber"])
-        print(f"  ↑ {repo}:{package}/{path.name} ({size} bytes)")
+        print(f"  ↑ {repo}:{package}/{path.name} ({size} bytes)", flush=True)
         uploaded += 1
 
     return uploaded, skipped, problems
