@@ -3,8 +3,8 @@
 # bash 3.2 (macOS)
 # 本文件最近一次更新于：2026-11-19
 
-# MacWave Uninstaller
-# 卸载 MacWave 及清理环境配置
+# Summerwave Uninstaller
+# 卸载 Summerwave 及清理环境配置
 
 set -eE
 set -u
@@ -45,15 +45,15 @@ CLI_REMOVE_USER=false
 
 usage() {
     cat <<'USAGE_EOF'
-MacWave uninstaller
+Summerwave uninstaller
 
 Usage:
   uninstall.sh [options]
 
 Options:
-      --force         No confirmation prompt. Removes MacWave and its
+      --force         No confirmation prompt. Removes Summerwave and its
                       configuration.
-      --remove-user   Accepted for compatibility with LinuxWave. MacWave has no
+      --remove-user   Accepted for compatibility with LinuxWave. Summerwave has no
                       dedicated account, so this does nothing.
       -h, --help      Show this help.
 
@@ -61,7 +61,7 @@ Without options the uninstaller asks once before deleting; it needs a terminal
 for that, so use --force when there is none (CI, scripts).
 
 Exit codes:
-  0  Uninstalled (also when MacWave was not installed).
+  0  Uninstalled (also when Summerwave was not installed).
   1  Usage error, or no terminal available to confirm on.
   2  Permission denied: sudo could not run.
   3  Partially removed; the items left behind are listed on stderr.
@@ -108,13 +108,13 @@ esac
 BASE_DIRS=("$BASE_DIR")
 
 if [[ "$CLI_REMOVE_USER" == "true" ]]; then
-    echo "🌊 --remove-user: MacWave has no dedicated account, nothing to remove."
+    echo "🌊 --remove-user: Summerwave has no dedicated account, nothing to remove."
 fi
 
 if [[ "$CLI_FORCE" == "true" ]]; then
     echo "🌊 --force: uninstalling without confirmation."
 else
-    echo -e "\033[1;31mYou are deleting MacWave, are you sure? [Y/n]\033[0m"
+    echo -e "\033[1;31mYou are deleting Summerwave, are you sure? [Y/n]\033[0m"
     # 从 /dev/tty 读，且读不到就**中止**：
     # 删除是不可逆的，stdin 是 EOF（< /dev/null、CI、被别的命令吃掉输入）时
     # 绝不能默认当成「同意」。无人值守的场景请显式用 --force。
@@ -135,7 +135,7 @@ fi
 
 # 逐个尝试删除所有可能的路径
 #
-# 只删「看起来确实是 MacWave 安装」的目录。路径虽然写死，`MACWAVE_TEST` 与
+# 只删「看起来确实是 Summerwave 安装」的目录。路径虽然写死，`MACWAVE_TEST` 与
 # 环境仍可能让它指向别处，所以删之前照旧校验一遍：判据是 lib/wave.py，
 # 只有安装树有它。判不出来就不删，并说清是哪一条挡住的。
 skip_reason() {
@@ -151,7 +151,7 @@ skip_reason() {
             "$HOME"|"$HOME"/)
                 echo "your home directory" ;;
             *)
-                [[ -f "$dir/lib/wave.py" ]] || echo "not a MacWave install (no lib/wave.py)" ;;
+                [[ -f "$dir/lib/wave.py" ]] || echo "not a Summerwave install (no lib/wave.py)" ;;
         esac
     fi
 }
@@ -234,7 +234,7 @@ done
 #   3. 4.3 起推荐给 POSIX shell 的：`eval "$(.../lib/wave shellenv)"`
 #   4. 4.3 起推荐给 csh / tcsh 的：`if ( "$PATH" !~ *".../lib"* ) setenv PATH ...`
 #
-# 判据只有一条：**这一行必须指向本机 MacWave 安装目录**。别人的配置一句都不动 ——
+# 判据只有一条：**这一行必须指向本机 Summerwave 安装目录**。别人的配置一句都不动 ——
 # 以前的 sed 兜底是 `/export PATH=".*macwave\//d`，任何含「macwave/」的行都会删，
 # 连 `~/.local/macwave-other` 和用户自己写的注释都算在内。
 #
@@ -279,6 +279,8 @@ mw_line_refs_install() {
 mw_line_is_ours() {
     local line="$1" ltrim
     # 旧版标记行：整行相等才算。子串匹配会误删用户自己的 `# MacWave mirror`。
+    # 这里的 MacWave 是**旧安装写进 ~/.bashrc 的字面量**，不能跟着品牌改 ——
+    # 改了它就再也清不掉旧机器上那行。
     [[ "$line" == "# MacWave" ]] && return 0
     # 注释行一律不动（除非上面那条整行相等的标记行）。
     ltrim="${line#"${line%%[![:space:]]*}"}"
@@ -318,7 +320,7 @@ mw_clean_rc() {
     # rc 常是指向 dotfiles 仓库的符号链接：写临时文件再 `cat >` 回写，
     # 不能用 mv 或 sed -i —— 那会把链接换成普通文件，链接就断了。
     if cat "$tmp" > "$rc" 2>/dev/null; then
-        echo "🌊 Removed MacWave PATH entries from $rc"
+        echo "🌊 Removed Summerwave PATH entries from $rc"
     else
         echo "🌊 Warning: could not update $rc; its PATH entries were left in place." >&2
     fi
@@ -335,10 +337,10 @@ done
 
 echo ""
 if [[ ${#FAILURE_LIST[@]} -eq 0 ]]; then
-    echo "🌊 MacWave has been uninstalled."
+    echo "🌊 Summerwave has been uninstalled."
     echo "🌊 Please restart your terminal to apply changes."
 else
-    echo -e "\033[1;31m🌊 MacWave is only partially removed.\033[0m" >&2
+    echo -e "\033[1;31m🌊 Summerwave is only partially removed.\033[0m" >&2
     echo "🌊 The following items could not be removed:" >&2
     for _item in "${FAILURE_LIST[@]}"; do
         echo "🌊   $_item" >&2
@@ -352,7 +354,7 @@ fi
 # `/bin/bash -c "$(curl ...)"` 运行时，$0 是解释器路径（无参数）或 `--`（带参数），
 # 直接 rm 会把 /bin/bash 删掉，所以这里逐条排除后再按内容确认一次。
 if [[ -f "$0" && "$0" != "$BASH" && "$0" != --* ]] \
-   && grep -q "MacWave Uninstaller" "$0" 2>/dev/null; then
+   && grep -q "Summerwave Uninstaller" "$0" 2>/dev/null; then
     # 删自己失败不影响「有没有卸干净」，不能让它盖掉下面的退出码。
     rm -f "$0" || true
 fi

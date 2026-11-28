@@ -3,7 +3,7 @@
 # bash 3.2 (macOS)
 # 本文件最近一次更新于：2026-11-26
 
-# MacWave 🌊 Official Installer
+# Summerwave 🌊 Official Installer
 # This script downloads wave.py, installs dependencies, and configures PATH.
 # Usage: /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)"
 # Unattended (CI): /bin/bash -c "$(curl -fsSL https://github.com/SummerwaveOrg/Summerwave/releases/latest/download/install.sh)" -- --ci
@@ -270,11 +270,11 @@ mw_redact() {
 # pip 依赖（requests / packaging / rich）不在我们自己的存储里，仍走 PyPI。
 # 国内直连 pypi.org 常超时，所以留一个可覆盖的索引地址：默认官方，设了就换。
 #
-# 与上面六个变量的差别：它不参与「MacWave 从哪取文件」的判断，只影响 pip 一次调用，
+# 与上面六个变量的差别：它不参与「Summerwave 从哪取文件」的判断，只影响 pip 一次调用，
 # 所以校验规则更松（允许 https 与 http 回环，与 mw_domain 同）。
 PIP_INDEX_URL="$(mw_domain MACWAVE_PIP_INDEX "${MACWAVE_PIP_INDEX:-https://pypi.org/simple}")"
 
-# MacWave 自身文件（后面再拼 /<tag>/<路径>）。0.1.0 起按 **tag** 取，不按分支：
+# Summerwave 自身文件（后面再拼 /<tag>/<路径>）。0.1.0 起按 **tag** 取，不按分支：
 # 清单已经内嵌在脚本里、哈希属于某个确定的版本，分支一动哈希就对不上。
 CORE_URL="$(mw_domain SUMMERWAVE_CORE_DOMAIN "${SUMMERWAVE_CORE_DOMAIN:-https://raw.githubusercontent.com/SummerwaveOrg/Summerwave}")"
 # 自带 CPython 的清单
@@ -568,11 +568,11 @@ usage() {
     mw_say "        --install-python-from-source\n\
                             Download the bundled CPython from its upstream URL\n\
                             (recorded in pythondata/<version>/python_url.toml)\n\
-                            instead of from MacWave's own Python repository." \
+                            instead of from Summerwave's own Python repository." \
            "        --install-python-from-source\n\
                             自带 CPython 改从上游 URL 下载（记录在\n\
                             pythondata/<version>/python_url.toml），\n\
-                            而不是从 MacWave 自己的 Python 仓库取。"
+                            而不是从 Summerwave 自己的 Python 仓库取。"
     mw_say "      --zh                Print in Chinese. Auto-detected from the locale or\n\
                           the macOS preferred language; --zh forces it." \
            "      --zh                用中文输出。语言本来就会按 locale 与系统首选语言\n\
@@ -1850,7 +1850,7 @@ fi
 #   2. lib/wave 变成一个 sh 启动器，按「venv → 安装时的解释器 → PATH」顺序挑选，
 #      并且只有能真正 import 到三个依赖时才使用。
 #
-# 这样系统 Python 怎么升都不会影响已安装的 MacWave。
+# 这样系统 Python 怎么升都不会影响已安装的 Summerwave。
 
 # 再交一次：上面那段更新脚本是带 sudo 跑的，可能又留下 root 属主的文件。
 if [[ "$NEED_SUDO" == "true" ]]; then
@@ -1865,7 +1865,7 @@ fi
 # 升级一次就可能换掉解释器，而第三方依赖仍留在旧版本里 —— 3.0.5 之前真实发生过
 # 一次「系统 Python 从 3.14 升到 3.15，所有命令都报模块缺失」。
 #
-# 自带之后，「用哪个解释器」由 MacWave 自己决定，报错也就能稳定复现。
+# 自带之后，「用哪个解释器」由 Summerwave 自己决定，报错也就能稳定复现。
 # 版本、文件名、sha256 与 asset id 都由 build_installer.py 注入（config/portable_python.toml）。
 # 下载失败（网络问题）时回退到系统 python3，安装不会因此中断。
 
@@ -2147,7 +2147,7 @@ write_launcher() {
 
     cat > "$tmp" <<'LAUNCHER'
 #!/bin/sh
-# MacWave launcher
+# Summerwave launcher
 # 由 install.sh / selfupdate.sh 生成，会被覆盖，请不要手工编辑。
 #
 # 选择一个**真正能 import 到依赖**的解释器来运行 lib/wave.py：

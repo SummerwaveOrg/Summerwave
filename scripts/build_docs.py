@@ -45,13 +45,13 @@ ORDER = ["install", "upgrade", "reinstall", "uninstall", "list", "search", "info
 # `wave -h` 里不出现，写进 help.py 只会让那个模块背着没人读的段落。
 PROSE = {
     "en": {
-        "product": "MacWave",
+        "product": "Summerwave",
         "tagline": "a package manager for macOS software developers",
         "description": (
-            "MacWave installs each package into its own versioned directory under the "
+            "Summerwave installs each package into its own versioned directory under the "
             "install root, keeps every version side by side, and maintains unversioned "
             "links so a package can be called with or without a version. Packages are "
-            "fetched from a mirror or from MacWave's own bottle store; nothing is "
+            "fetched from a mirror or from Summerwave's own bottle store; nothing is "
             "compiled on the user's machine."),
         "commands": "COMMANDS",
         "global_flags": "GLOBAL FLAGS",
@@ -81,12 +81,12 @@ PROSE = {
         "files_dir": "wave",
     },
     "zh": {
-        "product": "MacWave",
+        "product": "Summerwave",
         "tagline": "macOS 开发者用的软件包管理器",
         "description": (
-            "MacWave 把每个软件包装进安装根目录下、带版本号的独立目录，各版本并存，"
+            "Summerwave 把每个软件包装进安装根目录下、带版本号的独立目录，各版本并存，"
             "并维护一个不带版本号的链接，让同一个包既能带版本号、也能不带版本号调用。"
-            "软件包从镜像或 MacWave 自己的存储取得，不在用户机器上编译任何东西。"),
+            "软件包从镜像或 Summerwave 自己的存储取得，不在用户机器上编译任何东西。"),
         "commands": "命令",
         "global_flags": "全局旗标",
         "environment": "环境变量",
@@ -243,7 +243,7 @@ def man_overview(lang):
     prose = PROSE[lang]
     commands = COMMAND_TEXT[lang]
     title = "wave" if lang == "en" else "wave-zh"
-    out = [man_header(title, 1, prose["product"], "MacWave Manual")]
+    out = [man_header(title, 1, prose["product"], "Summerwave Manual")]
 
     out.append(".SH " + prose["name"])
     out.append(f"wave \\- {roff_escape(prose['tagline'])}")
@@ -294,7 +294,7 @@ def man_command(name, lang):
     prose = PROSE[lang]
     text = COMMAND_TEXT[lang][name]
     title = f"wave-{name}" if lang == "en" else f"wave-{name}-zh"
-    out = [man_header(title, 1, prose["product"], "MacWave Manual")]
+    out = [man_header(title, 1, prose["product"], "Summerwave Manual")]
 
     out.append(".SH " + prose["name"])
     out.append(f"{roff_escape(title)} \\- {roff_escape(text['desc'].splitlines()[0])}")
