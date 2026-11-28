@@ -54,6 +54,22 @@ GitHub Pages **不做真正的 301**（纯静态托管）。要让旧域名跳�
 旧 Pages 仓库放一个跳转页（`<meta http-equiv="refresh">` + JS，对用户等效但不是 301）、
 把 DNS 迁到 Cloudflare 用 Page Rules 做 301、或者自己起服务器做 301。
 
+### 校园网环境约束（长期事实，2026-11-28 复核）
+
+这些是目标用户所在网络实测出的可达性，**决定了默认域名与下载方式的取舍**：
+
+| 通道 | 实测 | 用法约束 |
+| --- | --- | --- |
+| `raw.githubusercontent.com` | **几乎总是失败** | 绝不能放在默认关键路径上（索引 `api`、核心本体 `core`、`bash <(curl …)` bootstrap）。镜像/`api.github.com` 才是出路 |
+| `github.com`（含 `releases/download`） | 稳定率未知 | 不宜作为唯一下载路径；能指向镜像就指向镜像 |
+| `api.github.com` | 成功率很高 | 首选。资产走 `assets/<id>`（302 到 CDN），内容是 contents / tarball |
+| `codeload.github.com` | 成功率有时较高，偶尔慢 | 适合整包下载（核心树 `stage_core_tree` 已用它） |
+| aria2c **多线程/分段** | 极易触发限速 | 约束的是**下载方式**，不是软件本身：单连接（curl 默认）优于分段并发 |
+
+> 现状提醒：0.1.0 的默认域名里 `api`（SeaLane）、`core` 仍是 `raw.githubusercontent.com`，
+> `bottle`/`deps` 是 `github.com/releases/download` —— 不设镜像时在校园网基本不可用。
+> 镜像能绕开，但「默认即可用」尚未成立。
+
 ---
 
 ## 一、仓库目录
