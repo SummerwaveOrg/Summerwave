@@ -30,7 +30,8 @@ skip() { echo -e "${YELLOW}  ⏭  $1${RESET}"; SKIPPED=$((SKIPPED + 1)); }
 step() { echo; echo "=== $1 ==="; }
 
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALLER="$SELF_DIR/install.sh"
+# 安装器默认就在同目录；允许指到别处，这样更新这份脚本时不必重打整支 U 盘
+INSTALLER="${SUMMERWAVE_INSTALLER:-$SELF_DIR/install.sh}"
 BASE_DIR="/opt/macwave"
 
 # ---- 日志：写到真实用户的家目录，别写进 /var/root ----
@@ -44,6 +45,9 @@ fi
 LOG="$LOG_DIR/summerwave-verify-$(date +%Y%m%d-%H%M%S).log"
 
 exec > >(tee "$LOG") 2>&1
+
+# sudo 下整个脚本以 root 跑，日志的属主会变成 root —— 用户拿回去发之前可能想删掉它
+trap '[[ -f "${LOG}" ]] && chown "${REAL_USER}" "${LOG}" 2>/dev/null || true' EXIT
 
 echo "🌊 Summerwave 目标机验证"
 echo "🌊 日志：$LOG"
@@ -61,7 +65,7 @@ pass "以 root 运行"
 if [[ -f "$INSTALLER" ]]; then
     pass "安装器在 $INSTALLER"
 else
-    fail "同目录下没有 install.sh（$SELF_DIR）"
+    fail "同目录下没有 install.sh（${SELF_DIR}）"
     exit 1
 fi
 
@@ -78,9 +82,9 @@ if command -v python3 > /dev/null 2>&1; then
     PY_PREFIX="$(python3 -c 'import sys; print(sys.base_prefix)' 2>/dev/null)"
     echo "🌊 PATH 上的 python3：$(command -v python3) ($(python3 -V 2>&1))"
     case "$PY_PREFIX" in
-        */Cellar/*|/opt/homebrew/*) echo "🌊 来源：Homebrew（$PY_PREFIX）" ;;
-        /Library/Frameworks/*)      echo "🌊 来源：python.org 安装包（$PY_PREFIX）" ;;
-        /Applications/Xcode*|/Library/Developer/*) echo "🌊 来源：Xcode 命令行工具（$PY_PREFIX）" ;;
+        */Cellar/*|/opt/homebrew/*) echo "🌊 来源：Homebrew（${PY_PREFIX}）" ;;
+        /Library/Frameworks/*)      echo "🌊 来源：python.org 安装包（${PY_PREFIX}）" ;;
+        /Applications/Xcode*|/Library/Developer/*) echo "🌊 来源：Xcode 命令行工具（${PY_PREFIX}）" ;;
         *) echo "🌊 来源：$PY_PREFIX" ;;
     esac
 else
@@ -92,7 +96,7 @@ step "2. 旧安装"
 # ==========================================
 if [[ -d "$BASE_DIR" ]]; then
     if [[ "${SUMMERWAVE_KEEP_OLD:-}" == "1" ]]; then
-        skip "保留了 $BASE_DIR（SUMMERWAVE_KEEP_OLD=1）"
+        skip "保留了 ${BASE_DIR}（SUMMERWAVE_KEEP_OLD=1）"
     else
         echo "🌊 清掉 $BASE_DIR 里的旧内容："
         ls -1 "$BASE_DIR" 2>/dev/null | head -10 | sed 's/^/     /'
@@ -144,7 +148,7 @@ if [[ -x "$WAVE" ]] && WAVE_OUT="$("$WAVE" --version 2>&1)"; then
     echo "🌊 $WAVE_OUT"
     pass "wave 能跑"
 else
-    fail "wave 跑不起来（$WAVE）"
+    fail "wave 跑不起来（${WAVE}）"
 fi
 
 if BASE_OUT="$("$WAVE" basedir --raw 2>&1)" && [[ "$BASE_OUT" == "$BASE_DIR" ]]; then
@@ -160,7 +164,7 @@ fi
 if [[ -x "$BASE_DIR/venv/bin/python3" ]]; then
     VENV_BASE="$("$BASE_DIR/venv/bin/python3" -c 'import sys; print(sys.base_prefix)' 2>/dev/null)"
     VENV_VERSION="$("$BASE_DIR/venv/bin/python3" -V 2>&1)"
-    echo "🌊 venv 解释器：$VENV_VERSION，base_prefix=$VENV_BASE"
+    echo "🌊 venv 解释器：${VENV_VERSION}，base_prefix=$VENV_BASE"
     case "$VENV_BASE" in
         "$BASE_DIR"/*) pass "venv 建在自带解释器上（自带 Python 真的生效了）" ;;
         *)
