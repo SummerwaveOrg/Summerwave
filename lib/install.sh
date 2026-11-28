@@ -1976,7 +1976,14 @@ ensure_portable_python() {
     # 两种寻址，不能合并：GitHub 的资产接口只认 asset id（还要 octet-stream
     # 那个 header），而静态镜像只认文件名。设了 SUMMERWAVE_PYTHON_DOMAIN 就走
     # <域名>/<文件名>，镜像站把四个 tar.gz 摊平放好即可。
-    python_domain="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "${SUMMERWAVE_PYTHON_DOMAIN:-}")"
+    # 没设就**不要**拿去校验：mw_domain 对空值会报错（它会 exit，但在 $() 里
+    # 只是让赋值拿到空串），于是安装日志里冒出一句莫名其妙的 "must be an https://
+    # address, got: " —— 真机上第一次装就看到它了。
+    python_domain=""
+    if [[ -n "${SUMMERWAVE_PYTHON_DOMAIN:-}" ]]; then
+        python_domain="$(mw_domain SUMMERWAVE_PYTHON_DOMAIN "$SUMMERWAVE_PYTHON_DOMAIN")"
+    fi
+
     if [[ -n "$python_domain" ]]; then
         url="$python_domain/$filename"
         if ! mw_download "$url" "$archive" 900; then

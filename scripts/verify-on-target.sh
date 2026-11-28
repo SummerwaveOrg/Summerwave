@@ -143,7 +143,8 @@ fi
 # ==========================================
 step "5. 命令行入口"
 # ==========================================
-WAVE="$BASE_DIR/bin/wave"
+# 入口是 lib/wave（启动器），bin/ 里只有各包的无版本号链接
+WAVE="$BASE_DIR/lib/wave"
 if [[ -x "$WAVE" ]] && WAVE_OUT="$("$WAVE" --version 2>&1)"; then
     echo "🌊 $WAVE_OUT"
     pass "wave 能跑"
