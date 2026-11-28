@@ -236,11 +236,11 @@ links/*           → bin/（无版本号的软链接）
 
 - **正本**：`scripts/shared/<名字>.sh`，正文用 `# >>> SHARED: <名字>` / `# <<< SHARED` 包起来
 - **副本**：原样拷进每个需要的脚本，标记也要一起拷
-- **闸门**：`scripts/check_shared_blocks.py` 逐字节比对；新块要在它的 `SYNC` 表里登记「哪几个文件必须有」
-- **闸门自己的测试**：`scripts/shared_blocks_test.sh`（少一份副本 / 改一个字符 / 正本缺标记，三种都必须红）
-- CI：`.github/workflows/format-test.yml` 的 `Check shared code blocks are in sync`
-
-改共享块的正确顺序：改正本 → 逐个脚本粘同一段 → 跑 `scripts/shared_blocks_test.sh`。
+- **共享块（已随 0.1.0 删除）**：以前 `lib/install.sh` 与 `lib/selfupdate.sh` 各抄一份
+  验签代码，由 `scripts/check_shared_blocks.py` 逐字节盯着。`selfupdate.sh` 在 0.1.0
+  被 `lib/selfupdate.py` 取代（验签挪到 Python 的 `_verify`），只剩一份副本，闸门与
+  它的测试一并删掉。现在唯一的「共享」是 `MW_RSA_PUB_PEM`，由
+  `scripts/embed_rsa_pub.py` 按标记替换，Python 侧从 `lib/install.sh` 里抠它当锚点。
 判据类的东西尤其要这样收：它藏在三条不同的代码路径里，只有其中一条出错时最难查。
 
 ---

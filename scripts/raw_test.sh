@@ -95,7 +95,7 @@ esac
 # -------------------- 假索引 + 假产物 --------------------
 
 NAME="rawpkg"
-INDEX="$MIRROR/pkg/pkginfo"
+INDEX="$MIRROR"
 mkdir -p "$INDEX/$NAME" "$MIRROR/$NAME"
 
 printf '%s\n' "$NAME" > "$INDEX/versions"
@@ -130,7 +130,7 @@ PY
 HTTP_PID=$!
 
 for _ in $(seq 1 40); do
-    curl -sf -o /dev/null "http://127.0.0.1:$PORT/pkg/pkginfo/versions" && break
+    curl -sf -o /dev/null "http://127.0.0.1:$PORT/versions" && break
     sleep 0.1
 done
 
