@@ -12,9 +12,13 @@
 #     v<版本>[@<构建时刻>][-<渠道>.<序号>]
 #
 #     v1.2.3                        只有版本号（人工发的普通 tag，不带构建号）
-#     v1.2.3@2026-11-26T11:23Z      正式版：版本号 + 构建时刻
-#     v1.2.3-rc.1@2026-11-26T11:23Z 预览版
-#     v1.2.3-beta.2@2026-11-26T11:23Z
+#     v1.2.3@2026-11-26T1123Z       正式版：版本号 + 构建时刻
+#     v1.2.3-rc.1@2026-11-26T1123Z  预览版
+#     v1.2.3-beta.2@2026-11-26T1123Z
+#
+# 为什么时刻写成 `T1123Z` 而不是 ISO 8601 的 `T11:23Z`：**冒号是 git ref 的非法
+# 字符**，`git tag 'v1.2.3@2026-11-26T11:23Z'` 会被直接拒绝 —— 协议最漂亮但落不了地
+# 就没有意义。日期部分保留 `-`（合法且醒目），时分的冒号去掉，长度与可读性都保住了。
 #
 # 为什么要 <构建时刻>：同一个版本号可能重发（修打包错误、换 SDK 重编），
 # 只靠版本号无法判断「哪一次是新的」。时刻精确到分钟、带 Z，排序即时间排序。
@@ -30,7 +34,7 @@ CHANNELS = ("rc", "beta")
 # 版本段允许 1.2 / 1.2.3 / 1.2.3.4，以及 4.x 时代的「特殊版本」（例如 2.1.5-procursus）。
 # 版本号本身也可能是时间戳（0.1.0 起就是 `2026.11.26-15:52:43`），所以冒号也算合法字符
 _VERSION = r"[0-9][0-9A-Za-z.+_:\-]*"
-_STAMP = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z"
+_STAMP = r"\d{4}-\d{2}-\d{2}T\d{4}Z"
 
 TAG_RE = re.compile(
     rf"^v(?P<version>{_VERSION}?)"
@@ -43,7 +47,7 @@ class TagInfo(NamedTuple):
     version: str            # 去掉 v 前缀的版本号
     channel: str            # "" 表示正式版，否则 rc / beta
     channel_seq: int        # 渠道序号；正式版为 0
-    stamp: str              # UTC 构建时刻，YYYY-MM-DDTHH:MMZ；没有就是 ""
+    stamp: str              # UTC 构建时刻，YYYY-MM-DDTHHMMZ；没有就是 ""
 
     @property
     def is_prerelease(self) -> bool:
@@ -64,7 +68,7 @@ def parse(tag: str) -> TagInfo:
     text = (tag or "").strip()
     match = TAG_RE.match(text)
     if not match:
-        raise ValueError(f"not a release tag: {tag!r} (expected v<version>[@YYYY-MM-DDTHH:MMZ])")
+        raise ValueError(f"not a release tag: {tag!r} (expected v<version>[@YYYY-MM-DDTHHMMZ])")
     version = match.group("version") or ""
     if not version:
         raise ValueError(f"release tag has no version: {tag!r}")
@@ -87,7 +91,7 @@ def format_tag(version: str, stamp: str, channel: str = "", seq: int = 1) -> str
     if channel and channel not in CHANNELS:
         raise ValueError(f"unknown channel: {channel!r} (expected one of {CHANNELS})")
     if stamp and not re.fullmatch(_STAMP, stamp):
-        raise ValueError(f"build stamp must be UTC 'YYYY-MM-DDTHH:MMZ', got: {stamp!r}")
+        raise ValueError(f"build stamp must be UTC 'YYYY-MM-DDTHHMMZ', got: {stamp!r}")
     out = f"v{version}"
     if channel:
         out += f"-{channel}.{seq}"

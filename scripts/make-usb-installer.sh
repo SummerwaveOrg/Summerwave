@@ -202,7 +202,7 @@ Summerwave installer
 ====================
 
 version  $VERSION
-built    $(date -u +%Y-%m-%dT%H:%M:%SZ) (UTC)
+built    $(date -u +%Y-%m-%dT%H%MZ) (UTC)
 sha256   $DIGEST
 
 Install on the target machine

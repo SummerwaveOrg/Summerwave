@@ -1034,7 +1034,7 @@ if [[ -z "${MACWAVE_VERSION:-}" ]]; then
     fi
 fi
 
-# 渠道与构建号都从 tag 里来：`<版本>[-rc.N|-beta.N][@YYYY-MM-DDTHH:MMZ]`。
+# 渠道与构建号都从 tag 里来：`<版本>[-rc.N|-beta.N][@YYYY-MM-DDTHHMMZ]`。
 # tag 协议的唯一解释口是 lib/taginfo.py；这里是它在 bash 里的最小镜像（只有发布号
 # 与渠道两件事），改动时必须两边一起动 —— scripts/taginfo_test.sh 盯着。
 MW_CHANNEL="stable"

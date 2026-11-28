@@ -36,10 +36,10 @@ su = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(su)
 
 RELEASES = [
-    {"tag_name": "v2026.11.26-15:52:43@2026-11-26T15:52Z", "prerelease": False, "draft": False},
-    {"tag_name": "v2026.11.20-10:00:00@2026-11-20T10:00Z", "prerelease": False, "draft": False},
-    {"tag_name": "v2026.11.27-09:00:00-rc.1@2026-11-27T09:00Z", "prerelease": True, "draft": False},
-    {"tag_name": "v2026.11.28-00:00:00@2026-11-28T00:00Z", "prerelease": False, "draft": True},
+    {"tag_name": "v2026.11.26-15:52:43@2026-11-26T1552Z", "prerelease": False, "draft": False},
+    {"tag_name": "v2026.11.20-10:00:00@2026-11-20T1000Z", "prerelease": False, "draft": False},
+    {"tag_name": "v2026.11.27-09:00:00-rc.1@2026-11-27T0900Z", "prerelease": True, "draft": False},
+    {"tag_name": "v2026.11.28-00:00:00@2026-11-28T0000Z", "prerelease": False, "draft": True},
 ]
 
 def with_payload(payload):
@@ -72,7 +72,7 @@ PYEOF
 
 g() { printf '%s\n' "$OUT" | grep -F "$1: " | head -1 | cut -d' ' -f2-; }
 
-check "正式渠道取最新发布" "$(g stable)" "2026.11.26-15:52:43 | 2026-11-26T15:52Z | False | $(printf 'https://api.github.com/repos/SummerwaveOrg/Summerwave/releases/latest')"
+check "正式渠道取最新发布" "$(g stable)" "2026.11.26-15:52:43 | 2026-11-26T1552Z | False | $(printf 'https://api.github.com/repos/SummerwaveOrg/Summerwave/releases/latest')"
 check "预览渠道取最新预发布" "$(g preview)" "2026.11.27-09:00:00 | True"
 check "列表里也只会挑正式版" "$(g stable_from_list)" "2026.11.26-15:52:43 | False"
 check "没有发布时返回空" "$(g empty)" "None"

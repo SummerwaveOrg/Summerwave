@@ -163,7 +163,7 @@ scenario_install() {
     check "状态文件在树内 var/config.sh" \
         "$([[ -f "$TREE/var/config.sh" ]] && echo yes || echo no)" "yes"
     check "状态里的版本就是脚本自带的那个 tag" "$(state_version)" "$SANDBOX_VERSION"
-    check "状态里带构建号（从 tag 的时间部分派生）" "$(state_build)" "2026-01-01T00:00Z"
+    check "状态里带构建号（从 tag 的时间部分派生）" "$(state_build)" "2026-01-01T0000Z"
     # 只看安装树：赝品镜像里有整个仓库的副本，直接 find 整棵树会数到那边的文件
     check "安装树里没有 config.json（不再靠配置文件）" \
         "$(find "$TREE" -name config.json 2>/dev/null | wc -l | tr -d ' ')" "0"
@@ -416,7 +416,7 @@ for mod in requests packaging urllib3 rich; do
 done
 
 # 版本 tag 必须在内外两层都可见：内层是被 exec 重入的同一份脚本，只继承 export 过的变量。
-export SANDBOX_VERSION="0.0.0@2026-01-01T00:00Z"
+export SANDBOX_VERSION="0.0.0@2026-01-01T0000Z"
 SANDBOX_DIR="$(mktemp -d "${TMPDIR:-/tmp}/macwave-sandbox.XXXXXX")"
 SANDBOX_DIR="$(cd "$SANDBOX_DIR" && pwd -P)"      # 解析 /tmp -> /private/tmp，沙箱规则要真实路径
 cleanup() {

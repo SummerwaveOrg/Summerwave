@@ -18,8 +18,8 @@
 # 以前能跑通是运气 —— 安装集合里恰好没有非 .sh 的可执行文件。
 #
 # 用法：
-#   python3 scripts/build_installer.py --version 1.2.3@2026-11-26T11:23Z --out dist/install.sh
-#   python3 scripts/build_installer.py --version 1.2.3@2026-11-26T11:23Z --ref v1.2.3@2026-11-26T11:23Z
+#   python3 scripts/build_installer.py --version 1.2.3@2026-11-26T1123Z --out dist/install.sh
+#   python3 scripts/build_installer.py --version 1.2.3@2026-11-26T1123Z --ref v1.2.3@2026-11-26T1123Z
 #
 # 只读仓库、只写 --out；不签名、不发版。签名与上传由发布流水线做。
 
@@ -212,7 +212,7 @@ def main():
         description="Build the release install.sh with this version's file list embedded.")
     parser.add_argument("--version", required=True,
                         help="version as it appears in the tag, without the leading v "
-                             "(e.g. 1.2.3@2026-11-26T11:23Z)")
+                             "(e.g. 1.2.3@2026-11-26T1123Z)")
     parser.add_argument("--ref", default="",
                         help="git ref to read the tree from (default: v<version>)")
     parser.add_argument("--template", default=str(REPO_DIR / "lib" / "install.sh"))

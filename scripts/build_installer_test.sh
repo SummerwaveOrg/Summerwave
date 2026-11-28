@@ -37,7 +37,7 @@ check() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1（期望 $3，实
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$WORK"' EXIT
 OUT="$WORK/install.sh"
-VERSION="9.9.9@2026-11-27T09:00Z"
+VERSION="9.9.9@2026-11-27T0900Z"
 
 echo "========== 1. 生成 + 语法 =========="
 

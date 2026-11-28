@@ -296,7 +296,7 @@ def resolve_payload(kind, name, version, arch, upstream_filename):
 # 旧版本的用户继续用他们那份说明 —— 而旧版本仍在运行。
 
 # 0.1.0 起「该装哪一版」不再来自 Selfupdate 仓库，而是**发布 tag 本身**：
-# tag 里带版本号与 UTC 构建时刻（`v<版本>@YYYY-MM-DDTHH:MMZ`），见 docs/CONVENTIONS.md。
+# tag 里带版本号与 UTC 构建时刻（`v<版本>@YYYY-MM-DDTHHMMZ`），见 docs/CONVENTIONS.md。
 # 所以只需要两样东西：正式版的最新发布、以及预览渠道的发布列表。
 #
 # 用 releases 接口而不是 tags 接口：`/releases/latest` 会替我们把「预发布」排除掉，
