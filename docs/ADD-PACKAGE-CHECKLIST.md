@@ -558,33 +558,14 @@ universal —— 索引里每个架构各一条记录）；编完 `codesign --fo
 **⑤ 索引最后写。** 客户端只有从 `pkginfo/` 看到记录才会去装；记录不写，谁也不知道它
 存在。所以顺序是：产物 → Ports + Bottle → 沙箱实测 → 索引 → 镜像同步 → 三处清单。
 
-### tree 包必须声明 `min_client_version`
+### 不再需要 `min_client_version`
 
-`install: "tree"`（整树包）是 **4.5** 才有的安装形态。旧客户端读到这条记录不会报错 ——
-它只是不认识这个字段，然后按单文件装，只取一个可执行文件。实测 v4.4.1 装
-`git@2.56.1` 得到的是：
+`install: "tree"`（整树包）是唯一形态，所有客户端都认它。以前这里要求 tree 记录写
+`min_client_version: "4.5.0"` 来拦住更老的客户端 —— 那些客户端跑的是 MacWave 4.x，
+读的是另一套索引，已经够不到这条记录了。版本号重置成 0.1.x 之后，这个字段还会反过来
+误伤（0.1.x 小于 4.5，等于自己拒自己），所以字段与检查一起删掉。
 
-```
-bin/git@2.56.1/git                                       ← 只有一个文件，3.7 MB
-$ /opt/macwave/bin/git --exec-path
-/Users/<builder>/build/git/stage-arm64/libexec/git-core   ← 构建机路径，本机不存在
-```
-
-`git --version`、`init`、本地 `clone` 都还能跑（git 是多调用二进制，多数子命令内建），
-但 `git-remote-https` 这类外部 helper 要靠系统 Xcode CLT 的 git 提供 —— 没装 CLT 的
-机器上 `git clone https://` 会挂。
-
-所以 **tree 记录必须同时写 `min_client_version: "4.5.0"`**。4.5 客户端读到它在**下载
-之前**就中止，并给出下一步（`wave selfupdate`）；`-F/--force` 可以越过，越过时打黄字警告。
-字段缺失时新客户端不拦、旧客户端更不知道 —— 等于这层保护整条不存在。
-
-判断依据是「装了会不会坏」，不是「版本号好看」：
-
-| 记录内容 | 写什么 |
-| --- | --- |
-| 普通单文件包 | 不写（4.0 起的客户端都能装） |
-| `install: "tree"` | `min_client_version: "4.5.0"` |
-| 用了更晚才有的字段/形态 | 那个版本号 |
+现在记录里**不写**它；写了也不会被读。
 
 ### `aria2c`：第一个按这条路走完的包（2026-11-21 上线）
 

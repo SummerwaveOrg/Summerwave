@@ -73,7 +73,7 @@ export MACWAVE_COMPONENT_PATHS MACWAVE_COMPONENT_NAMES
 #
 # 组件是**拷**进去的，不是软链：这些测试会往树里写文件，软链会把改动写回仓库。
 sandbox_install_tree() {
-    # 沙箱里的客户端版本要高于索引里任何一个 min_client_version，否则测的是
+    # 沙箱里的客户端版本不影响安装门槛了（min_client_version 已删），这里只
     # 「你的客户端太旧」那条错误路径（2026-11-25：gwget 写了 4.5.0，
     # 沙箱还写 1.0，deps_test 因此红了两条线）。
     local root="$1" version="${2:-4.99.0}" component

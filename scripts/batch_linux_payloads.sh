@@ -7,6 +7,7 @@
 #   bash scripts/batch_linux_payloads.sh --upload            # 重打 + 传 Bottle
 #   bash scripts/batch_linux_payloads.sh --limit 20          # 先试一小批
 #   bash scripts/batch_linux_payloads.sh --only jq,rg,fd     # 只跑这几个包
+#   bash scripts/batch_linux_payloads.sh --os macos --only fzf,gh   # 补 macOS 那边的缺
 #
 # 为什么不用 `prepare_bottle.py --all`：那条路的记录来源是 sync_payloads.records()，
 # 它按 macOS 的架构列记录。这里直接读索引文件名，只挑 `.linux-*`。
@@ -37,6 +38,8 @@ while [[ $# -gt 0 ]]; do
         --limit)  LIMIT="${2:-0}"; shift 2 ;;
         --only)   ONLY="${2:-}"; shift 2 ;;
         --skip)   SKIP="${2:-}"; shift 2 ;;
+        --os)     OS="${2:-linux}"; shift 2 ;;
+        --os=*)   OS="${1#*=}"; shift ;;
         --upload) UPLOAD=true; shift ;;
         *) echo "usage: $0 [--limit N] [--only a,b,c] [--skip a,b,c] [--upload]" >&2; exit 2 ;;
     esac
@@ -47,10 +50,11 @@ note() { printf '%s\n' "$*" | tee -a "$LOG"; }
 
 # 索引里的 Linux 记录 → <名>@<版本>.<os>-<arch>
 # 不用 mapfile：那是 bash 4 的内建，macOS 自带的 3.2 没有（shell_lint 第 4 项盯着）
+OS="${OS:-linux}"
 RECORDS=()
 while IFS= read -r _rec; do
     RECORDS+=("$_rec")
-done < <(find "$INFOSOURCE" -type f -name '_*@*.linux-*' | sort)
+done < <(find "$INFOSOURCE" -type f -name "_*@*.${OS}-*" | sort)
 note "$(date '+%Y-%m-%d %H:%M:%S') batch_linux_payloads: ${#RECORDS[@]} record(s)"
 
 ok=0; skipped=0; failed=0; index=0
@@ -58,8 +62,8 @@ declare -a FAILED_LIST=()
 
 for rec in "${RECORDS[@]}"; do
     base="$(basename "$rec")"; base="${base#_}"
-    key="${base%.linux-*}"                 # <名>@<版本>
-    arch="${rec##*.linux-}"                # arm64 | amd64
+    key="${base%.${OS}-*}"                 # <名>@<版本>
+    arch="${rec##*.${OS}-}"                # arm64 | amd64
     name="${key%%@*}"
     version="${key#*@}"
 
@@ -75,7 +79,7 @@ for rec in "${RECORDS[@]}"; do
     index=$((index + 1))
     if [[ "$LIMIT" -gt 0 && "$index" -gt "$LIMIT" ]]; then break; fi
 
-    expected="$OUT/${name}@${version}.linux-${arch}.tar.bz2"
+    expected="$OUT/${name}@${version}.${OS}-${arch}.tar.bz2"
     if [[ -f "$expected" ]]; then
         skipped=$((skipped + 1))
         continue
@@ -83,7 +87,7 @@ for rec in "${RECORDS[@]}"; do
 
     note "$(date '+%H:%M:%S') [$index] ${name}@${version} ${arch}"
     if python3 "$SCRIPT_DIR/prepare_bottle.py" --kind pkg --name "$name" \
-            --version "$version" --arch "$arch" --os linux \
+            --version "$version" --arch "$arch" --os "$OS" \
             --infosource "$INFOSOURCE" --out "$OUT" --cache "$CACHE" \
             >> "$LOG" 2>&1; then
         ok=$((ok + 1))

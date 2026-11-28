@@ -180,56 +180,6 @@ def current_macos_version():
     return _parse_dotted_version(platforminfo.system_version())
 
 
-def confirm_min_client_version(record_text, pkg_name, pkg_version, force=False):
-    """版本记录声明了 min_client_version 且本机 Summerwave 更旧时中止安装。
-
-    与 min_os 不是一回事：min_os 是「构建时声明的最低系统，可能偏保守」，所以问一句
-    由用户决定；min_client_version 说的是「这个包要求客户端具备某种安装形态」——
-    旧客户端不是「装得勉强」，而是**一定装坏**。
-
-    实际例子：`git` 声明 install: "tree"（整树包）。4.5 之前的客户端不认识这个字段，
-    会按单文件装，只取一个 `bin/git`：`git --version` 还能跑，但 `--exec-path` 指向
-    构建机的路径（实测 `/Users/<builder>/build/git/stage-arm64/libexec/git-core`），
-    依赖系统 git 提供 helper。所以默认硬拦，只有 -F/--force 越过。
-
-    字段缺失时静默跳过；本机版本读不到（var/config.sh 不存在）时也跳过 —— 猜不出
-    就别拦人。
-    """
-    match = re.search(r'min_client_version:\s*"([^"]*)"', record_text)
-    if not match:
-        return True
-
-    required_text = match.group(1).strip()
-    if not required_text:
-        return True
-
-    running_text = get_version()
-    if running_text in ("", "unknown"):
-        steplog.detail("min_client_version declared but the client version is unreadable, ignored")
-        return True
-
-    try:
-        required = versioncompare.version(required_text)
-        running = versioncompare.version(running_text)
-    except Exception:
-        steplog.detail(f"min_client_version {required_text!r} is not a version, ignored")
-        return True
-
-    if running >= required:
-        return True
-
-    steplog.detail(f"min_client_version {required_text} > running {running_text}")
-
-    if force:
-        if not silent.is_silent():
-            print(f"{YELLOW}🌊 Warning: {pkg_name}@{pkg_version} needs Summerwave "
-                  f"{required_text} or later, this is {running_text}; installing anyway "
-                  f"because of --force.{RESET}")
-        return True
-
-    return False
-
-
 def confirm_min_os(record_text, pkg_name, pkg_version, force=False):
     """版本记录声明了 min_os 且本机低于它时，警告并问一句。返回是否继续安装。
 
@@ -1263,17 +1213,6 @@ def _install_single_locked(input_string):
             extra=f"got {install_mode!r}",
             hint=['expected "binary" (the default) or "tree"; this is an index data defect, '
                   'please report it to the administrator'])
-
-    # 5.1.2 客户端版本门槛：tree 包在旧客户端上一定装坏（见函数文档）。
-    # 放在 min_os 之前 —— 前者是「装了是坏的」，后者是「装了可能不兼容」。
-    if not confirm_min_client_version(resp.text, ParsePkgName, ParsePkgVersion,
-                                      config["force"]):
-        steplog.fail(
-            f"not installing {ParsePkgName}@{ParsePkgVersion}: it needs a newer Summerwave",
-            request=pkg_version_url,
-            hint=["nothing was downloaded or installed",
-                  "run `wave selfupdate` to get the current Summerwave, then try again",
-                  "add --force to install it anyway (the result will most likely be broken)"])
 
     # 5.2 实验性：版本记录可以声明 min_os，低于它时警告并问一句（4.3 转正）。
     # 放在下载之前：答复是「不装」时不该先花带宽。
