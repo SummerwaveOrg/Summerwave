@@ -274,6 +274,40 @@ python3 /tmp/macwave-src/scripts/sync_payloads.py \
 
 **方式 B（少量文件）**：从 Release 页面手动下载附件，用宝塔「文件」上传。
 
+## 第四步补充：给每个 core 分支打一个整包
+
+`mirror-sync.sh` 会在同步完 core 之后，往每个分支目录里再放一个 `archive.tar.gz`。
+
+**这一步省的是延迟，不是带宽。** 客户端装一次要取整棵代码树（约 90 个文件）。逐文件下载在
+70 ms 往返的网络下，光延迟就白等 6 秒——镜像本来是为了更快，结果比直连还慢。有了整包，
+一次请求就拿全，而且**整包里的每个文件仍然逐条对 sha256**，打包不降低安全性。
+
+```
+<ROOT>/MacWave/core/<分支>/
+├── lib/  cli/  config/  …     ← 逐文件（备份路径，整包失效时用）
+└── archive.tar.gz             ← 整包，顶层目录是 <分支>/
+```
+
+客户端取的是 `<CORE>/<分支>/archive.tar.gz`，解包用 `tar --strip-components=1`
+（所以包里必须有一层 `<分支>/` 顶层目录，`mirror-sync.sh` 已经这么打了）。
+
+**镜像上没有这个文件也没关系**：客户端下载失败会打印一行黄色提示，然后自动退回逐文件
+下载，功能完全不受影响。所以老镜像不用急着升级。
+
+自检：
+
+```bash
+# 1) 文件在、大小合理（约 1–2 MB）
+ls -lh /srv/mirror/MacWave/core/<分支>/archive.tar.gz
+
+# 2) 顶层目录必须是 <分支>/
+tar -tzf /srv/mirror/MacWave/core/<分支>/archive.tar.gz | head -3
+
+# 3) 能被客户端的解包参数正确吃掉
+mkdir -p /tmp/chk && tar -xzf /srv/mirror/MacWave/core/<分支>/archive.tar.gz \
+    -C /tmp/chk --strip-components=1 && ls /tmp/chk   # 应直接看到 lib cli config
+```
+
 ## 第五步：nginx 缓存头
 
 文件永不覆盖（要改就发新的版本后缀，例如 `1.7.1-1`），所以可以放心让客户端长期缓存。

@@ -1057,12 +1057,24 @@ MW_CORE_REF="${MACWAVE_CORE_REF:-$MACWAVE_VERSION}"
 
 BASE_URL="$CORE_URL/$MW_CORE_REF"
 
-# 整包地址。codeload.github.com 一次给出整棵 tag 的 tar.gz（约 1–2 MB），
-# 内嵌清单里的 90 条 sha256 照样逐条校验，所以「一次拿全部」不降低安全性。
+# 整包地址。内嵌清单里的 90 条 sha256 照样逐条校验，所以「一次拿全部」不降低
+# 安全性 —— 整包里的任何一个文件被换掉都会在 sync_tree 里被拦下。
+#
+# 两条路，形状不同：
+#   官方：codeload.github.com 的 /tar.gz/<ref>，由 GitHub 现场打包；
+#   镜像：<core>/<ref>/archive.tar.gz，由镜像在同步时预先打好。
+#
+# 镜像也要能整包的**原因**是延迟而不是带宽：一次安装原本要发 90 个请求，每个多
+# 70 ms 的往返就白等 6 秒 —— 镜像本来是为了更快，结果比直连还慢。镜像上还没这个
+# 文件时（老镜像），下载失败会打印一行警告并退回逐文件，功能不受影响。
 #
 # 为什么不是 raw.githubusercontent.com 逐文件：那条链路在校园网与家宽上十次有
 # 三次连不上，而安装要发 90 次请求 —— 一次失败整装就失败。codeload 一直通。
-CORE_ARCHIVE_URL="https://codeload.github.com/SummerwaveOrg/Summerwave/tar.gz/$MW_CORE_REF"
+if [[ "$CORE_URL" == "https://raw.githubusercontent.com/SummerwaveOrg/Summerwave" ]]; then
+    CORE_ARCHIVE_URL="https://codeload.github.com/SummerwaveOrg/Summerwave/tar.gz/$MW_CORE_REF"
+else
+    CORE_ARCHIVE_URL="$BASE_URL/archive.tar.gz"
+fi
 
 # ==========================================
 # 显示欢迎信息
@@ -1520,10 +1532,13 @@ CORE_TREE=""
 
 stage_core_tree() {
     # 一次性把整棵 tag 取回来。成功则 CORE_TREE 指向解开的树，sync_tree 里逐个文件
-    # 从它拷贝；失败（或压根不该走这条路）就留空，退回逐文件下载。
+    # 从它拷贝；失败就留空，退回逐文件下载。
     #
-    # 什么时候不走整包：BASE_URL 与 $CORE_URL/$MACWAVE_VERSION 不等，说明有人已经
-    # 指定了另一处逐文件的树 —— 沙箱（file:// 镜像）与自建镜像都是这种形态。
+    # 两个条件都要满足才试整包：
+    #   * BASE_URL 就是「$CORE_URL/$ref」—— 有人把它换成别处（sandbox_test 用
+    #     file:// 指向一棵现成的树）时，那里没有 archive.tar.gz，去试只会多打一行
+    #     「整包取不到」的警告、让测试输出变脏；
+    #   * 而且是 http(s) —— file:// 没有意义。
     CORE_TREE=""
     if mw_dry_run; then
         mw_plan "🌊 Dry run: would fetch the whole $MACWAVE_VERSION tree as one archive." \
@@ -1531,6 +1546,10 @@ stage_core_tree() {
         return 0
     fi
     [[ "$BASE_URL" == "$CORE_URL/$MW_CORE_REF" ]] || return 0
+    case "$BASE_URL" in
+        http://*|https://*) ;;
+        *) return 0 ;;
+    esac
 
     local work archive
     work="$(mktemp -d)"

@@ -361,6 +361,28 @@ for b in $BRANCHES; do
     tree "core-$b" MacWave "$b" "$DEST/core/$b" || CORE_OK=0
 done
 
+# 每个 core 目录旁边再放一个整包，客户端取 <CORE>/<ref>/archive.tar.gz。
+#
+# 这一步省的是**延迟**不是带宽：一次安装原本发 90 个请求，每个多 70 ms 就白等
+# 6 秒 —— 镜像本来是为了更快，结果比直连还慢。整包里的内容仍然逐条对 sha256，
+# 打包不会降低安全性。
+#
+# 顶层目录必须是 <分支>/，客户端解包用的是 tar --strip-components=1。
+if (( ! DRY_RUN )); then
+    for b in $BRANCHES; do
+        [[ -d "$DEST/core/$b" ]] || continue
+        tmp="$DEST/core/$b/archive.tar.gz.tmp"
+        if tar -czf "$tmp" -C "$DEST/core" --exclude='archive.tar.gz*' "$b" 2>/dev/null \
+           && mv -f "$tmp" "$DEST/core/$b/archive.tar.gz"; then
+            note "core/$b 整包：$(du -h "$DEST/core/$b/archive.tar.gz" | cut -f1)"
+            [[ -n "${OWNER:-}" ]] && chown "$OWNER" "$DEST/core/$b/archive.tar.gz" 2>/dev/null
+        else
+            rm -f "$tmp"
+            note "core/$b 整包生成失败 —— 客户端会退回逐文件，功能不受影响"
+        fi
+    done
+fi
+
 # 发布线会换，旧分支目录会一直留着 —— 那是「镜像仍在服务一个已下线的版本」。
 # 只保留当前发布线 + KEEP_BRANCHES。
 #
