@@ -177,7 +177,7 @@ def python_block(version, release, repo, platforms):
     return "\n".join(lines) + "\n"
 
 
-def inject(template, version, manifest, python_vars=""):
+def inject(template, version, manifest, python_vars="", core_ref=""):
     """把清单块插在 shebang 之后。
 
     为什么必须插在文件里而不是「运行时从 $0 读自己」：`curl … | bash` 时 `$0` 是 `bash`
@@ -195,6 +195,8 @@ def inject(template, version, manifest, python_vars=""):
         f"{HEADER}"
         f"{MANIFEST_SIGNAL}=1\n"
         f'MACWAVE_VERSION="{version}"\n'
+        # 取件 ref 与版本号分开注入：tag 名带 v 前缀，版本号不带
+        f'MACWAVE_CORE_REF="{core_ref or version}"\n'
         f"{python_vars}"
         # set -u / set -e 都会让 read 的退出码变成致命错误：显式兜住。
         f"read -r -d '' MANIFEST <<'{MANIFEST_OPEN}' || true\n"
@@ -244,7 +246,7 @@ def main():
     python_vars = python_block(py_version, py_release, py_repo, platforms)
 
     output = inject(template_path.read_text(encoding="utf-8"), args.version, manifest,
-                    python_vars=python_vars)
+                    python_vars=python_vars, core_ref=ref)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

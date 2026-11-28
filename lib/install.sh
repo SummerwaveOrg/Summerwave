@@ -1042,14 +1042,22 @@ case "$MACWAVE_VERSION" in
     *@*) BUILD_NUMBER="${MACWAVE_VERSION##*@}" ;;
 esac
 
-BASE_URL="$CORE_URL/$MACWAVE_VERSION"
+# 取件用的 ref 与「版本号」不是同一个东西，不能互相顶替：
+#   * 版本号是给人看、给比较用的 —— 0.1.0；
+#   * ref 是发布 tag 名 —— v0.1.0（lib/taginfo.py 要求 v 前缀，而 git 的 tag
+#     名里又不许出现 `:`，所以带构建时刻的那种写法根本打不成 tag）。
+# 构建时由 scripts/build_installer.py 注入 MACWAVE_CORE_REF；模板直接跑时回落到
+# 版本号，保持「没注入就按版本号取」的老行为。
+MW_CORE_REF="${MACWAVE_CORE_REF:-$MACWAVE_VERSION}"
+
+BASE_URL="$CORE_URL/$MW_CORE_REF"
 
 # 整包地址。codeload.github.com 一次给出整棵 tag 的 tar.gz（约 1–2 MB），
 # 内嵌清单里的 90 条 sha256 照样逐条校验，所以「一次拿全部」不降低安全性。
 #
 # 为什么不是 raw.githubusercontent.com 逐文件：那条链路在校园网与家宽上十次有
 # 三次连不上，而安装要发 90 次请求 —— 一次失败整装就失败。codeload 一直通。
-CORE_ARCHIVE_URL="https://codeload.github.com/SummerwaveOrg/Summerwave/tar.gz/$MACWAVE_VERSION"
+CORE_ARCHIVE_URL="https://codeload.github.com/SummerwaveOrg/Summerwave/tar.gz/$MW_CORE_REF"
 
 # ==========================================
 # 显示欢迎信息
@@ -1517,7 +1525,7 @@ stage_core_tree() {
             "🌊 试运行：会把 ${MACWAVE_VERSION} 的整棵代码树当一个压缩包取回。"
         return 0
     fi
-    [[ "$BASE_URL" == "$CORE_URL/$MACWAVE_VERSION" ]] || return 0
+    [[ "$BASE_URL" == "$CORE_URL/$MW_CORE_REF" ]] || return 0
 
     local work archive
     work="$(mktemp -d)"
