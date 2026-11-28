@@ -86,13 +86,27 @@ class Stat:
     def __init__(self):
         self.ok = 0
         self.wrong = []
+        self.shared = []            # 两个架构指向同一个产物：内容当然只有一个架构
         self.unknown = []
         self.error = []
         self.skipped = 0
 
 
+SHA_RE = re.compile(r'^sha256:\s*"([a-f0-9]+)"', re.M)
+
+
+def record_sha(path):
+    match = SHA_RE.search(path.read_text(errors="replace"))
+    return match.group(1) if match else ""
+
+
 def read_records(index_dir, oses, only):
-    """返回 [(包名, 记录名, 平台标签, 版本)]，记录名形如 jq@1.8.2.linux-arm64。"""
+    """返回 [(包名, 记录名, 平台标签, 版本, 是否与另一架构共享同一产物)]。
+
+    「共享」指同包同版本的两个架构记录 sha256 相同 —— 也就是索引有意让一个上游
+    产物服务两个架构（checkra1n 只有 Intel 版，arm64 靠 Rosetta；ollama 同理）。
+    对这种条目，「arm64 的记录里是 x86_64 二进制」是预期行为，不是错配。
+    """
     out = []
     for record in sorted(index_dir.glob("*/_*@*.linux-*")) + \
             sorted(index_dir.glob("*/_*@*.macos-*")):
@@ -106,8 +120,22 @@ def read_records(index_dir, oses, only):
             continue
         if pkg.startswith("test_"):
             continue
-        out.append((pkg, record.name[1:], tag, version))
-    return out
+        out.append((pkg, record.name[1:], tag, version, record_sha(record)))
+
+    # 同包同版本、不同架构却同一个 sha256 = 索引有意让一个上游产物服务两个架构
+    groups = {}
+    for pkg, _stem, tag, version, sha in out:
+        if sha:
+            groups.setdefault((pkg, version), []).append((tag, sha))
+    shared = set()
+    for key, items in groups.items():
+        tags = {tag for tag, _sha in items}
+        shas = {sha for _tag, sha in items}
+        if len(tags) >= 2 and len(shas) == 1:
+            shared.add(key)
+
+    return [(pkg, stem, tag, version, (pkg, version) in shared)
+            for pkg, stem, tag, version, _sha in out]
 
 
 def asset_ids():
@@ -216,7 +244,7 @@ def probe(blob):
     return None, None
 
 
-def check_one(pkg, stem, tag, stat):
+def check_one(pkg, stem, tag, stat, shared=False):
     want_format, want_arch = EXPECT[tag]
     # 产物一律是 prepare_bottle 重打出来的 .tar.bz2（实测 882 个全是），不跟上
     # 游原文件的后缀走 —— 记录里的 `file:` 指上游，我们的产物名另有规则。
@@ -250,6 +278,10 @@ def check_one(pkg, stem, tag, stat):
     if fmt == "fat" or (fmt == want_format and arch == want_arch):
         stat.ok += 1
         return
+    if shared and fmt == want_format:
+        # 同一份上游产物服务两个架构：内容必然是其中一个架构，属预期
+        stat.shared.append((stem, f"{fmt}/{arch}（两个架构共用这一个文件）"))
+        return
     stat.wrong.append((stem, f"{name}: {fmt}/{arch}", f"期望 {want_format}/{want_arch}"))
 
 
@@ -280,8 +312,8 @@ def main():
     stat = Stat()
     done = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = [pool.submit(check_one, pkg, stem, tag, stat)
-                   for pkg, stem, tag, _version in records]
+        futures = [pool.submit(check_one, pkg, stem, tag, stat, shared)
+                   for pkg, stem, tag, _version, shared in records]
         for future in concurrent.futures.as_completed(futures):
             future.result()
             done += 1
@@ -295,6 +327,10 @@ def main():
         print(f"❌ 架构错配 {len(stat.wrong)} 条：")
         for stem, got, want in stat.wrong:
             print(f"   {stem}\n      {got}  ←  {want}")
+    if stat.shared:
+        print(f"ℹ️  两架构共用同一产物 {len(stat.shared)} 条（不是错配）：")
+        for stem, note in stat.shared:
+            print(f"   {stem}  {note}")
     if stat.error:
         print(f"⚠️  取不到 {len(stat.error)} 条（网络或资产缺失）：")
         for stem, why in stat.error[:15]:
