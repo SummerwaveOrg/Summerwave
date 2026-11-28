@@ -35,14 +35,43 @@ mirror.repohub.top/MacWave       宝塔 + nginx，纯静态文件树
 | 自带 CPython | `SUMMERWAVE_PYTHON_DOMAIN` | `<文件名>`（摊平放四个 tar.gz） |
 | pip | `MACWAVE_PIP_INDEX` | 一个 PEP 503 索引 |
 
-两处**不能**靠静态镜像顶替，所以另有取舍：
+### 每一个 URL 是怎么拼出来的
 
-- **列包名 / 列版本**走 GitHub 的 contents API，镜像顶不了那台机器；设了
-  `SUMMERWAVE_API_DOMAIN` 之后客户端改读镜像自己产出的 `<api>/versions` 与
-  `<api>/<名>/versions`（一行一个名字）。
-- **自带 CPython** 默认按 Release 的 asset id 取（那条路 302 到 CDN）。asset id
-  是 GitHub 才有的东西，静态站无从对应，所以设了 `SUMMERWAVE_PYTHON_DOMAIN`
-  之后改成按**文件名**取。
+镜像站只要按这张表把文件摆好，客户端不需要任何额外配置。**域名之后的部分都是固定的**，
+换镜像只换环境变量。
+
+| 变量 | 客户端拼出的 URL | 镜像上放成 |
+|---|---|---|
+| `SUMMERWAVE_API_DOMAIN` | `<api>/<包名>/_<包名>@<版本>.<os>-<arch>` | 与 Sealane 仓库根同构 |
+| | `<api>/<包名>/_<包名>@common` | 同上 |
+| | `<api>/versions`（列包名） | 一行一个包名 |
+| | `<api>/<包名>/versions`（列版本） | 一行一个版本号 |
+| `SUMMERWAVE_BOTTLE_DOMAIN` | `<bottle>/<包名>/<文件名>`（文件名里的 `@` 编码成 `%40`） | 普通目录树 |
+| `SUMMERWAVE_DEPS_DOMAIN` | `<deps>/<依赖名>/<文件名>` | 同上 |
+| `SUMMERWAVE_CORE_DOMAIN` | `<core>/<ref>/<仓库内路径>` | 与仓库树同构 |
+| `SUMMERWAVE_PYTHON_DOMAIN` | `<python>/<文件名>`（如 `cpython-3.14.9-macos-amd64.tar.gz`） | 四个 tar.gz 摊平 |
+| `SUMMERWAVE_RELEASE_DOMAIN` | `<release>/releases/latest` | GitHub 那份 JSON 的副本 |
+| | `<release>/releases?per_page=N` | 同上（预览渠道） |
+| | `<release>/releases/tags/<tag>` | 同上 |
+| | `<release>/releases/download/<tag>/install.sh` 与 `.sig` | 两个文件 |
+| `MACWAVE_PIP_INDEX` | PEP 503 索引 | 任意 PyPI 镜像 |
+
+### 为什么有些地方以前设不了
+
+只有一类原因：**URL 里带着 GitHub 分配的 asset id**（`/releases/assets/<id>`）。
+id 是递增整数，静态站无法对应，所以那些地方只能连 GitHub。已经全部改成双路：
+
+| 位置 | GitHub 模式 | 镜像模式（按文件名） |
+|---|---|---|
+| 自带 CPython | `<api.github.com>/repos/…/releases/assets/<id>` | `<python>/<文件名>` |
+| 自更新的 `install.sh` | 同上 | `<release>/releases/download/<tag>/install.sh` |
+
+判据是**域名形状**：`https://api.github.com/` 开头走 asset id，其余一律按文件名。
+所以镜像与 GitHub 的差别对客户端是透明的。
+
+另有两处走 GitHub 的 contents API（列包名、列版本），镜像顶不了那台机器；设了
+`SUMMERWAVE_API_DOMAIN` 之后客户端改读镜像自己产出的 `<api>/versions` 与
+`<api>/<名>/versions`（一行一个名字）。
 
 ## 为什么根目录是 `MacWave/` 而不是整个域名
 
