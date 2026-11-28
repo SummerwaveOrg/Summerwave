@@ -691,11 +691,16 @@ License by release:
 | Versions | License |
 | :--- | :--- |
 | `1.0.0` – `4.5.2` | MIT |
-| `4.6.0` and later | Apache License 2.0 |
+| `4.6.0` – `4.7.x`, and **`0.1.0` and later** | Apache License 2.0 |
 
 Everything up to and including `4.5.2` was published under the MIT License and stays under it:
 nothing is retroactively relicensed. `4.6.0` is where the Apache-2.0 terms begin, which is also
 why that release asks you to accept the agreement again.
+
+> **Note the version reset.** After the MacWave / LinuxWave merge the version number was
+> renumbered from `4.6.x` to `0.1.0`, so **`0.1.x` is newer than `4.6.0`** even though the
+> number is smaller. The Apache-2.0 terms apply to it just the same — compare by release date,
+> never by numeric version, when crossing that boundary.
 
 ## 🌊 Contact Us
 

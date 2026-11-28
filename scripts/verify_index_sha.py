@@ -76,6 +76,7 @@ def load_assets():
 
 
 def read_records(index_dir, oses, only):
+    """返回 [(包名, 资产名, 记录里的 sha256, 记录文件路径)]。"""
     out = []
     for record in sorted(index_dir.glob("*/_*@*.linux-*")) + \
             sorted(index_dir.glob("*/_*@*.macos-*")):
@@ -92,7 +93,7 @@ def read_records(index_dir, oses, only):
         sha = SHA_RE.search(record.read_text(errors="replace"))
         if not sha:
             continue
-        out.append((pkg, f"{pkg}@{version}.{tag}.tar.bz2", sha.group(1)))
+        out.append((pkg, f"{pkg}@{version}.{tag}.tar.bz2", sha.group(1), record))
     return out
 
 
@@ -153,6 +154,8 @@ def main():
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--size-only", action="store_true",
                         help="只比大小（秒级），不下载")
+    parser.add_argument("--fix", action="store_true",
+                        help="把不一致的记录改成 Release 上的实际 sha256（发布前对齐用）")
     args = parser.parse_args()
 
     TOKEN = github_token()
@@ -162,7 +165,7 @@ def main():
     print("🌊 拉 Release 资产清单…", flush=True)
     assets = load_assets()
     records = read_records(args.index, oses, only)
-    total_bytes = sum(assets[a][1] for _, a, _ in records if a in assets)
+    total_bytes = sum(assets[a][1] for _, a, _, _ in records if a in assets)
     mode = "只看大小" if args.size_only else f"下载并算 sha256（约 {total_bytes / 1073741824:.1f} GB）"
     print(f"🌊 索引 {len(records)} 条，Release 资产 {len(assets)} 个，{mode}，"
           f"{args.workers} 路并发", flush=True)
@@ -171,7 +174,7 @@ def main():
     done = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {pool.submit(check_one, asset, sha, assets, result, args.size_only): asset
-                   for _pkg, asset, sha in records}
+                   for _pkg, asset, sha, _rec in records}
         for future in concurrent.futures.as_completed(futures):
             future.result()
             done += 1
@@ -179,8 +182,21 @@ def main():
                 print(f"   [{done}/{len(records)}] ok={result.ok} 错={len(result.wrong)} "
                       f"缺={len(result.missing)} 异常={len(result.error)}", flush=True)
 
-    used = {a for _, a, _ in records}
+    used = {a for _, a, _, _ in records}
     result.no_record = sorted(set(assets) - used)
+
+    if args.fix and result.wrong:
+        by_asset = {a: r for _p, a, _s, r in records}
+        changed = 0
+        for asset, _want, got, _es, _rs in result.wrong:
+            record = by_asset[asset]
+            text = record.read_text(errors="replace")
+            new_text = re.sub(r'^sha256:\s*"[a-f0-9]+"', f'sha256: "{got}"',
+                              text, count=1, flags=re.M)
+            if new_text != text:
+                record.write_text(new_text, errors="replace")
+                changed += 1
+        print(f"🔧 已把 {changed} 条记录的 sha256 改成 Release 上的实际值")
 
     print()
     if result.wrong:
