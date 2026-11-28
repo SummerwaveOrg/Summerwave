@@ -471,27 +471,15 @@ git push origin 4.1
 - 密钥：私钥一律不进仓库、不进 CI、不进 Actions secret。签名只在本机做，CI 只负责验
 - 用户协议：正文在 `Pages` 仓库的 `agreement/*.md`，官网 `https://summerwave.org/#agreement`
   那节的落款日期就是协议标识。改协议要**同时**改官网正文与 `lib/selfupdate.py` 的
-  `AGREEMENT_ID`，两边日期不一致的后果是「问的是新协议、记下的却是旧标识」，下次再问一遍。
-  `AGREEMENT_INTRODUCED_IN` 是「第一版带上这份协议的版本」（现行文本是 4.6.0，
-  之前是 4.4.0）：装得比它早、或正是它的，自更新时问一次；同意与否记在配置目录的
-  `AGREEMENT.json`，不同意就中止。
-  **但 `lib/selfupdate.py` 里那道判断只对「已经带着新常量的客户端」有效**：升级时跑的
-  是**已装那一版**的 `selfupdate.py`，它的常量永远是旧的，于是「记录里就是这一版」
-  直接放行 —— 2026-11-24 的 4.5.2 → 4.6.0 就是这么漏掉提问的（新协议一次都没被问到）。
-  真正生效的闸门在 `scripts/update_commands.template.sh` 的 `agreement_gate()`：那份脚本
-  由客户端从**目标分支**拉下来执行，协议标识由生成器从 `<ref>:lib/selfupdate.py` 抄进
-  生成物（`AGREEMENT_ID` 仍只有一处来源）。改协议时因此**不必**改生成器或模板，但必须
-  重新生成该版本的 `update_commands.sh` 并重签 `latest.toml`，否则老客户端还是不会问。
-  **4.6.0 起项目许可证是 Apache-2.0**（`LICENSE` + `NOTICE`，随 `info/` 一起下发到
-  安装树）。许可证的变更会影响使用者手里的权利，所以它算协议变更：改许可证必须
-  同时换 `AGREEMENT_ID`（官网落款日期）与 `AGREEMENT_INTRODUCED_IN`。
-  **界线在 `4.5.2` / `4.6.0` 之间，而且只向前生效**：`1.0.0`–`4.5.2` 是按 MIT 发布的，
-  继续按 MIT 算，已发布的版本不会被追溯改协议；Apache-2.0 从 `4.6.0` 开始。两份 README
-  的「License / 许可证」一节、`NOTICE` 与这里必须说同一件事 —— 三个地方各写一句不同的
-  口径，用户按哪份理解都算数，那才是真麻烦。LinuxWave 同理：`4.6.0` 起同步升到
-  Apache-2.0，界线与 MacWave 对齐（`1.0.0`–`4.5.2` 是 MIT）。
-  **`install.sh` 问完也要写这个文件**（标识从装好的 `lib/selfupdate.py` 里读，不另抄一份
-  日期）：不写的话「已记录你的同意」是假话，而且下一次 `wave selfupdate` 会再问一遍
+  `AGREEMENT_URL` 指向的那一节。
+  **0.1.0 起没有协议闸门**：没有 `AGREEMENT.json`、没有「已同意过」这种状态、没有
+  `AGREEMENT_INTRODUCED_IN` 这类版本判定。全新安装时 `install.sh` 问一次
+  「Have you read and agreed …?」，按下 y 就是同意；`wave selfupdate` 只打印一句协议
+  地址。理由写在 `lib/selfupdate.py`：把同意写进磁盘读回来，只是给自己制造一个
+  「记录过期了要不要再问」的问题。
+- 许可证：**Apache License 2.0**（`LICENSE` + `NOTICE`，随 `info/` 一起下发到安装树）。
+  README 的中英两份、`NOTICE`、这里必须说同一件事 —— 三处各写一句不同口径，
+  用户按哪份理解都算数，那才是真麻烦。
 - beta：`latest.toml` 永不写 beta；装 beta 只能带
   `MACWAVE_VERSION=<版本> MACWAVE_BRANCH=<分支>` 跑对应 tag 的 `install.sh`
   （不带变量装到的是正式版）；beta 上 `wave selfupdate` 一律拒绝，回稳定线也是重装

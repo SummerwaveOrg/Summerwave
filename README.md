@@ -685,22 +685,9 @@ The project requires about **¥349 CNY (about $52 USD)** per month to keep runni
 
 ## 🌊 License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for the full text, and [NOTICE](NOTICE) for the attribution note. Packages that Summerwave installs keep their own licenses.
-
-License by release:
-
-| Versions | License |
-| :--- | :--- |
-| `1.0.0` – `4.5.2` | MIT |
-| `4.6.0` – `4.7.x`, and **`0.1.0` and later** | Apache License 2.0 |
-
-Everything up to and including `4.5.2` was published under the MIT License and stays under it:
-nothing is retroactively relicensed. `4.6.0` is where the Apache-2.0 terms begin, which is also
-why that release asks you to accept the agreement again.
-
-> **`0.1.x` is Apache-2.0.** The version numbering was restarted at `0.1.0`, so the number is
-> smaller than `4.6.0` while the release is newer — compare by release date, not by version
-> number, when crossing that point.
+Summerwave is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for
+the full text, and [NOTICE](NOTICE) for the attribution note. Packages that Summerwave installs
+keep their own licenses.
 
 ## 🌊 Contact Us
 
