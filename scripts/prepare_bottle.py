@@ -372,13 +372,17 @@ def apply_has_prefix(target, install_prefix):
     return touched, leftovers
 
 
-def install_prefix_for(kind, name, version):
-    """安装后的绝对路径：<安装根>/Shore/<名>/<版本>（根写死，所以构建时就能算）。"""
+def install_root():
+    """安装根（写死的那个，构建时就能算）。"""
     base = os.environ.get("MACWAVE_PREBUILT_PREFIX_ROOT", "")
     if not base:
         base = platforminfo.DEFAULT_BASE_DIR if platforminfo.IS_MAC else "/home/linuxwave/.linuxwave"
-    base = base.rstrip("/")
-    return f"{base}/Shore/{name}/{version}"
+    return base.rstrip("/")
+
+
+def install_prefix_for(kind, name, version):
+    """安装后的绝对路径：<安装根>/Shore/<名>/<版本>（根写死，所以构建时就能算）。"""
+    return f"{install_root()}/Shore/{name}/{version}"
 
 
 # 解压 staging 之后、打包之前，产物里绝不能出现「本次解压用的临时路径」——
@@ -529,7 +533,20 @@ def prepare(infosource, kind, name, version, arch, out_dir, keep,
             sys.exit("🌊 Error: staging tree is still not position-independent")
 
         # 2.5 conda 的占位前缀 → 安装后的绝对路径（.pc / wrapper / 编译进去的资源目录）
+        #
+        # **依赖也要处理**：产物里是一整棵树（stage/Shore/<名>/<版本>/），依赖装在自己的
+        # 目录下，各有各的 info/has_prefix。只处理最外层的话，依赖里的
+        # `_h_env_placehold…` 会留到用户机上（.pc 指向构建机、wrapper 跑到不存在的路径）。
         touched, leftovers = apply_has_prefix(target, install_prefix_for(kind, name, version))
+        root = install_root()
+        for dep_dir in sorted((stage / "Shore").glob("*/*")):
+            if not dep_dir.is_dir() or dep_dir.resolve() == target.resolve():
+                continue
+            dep_name, dep_version = dep_dir.parent.name, dep_dir.name
+            dep_touched, dep_left = apply_has_prefix(
+                dep_dir, f"{root}/Shore/{dep_name}/{dep_version}")
+            touched += dep_touched
+            leftovers += [f"Shore/{dep_name}/{dep_version}/{item}" for item in dep_left]
         if touched:
             print(f"🌊 rewrote prefixes in {touched} file(s) listed by info/has_prefix")
         if leftovers:

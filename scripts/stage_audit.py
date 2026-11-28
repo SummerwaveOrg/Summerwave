@@ -209,6 +209,11 @@ def _check_build_paths(report, entries, read_bytes):
     for rel, kind, payload in entries:
         if kind != "file":
             continue
+        # `info/` 是 conda 的安装元数据（paths.json、has_prefix、recipe 之类），
+        # 运行时一个字节都不会读到。它们**记录**着替换前的占位符是正常的 ——
+        # 在这里报错只会逼人去改元数据，而真正该改的是 has_prefix 点名的文件。
+        if "/info/" in rel or rel.startswith("info/"):
+            continue
         data = read_bytes(rel, payload)
         if data is None:
             continue
@@ -297,7 +302,7 @@ def _run_capture(argv, timeout=SUBPROCESS_TIMEOUT):
     """
     try:
         proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                stdin=subprocess.DEVNULL, text=True)
+                                stdin=subprocess.DEVNULL, text=True, errors="replace")
     except OSError as exc:
         return None, "", str(exc), False
     try:

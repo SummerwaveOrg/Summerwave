@@ -165,7 +165,7 @@ def iter_macho(root):
 
 
 def run(argv):
-    result = subprocess.run(argv, capture_output=True, text=True)
+    result = subprocess.run(argv, capture_output=True, text=True, errors="replace")
     return result.returncode, result.stdout
 
 
@@ -381,7 +381,7 @@ def apply_actions(actions, sign):
                 argv += ["-id", new]
         argv.append(file_path)
 
-        result = subprocess.run(argv, capture_output=True, text=True)
+        result = subprocess.run(argv, capture_output=True, text=True, errors="replace")
         if result.returncode != 0:
             reason = result.stderr.strip().splitlines()
             failures.append((file_path, reason[0] if reason else "install_name_tool failed"))
@@ -390,7 +390,7 @@ def apply_actions(actions, sign):
         if sign:
             result = subprocess.run(
                 ["codesign", "--force", "--sign", "-", file_path],
-                capture_output=True, text=True,
+                capture_output=True, text=True, errors="replace",
             )
             if result.returncode != 0:
                 failures.append((file_path, "codesign failed"))
