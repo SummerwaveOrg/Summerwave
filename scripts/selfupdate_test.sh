@@ -84,15 +84,15 @@ trap 'kill "$SU_SERVER_PID" 2>/dev/null; wait "$SU_SERVER_PID" 2>/dev/null; rm -
 SU_RELEASE_ROOT="$SU_WORK/release"
 SU_TAG="v4.0.1@2026-01-01T00:00Z"
 SU_VERSION="4.0.1"
-mkdir -p "$SU_RELEASE_ROOT/releases/tags" "$SU_RELEASE_ROOT/releases/assets"
+mkdir -p "$SU_RELEASE_ROOT/tags" "$SU_RELEASE_ROOT/download" "$SU_RELEASE_ROOT/assets"
 
 # 安装器本体：被执行就留下一个标记文件，供断言「到底跑没跑」
 INSTALLER_MARKER="$SU_WORK/installer-ran"
 {
     printf '#!/bin/bash\n'
     printf 'touch "%s"\n' "$INSTALLER_MARKER"
-} > "$SU_RELEASE_ROOT/releases/assets/1"
-: > "$SU_RELEASE_ROOT/releases/assets/2"     # .sig：文件头放开了验签，内容不重要
+} > "$SU_RELEASE_ROOT/download/install.sh"
+: > "$SU_RELEASE_ROOT/download/install.sh.sig"     # .sig：文件头放开了验签，内容不重要
 
 # 造一次「发布了 <tag>」：latest 指针 + tag 详情 + 两个资产
 create_release() {
@@ -105,8 +105,8 @@ import sys
 
 tag, body, root = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
 item = {"tag_name": tag, "prerelease": False, "draft": False, "body": body}
-(root / "releases" / "latest").write_text(json.dumps(item))
-(root / "releases" / "tags" / tag).write_text(json.dumps(dict(item, assets=[
+(root / "latest").write_text(json.dumps(item))
+(root / "tags" / tag).write_text(json.dumps(dict(item, assets=[
     {"name": "install.sh", "id": 1},
     {"name": "install.sh.sig", "id": 2},
 ])))
@@ -126,14 +126,14 @@ python3 -m http.server "$SU_PORT" --bind 127.0.0.1 --directory "$SU_RELEASE_ROOT
     > /dev/null 2>&1 &
 SU_SERVER_PID=$!
 for _ in $(seq 100); do
-    curl -fsS "http://127.0.0.1:$SU_PORT/releases/latest" > /dev/null 2>&1 && break
+    curl -fsS "http://127.0.0.1:$SU_PORT/latest" > /dev/null 2>&1 && break
     sleep 0.1
 done
 
 export SUMMERWAVE_RELEASE_DOMAIN="http://127.0.0.1:$SU_PORT"
 
 # 假站点必须真的能应答，否则后面每一段都会以「连不上」变红，分不清是谁的问题
-if ! curl -fsS "$SUMMERWAVE_RELEASE_DOMAIN/releases/latest" > /dev/null; then
+if ! curl -fsS "$SUMMERWAVE_RELEASE_DOMAIN/latest" > /dev/null; then
     echo "fixture error: the fake release site is not answering" >&2
     exit 1
 fi
@@ -466,7 +466,7 @@ os.environ["SUMMERWAVE_RELEASE_DOMAIN"] = "https://mirror.example.com/Summerwave
 check("镜像域名判定为非 GitHub", selfupdate.is_github_release_api() is False)
 real_download("install.sh", "v0.1.2", os.path.join(work, "never"))
 check("镜像按文件名拼 URL",
-      seen.get("url", "").endswith("/releases/download/v0.1.2/install.sh"),
+      seen.get("url", "").endswith("/download/v0.1.2/install.sh"),
       seen.get("url", ""))
 
 os.environ["SUMMERWAVE_RELEASE_DOMAIN"] = \

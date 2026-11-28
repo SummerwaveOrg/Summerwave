@@ -295,22 +295,22 @@ release_publish() {
     local dest="$DEST/release" tag name dir
 
     if (( DRY_RUN )); then
-        note "演练模式：会同步 release 的 latest / tags / 资产到 $dest"
+        note "演练模式：会同步 release 的 latest / tags / download / assets 到 $dest"
         return 0
     fi
 
-    mkdir -p "$dest/releases/tags" "$dest/releases/download" "$dest/releases/assets" || return 1
+    mkdir -p "$dest/tags" "$dest/download" "$dest/assets" || return 1
 
-    curl -fsSL --max-time 60 "$api/releases/latest" -o "$dest/releases/latest" || return 1
+    curl -fsSL --max-time 60 "$api/releases/latest" -o "$dest/latest" || return 1
     tag=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"])' \
-          "$dest/releases/latest" 2>/dev/null)
+          "$dest/latest" 2>/dev/null)
     if [[ -z "$tag" ]]; then
         note "读不到 latest 的 tag_name，release 这一块跳过"
         return 1
     fi
-    curl -fsSL --max-time 60 "$api/releases/tags/$tag" -o "$dest/releases/tags/$tag" || return 1
+    curl -fsSL --max-time 60 "$api/releases/tags/$tag" -o "$dest/tags/$tag" || return 1
 
-    dir="$dest/releases/download/$tag"
+    dir="$dest/download/$tag"
     mkdir -p "$dir" || return 1
     for name in install.sh install.sh.sig; do
         curl -fsSL --max-time 300 \
@@ -326,16 +326,16 @@ import shutil
 import sys
 
 dest, tag = pathlib.Path(sys.argv[1]), sys.argv[2]
-info = json.loads((dest / "releases" / "tags" / tag).read_text(encoding="utf-8"))
+info = json.loads((dest / "tags" / tag).read_text(encoding="utf-8"))
 linked = 0
 for asset in info.get("assets", []):
     name, aid = asset.get("name"), asset.get("id")
     if not name or not aid:
         continue
-    src = dest / "releases" / "download" / tag / name
+    src = dest / "download" / tag / name
     if not src.is_file():
         continue
-    dst = dest / "releases" / "assets" / str(aid)
+    dst = dest / "assets" / str(aid)
     if dst.exists() or dst.is_symlink():
         dst.unlink()
     try:

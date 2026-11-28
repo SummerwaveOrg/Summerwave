@@ -232,15 +232,14 @@ RELEASE_REPO = "SummerwaveOrg/Summerwave"
 
 
 def is_github_release_api():
-    """发布接口是不是 GitHub 官方那台。
+    """发布接口是不是 GitHub 官方那台（判定只有一处，在 net/domains.py）。
 
     形状不同决定了资产怎么寻址：
       * GitHub：`/releases/assets/<id>` —— id 是 GitHub 分配的整数，静态镜像
         造不出来，所以只能按 id 取；
-      * 镜像：`/releases/download/<tag>/<文件名>` —— 与 `github.com/<repo>/releases/
-        download/...` 同形，静态站把文件摆好即可。
+      * 镜像：`/download/<tag>/<文件名>` —— 域名根就是发布数据的根，把文件摆好即可。
     """
-    return domains.release_api_base().startswith("https://api.github.com/")
+    return domains.is_github_release()
 
 
 def _asset_ids(tag):
@@ -250,7 +249,7 @@ def _asset_ids(tag):
     github.com/…/releases/download/…，而那个域名在校园网与家宽上十次有三次连不上。
     api 这条一直通，且拿到 id 之后可以用 octet-stream 直接取字节。
     """
-    url = f"{domains.release_api_base()}/releases/tags/{tag}"
+    url = domains.release_path("tags", tag)
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(request, timeout=30, **tls.urlopen_kwargs()) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -266,12 +265,11 @@ def _download_asset(asset, tag, destination):
     先写 .part 再 rename：中途断网不能留下半个 install.sh —— 下一次 `wave selfupdate`
     会把它当成完好的脚本执行。
     """
-    base = domains.release_api_base()
     if is_github_release_api():
-        url = f"{base}/releases/assets/{asset}"
+        url = domains.release_path("assets", asset)
         headers = {"Accept": "application/octet-stream"}
     else:
-        url = f"{base}/releases/download/{tag}/{asset}"
+        url = domains.release_path("download", tag, asset)
         headers = {}
     request = urllib.request.Request(url, headers=headers)
     part = destination + ".part"
@@ -371,8 +369,8 @@ def run_installer(tag, environment, overall_timeout):
             _download_asset(targets["install.sh.sig"], tag, signature)
         except (urllib.error.URLError, OSError) as error:
             print(f"{RED_BOLD}🌊 Error: cannot download the installer: {error}{RESET}")
-            print(f"{RED_BOLD}🌊 Mirror layout: {domains.release_api_base()}"
-                  f"/releases/download/{tag}/install.sh{RESET}")
+            print(f"{RED_BOLD}🌊 Mirror layout: "
+                  f"{domains.release_path('download', tag, 'install.sh')}{RESET}")
             sys.exit(1)
 
         pub = _trusted_pub()

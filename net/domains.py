@@ -309,14 +309,38 @@ def release_api_base():
     return domain("release") or f"https://api.github.com/repos/{RELEASE_REPO}"
 
 
+def is_github_release():
+    """发布接口是不是 GitHub 官方那台。
+
+    GitHub 的资源挂在 `/releases/…` 下面（那是它的 API 形状），而**镜像的域名根
+    就是「发布数据」的根** —— 不该逼着镜像去模仿一层它没有的目录。所以路径前缀
+    按域名决定：
+        GitHub  <base>/releases/latest、<base>/releases/tags/<tag>…
+        镜像    <base>/latest、<base>/tags/<tag>…
+    """
+    return release_api_base().startswith("https://api.github.com/")
+
+
+def release_path(*parts):
+    """拼发布数据的相对路径；GitHub 多一层 `releases/`，镜像不需要。"""
+    tail = "/".join(str(part).strip("/") for part in parts if str(part).strip("/"))
+    return f"{release_api_base()}/{'releases/' if is_github_release() else ''}{tail}"
+
+
 def release_latest_url():
     """正式渠道的最新发布（GitHub 会跳过 prerelease 与 draft）。"""
-    return f"{release_api_base()}/releases/latest"
+    return release_path("latest")
 
 
 def release_list_url(per_page=30):
-    """最近若干发布；预览渠道要在这份列表里挑最新的预发布。"""
-    return f"{release_api_base()}/releases?per_page={per_page}"
+    """最近若干发布；预览渠道要在这份列表里挑最新的预发布。
+
+    GitHub 用 `?per_page=`；镜像给的是静态文件，约定为 `list/<N>`（N 是页大小），
+    省得静态站去解析查询串。
+    """
+    if is_github_release():
+        return f"{release_api_base()}/releases?per_page={per_page}"
+    return release_path("list", per_page)
 
 
 # -------------------- 自带解释器 --------------------
