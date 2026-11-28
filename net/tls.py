@@ -154,6 +154,31 @@ def request_kwargs():
     return {"verify": cacert} if cacert else {}
 
 
+def user_agent():
+    """客户端标识，所有出站请求都带：`Summerwave/<版本> (<os>-<arch>)`。
+
+    用途是让镜像与上游的访问日志能分开「真客户端」和脚本循环 —— 没有它，日志里
+    只剩 `Python-urllib/3.x` 和 `curl/8.x`，滥用与正常用户长得一模一样，出事时
+    无从取证。**它不是门槛**：服务端不该只放行这个 UA，否则用户手动 curl 排查
+    问题就会失败。
+
+    读不到版本号时写 `unknown`，不猜、不省略 —— 半个标识比没有更糟。
+    """
+    try:
+        import configpaths
+
+        version = configpaths.installed_version() or "unknown"
+    except Exception:
+        version = "unknown"
+    try:
+        import platforminfo
+
+        tag = platforminfo.bottle_tag()
+    except Exception:
+        tag = "unknown"
+    return f"Summerwave/{version} ({tag})"
+
+
 def curl_flags():
     """给 curl 的等价旗标：`-k` 对应 verify=False，`--cacert` 对应 verify=<pem>。"""
     if _enabled:

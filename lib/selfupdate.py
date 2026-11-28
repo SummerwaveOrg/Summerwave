@@ -93,7 +93,9 @@ def fetch_text(url, budget, raws=()):
     LAST_ERROR = ""
     if not raws and not domains._has_userinfo(url):
         try:
-            with urllib.request.urlopen(url, timeout=budget.total,
+            request = urllib.request.Request(
+                url, headers={"User-Agent": tls.user_agent()})
+            with urllib.request.urlopen(request, timeout=budget.total,
                                         **tls.urlopen_kwargs()) as response:
                 return response.read().decode()
         except (urllib.error.URLError, UnicodeDecodeError, OSError) as error:
@@ -250,7 +252,8 @@ def _asset_ids(tag):
     api 这条一直通，且拿到 id 之后可以用 octet-stream 直接取字节。
     """
     url = domains.release_path("tags", tag)
-    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json", "User-Agent": tls.user_agent()})
     with urllib.request.urlopen(request, timeout=30, **tls.urlopen_kwargs()) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return {asset.get("name"): asset.get("id") for asset in payload.get("assets", [])}
@@ -271,6 +274,7 @@ def _download_asset(asset, tag, destination):
     else:
         url = domains.release_path("download", tag, asset)
         headers = {}
+    headers["User-Agent"] = tls.user_agent()
     request = urllib.request.Request(url, headers=headers)
     part = destination + ".part"
     try:

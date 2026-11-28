@@ -957,31 +957,141 @@ bantime  = 600       # 封短一点：误封时等 10 分钟就能重试
 nginx -t && nginx -s reload
 ```
 
-### 分级开放：哪些可以匿名
+### 完全匿名开放：能，但限流必须整套换掉
 
-如果确实想让一部分内容不需要口令，按「体积 × 是否公开」分级：
+决定全站匿名（`auth_basic off`）是可以的，理由很实在：**镜像里没有一个字节需要保密**，
+全是公开仓库里的开源产物。而口令对客户端的伤害是持续的 —— 要把它塞进 URL、要跟用户解释、
+企业代理会剥掉 `Authorization` 头、日志里还会出现明文。
+
+> 本文前面几节（含[「别被打穿」](#别被打穿限速防爆破与校园网)）是按「有口令」写的。
+> **一旦匿名，那套配置不能照抄** —— 下面先讲为什么，再给替换版。
+
+#### 先拆掉这个雷：`$remote_user` 会变成空字符串
+
+前面的限流是这么写的：
 
 ```nginx
-# 公开代码与小文件：匿名
-location = /MacWave/core/lib/install.sh { auth_basic off; }
-
-# 大二进制：继续要认证
-location /MacWave/bottle/ { … }
+limit_conn_zone $remote_user zone=bottle_per_user:10m;
+limit_conn bottle_per_user 4;
 ```
 
-注意一旦匿名，`limit_conn $remote_user` 就失效了（没有用户名，全部落进空字符串
-同一个桶），只能退回按 IP —— 而校园网下按 IP 会误伤。这就是为什么**建议只放开
-`install.sh` 这类几十 KB 的文件**，Bottle 保持认证。
+它的正确性完全依赖 `auth_basic` 填上 `$remote_user`。匿名之后 `$remote_user` 恒为空串，
+**所有请求落进同一个桶** —— `limit_conn 4` 就变成「整个站点同时只允许 4 个连接」。
+症状是上线几分钟后全站 503，而且看起来像「服务器性能不行」，极难往限流上想。
 
-`install.sh` 还有一个零成本的去处：放 CDN，源站完全不承载它。
+所以匿名化的第一步，是把**全部** `$remote_user` 限流换成按 IP，并且按 NAT 的现实调阈值。
+
+#### 分层：先按体积分开，再谈限流
+
+一次安装要发几十个请求，其中绝大多数是**小文件**（索引记录、`latest.toml`、清单）。这些
+不能挡 —— 挡了就是「装不上」，而且它们加起来才几 MB，挡它省不下钱。
+
+真正吃流量的是大产物。拿 Bottle 实测（2026-11，872 个资产 ≈ 2.5 GB）：
+
+| 档位 | 典型文件 | 单次安装量 | 策略 |
+| --- | --- | --- | --- |
+| 索引/记录 | `versions`、`_jq@1.8.2.macos-arm64` | 几百 KB | **不限** |
+| 普通产物 | `jq@1.8.2.macos-arm64.tar.gz`（2–20 MB） | 10–50 MB | 温和限 |
+| 大包 | `ollama@*.tar.gz`（**172 MB**，占全站 40%） | 172 MB | 严限 + 降速 |
+
+`http { }` 里换掉那两行（宝塔：软件商店 → Nginx → 配置修改）：
+
+```nginx
+limit_conn_zone $binary_remote_addr zone=mw_conn:10m;
+limit_req_zone  $binary_remote_addr zone=mw_rate:10m rate=180r/m;
+limit_req_status 429;
+```
+
+站点 `server { }` 里：
+
+```nginx
+# 索引与记录：客户端启动必经，一个连接都不限
+location ~ ^/MacWave/(sealane|core/.+/info)/ {
+    auth_basic off;
+    add_header Cache-Control "public, max-age=300";
+}
+
+# 普通产物
+location ~* \.(tar\.gz|tgz|zip|tar\.bz2|tar\.xz|conda)$ {
+    auth_basic off;
+    limit_conn mw_conn 16;                    # 单 IP 16 条并发（NAT 出口要留量）
+    limit_req  zone=mw_rate burst=80 nodelay; # 突发 80，挡脚本循环但不伤正常安装
+    limit_rate_after 32m;                     # 前 32 MB 全速：一次正常安装不受影响
+    limit_rate 4m;                            # 超过之后降到 4 MB/s
+    add_header Cache-Control "public, max-age=31536000, immutable";
+}
+
+# 大包再压一档：装一次能用很久，慢点没关系
+location ~ /MacWave/bottle/(ollama|docker-compose|ipsw)/ {
+    limit_conn mw_conn 2;
+    limit_rate 2m;
+}
+```
+
+`limit_rate_after 32m` 是这套里最要紧的一行。它把「正常用户」和「循环刷」分开：正常装一次
+几十 MB，全程满速；而有人反复拉 172 MB 的 ollama，第一次之后每次都只有 2 MB/s，
+拉满一小时也才 7 GB。
+
+#### 按 IP 限流的代价，与怎么减轻
+
+校园网是 NAT 出口，几百人共用一个公网 IP。上面 `limit_conn 16` 意味着**整个校区共享 16 条**。
+如果镜像的主要用户群体就是校园网，把它抬到 64；如果主要是分散的个人宽带，16 足够。
+
+没有两全的算法，只有权衡：**匿名 + 按 IP** 本身就意味着「NAT 后面的人互相影响」。
+真要彻底解决，就只能把静态文件挪出源站 —— 见下一节。
+
+#### 真正的解法：让源站不承载大文件
+
+带宽是一次性资源，自己的机器再怎么限也是有限的。872 个产物、2.5 GB，放到对象存储后
+源站只出索引（几百 KB）：
+
+| 方案 | 出口费用 | 国内速度 | 备注 |
+| --- | --- | --- | --- |
+| **Cloudflare R2** | **0 元**（只收存储 $0.015/GB/月） | 一般 | 2.5 GB ≈ **$0.04/月**；Class B 读请求 $0.36/百万次 |
+| Backblaze B2 + Cloudflare | 0 元（10 GB 内） | 一般 | 与 R2 类似，配置略繁琐 |
+| 国内 OSS/COS + CDN | 按 GB 计费 | **快** | 需备案 + 实名，流量费实在 |
+| jsDelivr（仅适合小文件） | 0 元 | 快 | 已用于 `install.sh`；有单文件 20 MB 上限，产物放不了 |
+
+**务实的组合**：索引与 `install.sh` 留在自己服务器（快、可控），`bottle/`、`deps/`
+的下载地址指向 R2。client 侧不需要改 —— 镜像本来就是「域名根 + 固定路径」，
+换一个域名即可。
+
+#### 客户端要能被认出来：UA
+
+匿名之后日志里会混进所有人。如果客户端不自报家门，日志里全是 `Python-urllib/3.x` 和
+`curl/8.x`，**真用户和爬虫长得一模一样**，出事时无从下手。
+
+所以客户端所有请求都带：
+
+```
+User-Agent: Summerwave/<版本> (<os>-<arch>)
+```
+
+它的用途是**统计与取证**，不是门槛 —— 不要写成「只放行 Summerwave」，否则用户拿
+`curl` 手动下载就失败，而手动下载恰恰是排查问题时最常用的一步。
+
+有了 UA 就可以做「宽松配额 + 日志审计」：
 
 ```bash
-# 实测可达（本机到 github 不通时也能取到）
-/bin/bash -c "$(curl -fsSL https://fastly.jsdelivr.net/gh/MacWaveOrg/MacWave@v4.2.3/lib/install.sh)"
+# 今天有多少流量不是客户端发的
+grep "/MacWave/bottle/" /www/wwwlogs/<站点>.log \
+  | grep -vc "Summerwave/" 
 ```
 
-用 **tag**（`@v4.2.3`）而不是分支（`@4.2`）：tag 不可变，不会被悄悄换内容；
-jsDelivr 对分支引用有缓存，改了代码会有一段时间读到旧的。
+#### 上线后必须做的一件事
+
+匿名站点的成本不会自己暴露。每天算一次出口流量，超预算就自动降档：
+
+```bash
+# 宝塔「任务计划」→ Shell 脚本，每天 03:00
+BYTES=$(grep "/MacWave/" /www/wwwlogs/<站点>.log | awk '{s+=$10} END {print s+0}')
+if [ "$BYTES" -gt $((80*1024*1024*1024)) ]; then
+    sed -i 's/^    limit_rate .*/    limit_rate 512k;/' /www/server/panel/vhost/nginx/extension/<站点>/mw.conf
+    nginx -s reload
+fi
+```
+
+限速只能让单个人慢下来，**发现不了「两百个人在用同一个地址」** —— 只有流量曲线能。
 
 ### 最后一道：看流量曲线
 

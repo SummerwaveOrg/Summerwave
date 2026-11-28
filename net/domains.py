@@ -426,7 +426,9 @@ def fetch_text(url, timeout=30):
 
     if not _has_userinfo(url):
         try:
-            with urllib.request.urlopen(url, timeout=timeout,
+            request = urllib.request.Request(
+                url, headers={"User-Agent": tls.user_agent()})
+            with urllib.request.urlopen(request, timeout=timeout,
                                         **tls.urlopen_kwargs()) as response:
                 return response.read().decode()
         except (urllib.error.URLError, UnicodeDecodeError, OSError):
@@ -434,6 +436,7 @@ def fetch_text(url, timeout=30):
 
     result = subprocess.run(["curl", "-fsSL", "--max-time", str(max(1, int(timeout))),
                              "--retry", "2", "--retry-delay", "2", "--retry-connrefused",
+                             "--user-agent", tls.user_agent(),
                              *tls.curl_flags(), url],
                             capture_output=True, text=True)
     if result.returncode != 0:

@@ -448,6 +448,21 @@ home_to_homevar() {
 
 ARCH=$(uname -m)
 
+# 出站请求的标识。镜像与上游的日志靠它把「真客户端」和脚本循环分开；
+# 没有它，日志里只有 curl/x.y，滥用与正常用户无从分辨。**不是门槛** ——
+# 服务端不该只放行它，否则用户手动 curl 排查问题就会失败。
+case "$ARCH" in
+    x86_64|amd64) MW_ARCH_TAG=amd64 ;;
+    arm64|aarch64) MW_ARCH_TAG=arm64 ;;
+    *) MW_ARCH_TAG="$ARCH" ;;
+esac
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    MW_OS_TAG=macos
+else
+    MW_OS_TAG=linux
+fi
+CURL_AGENT="Summerwave/${MACWAVE_VERSION:-unknown} (${MW_OS_TAG}-${MW_ARCH_TAG})"
+
 # ==========================================
 # 下载（--raw 时带井号刻度）
 # ==========================================
@@ -466,13 +481,13 @@ mw_download() {
     local header_args=()
     while [[ $# -gt 0 ]]; do header_args+=(-H "$1"); shift; done
     if ! mw_raw; then
-        curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+        curl -fsSL --max-time "$cap" --user-agent "$CURL_AGENT" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
             ${header_args[@]+"${header_args[@]}"} -o "$out" "$url"
         return $?
     fi
 
     # 先问一次长度。HEAD 失败不算错：拿不到就按 MiB 打刻度。
-    total="$(curl -fsSI --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+    total="$(curl -fsSI --max-time "$cap" --user-agent "$CURL_AGENT" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
         ${header_args[@]+"${header_args[@]}"} "$url" 2>/dev/null \
         | tr -d '\r' | tr 'A-Z' 'a-z' | awk -F': *' '$1=="content-length"{print $2}' | tail -n 1)"
     case "$total" in
@@ -486,7 +501,7 @@ mw_download() {
     fi
 
     rm -f "$out" 2>/dev/null || true
-    curl -fsSL --max-time "$cap" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
+    curl -fsSL --max-time "$cap" --user-agent "$CURL_AGENT" ${CURL_CACERT:+--cacert "$CURL_CACERT"} \
         ${header_args[@]+"${header_args[@]}"} -o "$out" "$url" & pid=$!
     while kill -0 "$pid" 2>/dev/null; do
         size=$(wc -c < "$out" 2>/dev/null | tr -d ' ')
