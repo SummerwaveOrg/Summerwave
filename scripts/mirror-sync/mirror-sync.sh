@@ -258,7 +258,7 @@ done
 note "当前发布线 ${CUR}，额外保留 ${KEEP_BRANCHES:-（无）}"
 
 hr
-mw_say "第 2/6 步 · 同步三棵主干"
+mw_say "第 2/6 步 · 同步索引、解释器与发布接口"
 # SeaLane（索引仓）要铺进一层 `HEAD/`：客户端默认地址是
 # `…/SummerwaveOrg/SeaLane/HEAD`（HEAD 是默认分支的别名），拼路径时直接接
 # `<名>/_<名>@<版本>.macos-<arch>`（0.1.0 起单一命名空间，平台标签编在记录名里）。站点上那层
@@ -282,7 +282,74 @@ infosource_publish() {
     return 0
 }
 infosource_publish
-tree selfupdate Selfupdate main "$DEST/selfupdate"
+# 发布接口（自更新用）。0.1.0 起没有 Selfupdate 仓库了：该装哪一版来自 GitHub 的
+# release，资产是 install.sh 与它的 .sig。
+#
+# 两种路径都铺：
+#   <release>/releases/download/<tag>/install.sh   ← 镜像模式（按文件名）
+#   <release>/releases/assets/<id>                 ← 与 GitHub 完全同形
+# 第二条是硬链接，不占第二份空间；这样「一套拼接规则通吃」也成立 —— 用户把
+# SUMMERWAVE_RELEASE_DOMAIN 指过来之后，无论客户端拼 id 还是拼文件名都能取到。
+release_publish() {
+    local api="https://api.github.com/repos/SummerwaveOrg/Summerwave"
+    local dest="$DEST/release" tag name dir
+
+    if (( DRY_RUN )); then
+        note "演练模式：会同步 release 的 latest / tags / 资产到 $dest"
+        return 0
+    fi
+
+    mkdir -p "$dest/releases/tags" "$dest/releases/download" "$dest/releases/assets" || return 1
+
+    curl -fsSL --max-time 60 "$api/releases/latest" -o "$dest/releases/latest" || return 1
+    tag=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"])' \
+          "$dest/releases/latest" 2>/dev/null)
+    if [[ -z "$tag" ]]; then
+        note "读不到 latest 的 tag_name，release 这一块跳过"
+        return 1
+    fi
+    curl -fsSL --max-time 60 "$api/releases/tags/$tag" -o "$dest/releases/tags/$tag" || return 1
+
+    dir="$dest/releases/download/$tag"
+    mkdir -p "$dir" || return 1
+    for name in install.sh install.sh.sig; do
+        curl -fsSL --max-time 300 \
+            "https://github.com/SummerwaveOrg/Summerwave/releases/download/$tag/$name" \
+            -o "$dir/$name" || return 1
+    done
+
+    python3 - "$dest" "$tag" <<'PY_RELEASE'
+import json
+import os
+import pathlib
+import shutil
+import sys
+
+dest, tag = pathlib.Path(sys.argv[1]), sys.argv[2]
+info = json.loads((dest / "releases" / "tags" / tag).read_text(encoding="utf-8"))
+linked = 0
+for asset in info.get("assets", []):
+    name, aid = asset.get("name"), asset.get("id")
+    if not name or not aid:
+        continue
+    src = dest / "releases" / "download" / tag / name
+    if not src.is_file():
+        continue
+    dst = dest / "releases" / "assets" / str(aid)
+    if dst.exists() or dst.is_symlink():
+        dst.unlink()
+    try:
+        os.link(src, dst)          # 同一文件系统：不占第二份空间
+    except OSError:
+        shutil.copyfile(src, dst)  # 跨设备时才真复制
+    linked += 1
+print(linked)
+PY_RELEASE
+
+    note "release ${tag} 已同步（latest / tags / download / assets）"
+    return 0
+}
+release_publish || note "release 同步失败：自更新会回落到 api.github.com"
 # pythondata/<版本>/*.tar.gz 是自带解释器的产物，仓库里没有（二进制不进 git），
 # 由下一步单独补。这里不排除的话，--delete 会先把它删掉，镜像就装不了解释器。
 tree python     Python     main "$DEST/python" '*.tar.gz'
