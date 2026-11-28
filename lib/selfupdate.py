@@ -231,10 +231,22 @@ def probe_is_newer(data, current, current_build):
 RELEASE_REPO = "SummerwaveOrg/Summerwave"
 
 
-def _asset_ids(tag):
-    """查一次 Release，返回 {资产名: asset id}。
+def is_github_release_api():
+    """发布接口是不是 GitHub 官方那台。
 
-    **必须走 api.github.com**：发布资产的规范地址是
+    形状不同决定了资产怎么寻址：
+      * GitHub：`/releases/assets/<id>` —— id 是 GitHub 分配的整数，静态镜像
+        造不出来，所以只能按 id 取；
+      * 镜像：`/releases/download/<tag>/<文件名>` —— 与 `github.com/<repo>/releases/
+        download/...` 同形，静态站把文件摆好即可。
+    """
+    return domains.release_api_base().startswith("https://api.github.com/")
+
+
+def _asset_ids(tag):
+    """查一次 Release，返回 {资产名: asset id}；镜像模式下返回空（用不着）。
+
+    **默认必须走 api.github.com**：发布资产的规范地址是
     github.com/…/releases/download/…，而那个域名在校园网与家宽上十次有三次连不上。
     api 这条一直通，且拿到 id 之后可以用 octet-stream 直接取字节。
     """
@@ -245,14 +257,23 @@ def _asset_ids(tag):
     return {asset.get("name"): asset.get("id") for asset in payload.get("assets", [])}
 
 
-def _download_asset(asset_id, destination):
+def _download_asset(asset, tag, destination):
     """下载一个发布资产到 destination。
+
+    asset 是 `_asset_ids` 给出的那一项：GitHub 模式下是 asset id，镜像模式下是
+    文件名本身（见 is_github_release_api 的说明）。
 
     先写 .part 再 rename：中途断网不能留下半个 install.sh —— 下一次 `wave selfupdate`
     会把它当成完好的脚本执行。
     """
-    url = f"{domains.release_api_base()}/releases/assets/{asset_id}"
-    request = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
+    base = domains.release_api_base()
+    if is_github_release_api():
+        url = f"{base}/releases/assets/{asset}"
+        headers = {"Accept": "application/octet-stream"}
+    else:
+        url = f"{base}/releases/download/{tag}/{asset}"
+        headers = {}
+    request = urllib.request.Request(url, headers=headers)
     part = destination + ".part"
     try:
         with urllib.request.urlopen(request, timeout=600, **tls.urlopen_kwargs()) as response, \
@@ -325,24 +346,33 @@ def run_installer(tag, environment, overall_timeout):
     pub = None
     try:
         print("🌊 Downloading the installer for this version...")
-        try:
-            assets = _asset_ids(tag)
-        except (urllib.error.URLError, ValueError) as error:
-            print(f"{RED_BOLD}🌊 Error: cannot read the release {tag}: {error}{RESET}")
-            sys.exit(1)
 
-        for name in ("install.sh", "install.sh.sig"):
-            if not assets.get(name):
-                print(f"{RED_BOLD}🌊 Error: the release {tag} has no {name}.{RESET}")
+        # 两种寻址：GitHub 只认 asset id（还要 octet-stream），静态镜像只认文件名。
+        # 镜像模式下不去查 releases/tags/<tag> —— 那一份 JSON 镜像不一定有，而
+        # 「有没有这个资产」本来就会在下载时以 404 的形式暴露。
+        if is_github_release_api():
+            try:
+                assets = _asset_ids(tag)
+            except (urllib.error.URLError, ValueError) as error:
+                print(f"{RED_BOLD}🌊 Error: cannot read the release {tag}: {error}{RESET}")
                 sys.exit(1)
+            targets = {name: assets.get(name) for name in ("install.sh", "install.sh.sig")}
+            for name, asset in targets.items():
+                if not asset:
+                    print(f"{RED_BOLD}🌊 Error: the release {tag} has no {name}.{RESET}")
+                    sys.exit(1)
+        else:
+            targets = {"install.sh": "install.sh", "install.sh.sig": "install.sh.sig"}
 
         script = os.path.join(work, "install.sh")
         signature = script + ".sig"
         try:
-            _download_asset(assets["install.sh"], script)
-            _download_asset(assets["install.sh.sig"], signature)
+            _download_asset(targets["install.sh"], tag, script)
+            _download_asset(targets["install.sh.sig"], tag, signature)
         except (urllib.error.URLError, OSError) as error:
             print(f"{RED_BOLD}🌊 Error: cannot download the installer: {error}{RESET}")
+            print(f"{RED_BOLD}🌊 Mirror layout: {domains.release_api_base()}"
+                  f"/releases/download/{tag}/install.sh{RESET}")
             sys.exit(1)
 
         pub = _trusted_pub()

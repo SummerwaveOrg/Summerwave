@@ -251,7 +251,7 @@ python3 "$WAVE_BIN" selfupdate --dry-run < /dev/null > "$LOG_FILE" 2>&1 || RC=$?
 cat "$LOG_FILE"
 
 DRY_OK=yes
-grep -q 'Dry run: MacWave would be updated from 4.0.0 to 4.0.1' "$LOG_FILE" || DRY_OK=no
+grep -q 'Dry run: Summerwave would be updated from 4.0.0 to 4.0.1' "$LOG_FILE" || DRY_OK=no
 grep -q 'Nothing was downloaded and nothing was changed' "$LOG_FILE" || DRY_OK=no
 # 真更新才会打印这句（run_installer 的第一行）
 grep -q 'Downloading the installer' "$LOG_FILE" && DRY_OK=no
@@ -321,6 +321,174 @@ cp "$SU_WORK/config.sh.bak" "$STATE_FILE"
 # ==========================================
 # 3.6 协议更新：装的是 4.4.0 或更早时必须问一次
 # ==========================================
+
+echo "========== 自更新：取 install.sh + 验签 + 执行 =========="
+#
+# 0.1.0 起自更新退化成「取目标 tag 的 install.sh 与它的 .sig、验签、执行」。这里
+# 盯住四条语义：
+#   ① 好签名 → 脚本真的被执行
+#   ② 签名对不上 → 不执行，且没有留下半个文件
+#   ③ 下载中断 → 不留残缺的 install.sh
+#   ④ 镜像模式下按**文件名**寻址（GitHub 才用 asset id）—— 国内必须能整条走镜像
+
+WORK_SU="$(mktemp -d)"
+PYTHONPATH="$(component_paths)" python3 - "$WORK_SU" <<'PY'
+import os
+import shutil
+import subprocess
+import sys
+
+work = sys.argv[1]
+import selfupdate  # noqa: E402
+
+failures = 0
+
+
+def check(label, ok, detail=""):
+    global failures
+    if ok:
+        print(f"  \u2705 {label}")
+    else:
+        failures += 1
+        print(f"  \u274c {label}" + (f"\uff08{detail}\uff09" if detail else ""))
+
+
+def make_keypair():
+    priv = os.path.join(work, "priv.pem")
+    pub = os.path.join(work, "pub.pem")
+    subprocess.run(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt",
+                    "rsa_keygen_bits:2048", "-out", priv], check=True, capture_output=True)
+    subprocess.run(["openssl", "pkey", "-in", priv, "-pubout", "-out", pub],
+                   check=True, capture_output=True)
+    return priv, pub
+
+
+priv, pub = make_keypair()
+real_download = selfupdate._download_asset
+
+# 开关读的是进程环境，测试里得直接清掉，否则「坏签名」那条会被放行
+os.environ.pop("MACWAVE_ALLOW_UNSIGNED", None)
+os.environ["MACWAVE_RSA_PUB"] = pub
+
+
+def sign(path):
+    sig = path + ".sig"
+    subprocess.run(["openssl", "dgst", "-sha256", "-sign", priv, "-out", sig, path],
+                   check=True, capture_output=True)
+    return sig
+
+
+def fake_release(script_path, sig_path):
+    """把取件换成本地文件，其余（验签、执行）照旧走真代码。"""
+    selfupdate._asset_ids = lambda tag: {"install.sh": 1, "install.sh.sig": 2}
+
+    def _download(asset, tag, destination):
+        # 签名是 (asset, tag, destination)：GitHub 模式 asset 是 id，镜像模式是文件名
+        shutil.copyfile(script_path if asset in (1, "install.sh") else sig_path, destination)
+
+    selfupdate._download_asset = _download
+
+
+def run(marker):
+    env = os.environ.copy()
+    env["PUB_MARKER"] = marker
+    return selfupdate.run_installer("v0.1.0@test", env, 60)
+
+
+# ① 好签名 → 执行
+script = os.path.join(work, "install.sh")
+marker = os.path.join(work, "ran")
+with open(script, "w", encoding="utf-8") as handle:
+    handle.write("#!/bin/bash\n: > " + marker + "\n")
+sig = sign(script)
+fake_release(script, sig)
+result = run(marker)
+check("好签名 → install.sh 真的被执行", result.returncode == 0 and os.path.exists(marker))
+
+# ② 数据被改 → 拒绝，且不执行
+if os.path.exists(marker):
+    os.unlink(marker)
+with open(script, "a", encoding="utf-8") as handle:
+    handle.write(": > /tmp/should-not-happen\n")
+fake_release(script, sig)
+try:
+    run(marker)
+    check("数据被改 → 拒绝执行", False, "居然没有退出")
+except SystemExit as error:
+    check("数据被改 → 拒绝执行", error.code == 1 and not os.path.exists(marker))
+
+# ③ 下载中断 → 不留半个文件（只换掉 urlopen，原子写那段是真代码）
+class _Boom:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, size=-1):
+        raise OSError("connection reset")
+
+
+selfupdate.urllib.request.urlopen = lambda *args, **kwargs: _Boom()
+dest = os.path.join(work, "atomic.bin")
+try:
+    real_download(3, "v0.1.2", dest)
+except OSError:
+    pass
+check("下载中断 → 目标文件不存在", not os.path.exists(dest))
+check("下载中断 → .part 被清掉",
+      not [n for n in os.listdir(work) if n.startswith("atomic.bin")])
+
+# ④ 镜像模式的寻址：GitHub 只认 asset id，静态站只认文件名
+saved = os.environ.get("SUMMERWAVE_RELEASE_DOMAIN")
+seen = {}
+
+
+class _Capture:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, *args):
+        return b""
+
+
+def _capture(request, **kwargs):
+    seen["url"] = getattr(request, "full_url", request)
+    return _Capture()
+
+
+selfupdate.urllib.request.urlopen = _capture
+
+os.environ["SUMMERWAVE_RELEASE_DOMAIN"] = "https://mirror.example.com/Summerwave"
+check("镜像域名判定为非 GitHub", selfupdate.is_github_release_api() is False)
+real_download("install.sh", "v0.1.2", os.path.join(work, "never"))
+check("镜像按文件名拼 URL",
+      seen.get("url", "").endswith("/releases/download/v0.1.2/install.sh"),
+      seen.get("url", ""))
+
+os.environ["SUMMERWAVE_RELEASE_DOMAIN"] = \
+    "https://api.github.com/repos/SummerwaveOrg/Summerwave"
+check("GitHub 域名判定为 GitHub", selfupdate.is_github_release_api() is True)
+real_download(12345, "v0.1.2", os.path.join(work, "never"))
+check("GitHub 按 asset id 拼 URL",
+      seen.get("url", "").endswith("/releases/assets/12345"), seen.get("url", ""))
+
+if saved is None:
+    del os.environ["SUMMERWAVE_RELEASE_DOMAIN"]
+else:
+    os.environ["SUMMERWAVE_RELEASE_DOMAIN"] = saved
+
+sys.exit(1 if failures else 0)
+PY
+if [[ "$?" == "0" ]]; then
+    :
+else
+    fail "自更新 run_installer 的语义"
+fi
+rm -rf "$WORK_SU"
 
 echo "========== every command resolves to a module =========="
 
