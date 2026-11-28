@@ -193,6 +193,10 @@ mkdir -p "$FOLDER" || exit 2
 cp "$STAGE/install.sh" "$FOLDER/install.sh" || exit 2
 chmod 755 "$FOLDER/install.sh"
 
+# 把「一条命令跑完整个验证」的脚本一起带上：目标机上要敲的越少越好
+cp "$SCRIPT_DIR/verify-on-target.sh" "$FOLDER/verify-on-target.sh" || exit 2
+chmod 755 "$FOLDER/verify-on-target.sh"
+
 cat > "$FOLDER/README.txt" <<EOF
 Summerwave installer
 ====================
@@ -203,6 +207,13 @@ sha256   $DIGEST
 
 Install on the target machine
 -----------------------------
+One command does the whole check (clears /opt/macwave first, installs, then
+verifies the bundled interpreter, the CLI, and two packages):
+
+    sudo /bin/bash verify-on-target.sh
+
+Or just install:
+
     sudo /bin/bash install.sh --ci
 
 Then check that the bundled interpreter works:
