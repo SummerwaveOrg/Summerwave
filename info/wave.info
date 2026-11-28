@@ -113,10 +113,6 @@ File: wave.info, Node: GLOBAL FLAGS, Up: Top
       Install anyway when the running macOS is older than the package
       declares
 
-  --install-python-from-source
-      Fetch the bundled Python from its upstream URL instead of
-      Summerwave's own repository
-
   MACWAVE_PIP_INDEX
       Env var. pip index for the Python deps; default pypi.org/simple
 
@@ -383,10 +379,6 @@ repository.
 
   --content-time <string>
       Maximum time to receive data
-
-  --install-python-from-source
-      Fetch the bundled Python from its upstream URL instead of
-      Summerwave's own repository
 
   --dry-run
       Print what would be updated and change nothing (no download, no

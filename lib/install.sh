@@ -523,8 +523,6 @@ CLI_SKIP_PROBE=false
 # --help：打用法后**停**在这里；--print-usage：打用法后继续安装（或继续试运行）。
 CLI_HELP=false
 CLI_PRINT_USAGE=false
-# 默认从我们自己的 Python 仓库取解释器；这个开关让它回上游取
-INSTALL_PYTHON_FROM_SOURCE=""
 
 usage() {
     # 用法一律走 mw_say —— 语言由它挑（--zh），呈现规则与其它输出一致：
@@ -565,14 +563,6 @@ usage() {
            "      --skip-probe        判定是否需要提权时不在目标里建那个临时探针文件，只用\n\
                           权限位判断。适合「目标必须一点痕迹都不留」的场合 ——\n\
                           判断错了只是把失败推迟到第一次真正写入。"
-    mw_say "        --install-python-from-source\n\
-                            Download the bundled CPython from its upstream URL\n\
-                            (recorded in pythondata/<version>/python_url.toml)\n\
-                            instead of from Summerwave's own Python repository." \
-           "        --install-python-from-source\n\
-                            自带 CPython 改从上游 URL 下载（记录在\n\
-                            pythondata/<version>/python_url.toml），\n\
-                            而不是从 Summerwave 自己的 Python 仓库取。"
     mw_say "      --zh                Print in Chinese. Auto-detected from the locale or\n\
                           the macOS preferred language; --zh forces it." \
            "      --zh                用中文输出。语言本来就会按 locale 与系统首选语言\n\
@@ -624,9 +614,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-probe|--SKIP-PROBE)
             CLI_SKIP_PROBE=true
-            ;;
-        --install-python-from-source)
-            INSTALL_PYTHON_FROM_SOURCE=1
             ;;
         --zh|--ZH)
             MW_LANG="zh"

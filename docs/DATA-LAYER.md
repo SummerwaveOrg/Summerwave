@@ -198,7 +198,6 @@ amd64_sha256 = "600c..."
 | 场景 | 取哪里 |
 | --- | --- |
 | 默认 | 本仓库 `pythondata/<版本>/<文件名>` |
-| `--install-python-from-source` | `python_url.toml` 里的 `*_url`（上游） |
 
 客户端取值顺序：**先读 `latest.toml` → 本机已有该版本且能跑就直接用（不发网络请求）→
 否则读 `python_url.toml` 下载校验。** 第一步必须先问：否则「本机已有 3.14.9」会让升级到
@@ -221,7 +220,9 @@ amd64_sha256 = "600c..."
 4. 每个文件先写 `<目标>.macwave-part` 再 `mv`，重试期间目标位置不会出现半个文件；
 5. 全部就位后才写 `var/config.sh`。任一步失败即 `exit` 非零，客户端据此判定「什么都没更新」。
 
-`--install-python-from-source` 是**唯一**会绕开自有存储、直接回上游的路（只有
+0.1.0 起，自带解释器**只有一条路**：从 `SummerwaveOrg/Python` 的 Release 取（见
+`config/portable_python.toml`）。以前那个 `--install-python-from-source` 开关已经删掉
+——它早已是空选项（解析了但没人读），留着只会让人以为可以绕开自有存储。（历史上它是**唯一**会绕开自有存储、直接回上游的路（只有
 解释器这一件东西有这条口子）。软件包的 `--install-from-source` 已经彻底删除。
 
 ## 五、三条发布铁律

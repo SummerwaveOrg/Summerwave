@@ -27,7 +27,6 @@ GLOBAL_FLAGS_ZH = {
     "--content-time <string>": "接收数据的最大时长",
     "--ver <string>": "安装指定版本（仅 install；`--ver=1.0` 这种写法也认）",
     "-F, --force": "当前 macOS 版本低于软件包声明要求时仍继续安装",
-    "--install-python-from-source": "从上游地址取自带的 Python，而不是 Summerwave 自己的仓库",
     "MACWAVE_PIP_INDEX": "环境变量。Python 依赖的 pip 源，默认 pypi.org/simple",
     "MACWAVE_CACERT": "环境变量。额外的根证书（PEM），用于企业网络重签或私有 CA 的镜像；"
                       "不设则用系统证书库",
@@ -169,8 +168,7 @@ COMMANDS_ZH = {
             "--max-time <string>": "单次请求最大时长（40s、1min、1min20s、2h；不输入单位默认 s）",
             "--connect-timeout <string>": "握手最大时长",
             "--content-time <string>": "接收数据的最大时长",
-            "--install-python-from-source": "从上游地址取自带的 Python，而不是 Summerwave 自己的仓库",
-            "--dry-run": "只打印会更新到什么、会做什么，不做任何改动（不下载、不询问协议）",
+                    "--dry-run": "只打印会更新到什么、会做什么，不做任何改动（不下载、不询问协议）",
         },
     },
     "link": {

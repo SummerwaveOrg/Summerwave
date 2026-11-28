@@ -273,7 +273,6 @@ COMMANDS = (
             ("--max-time <string>", "Maximum total time for one request (40s, 1min, 1min20s, 2h; a bare number means seconds)"),
             ("--connect-timeout <string>", "Maximum time for the handshake"),
             ("--content-time <string>", "Maximum time to receive data"),
-            ("--install-python-from-source", "Fetch the bundled Python from its upstream URL instead of Summerwave's own repository"),
             ("--dry-run", "Print what would be updated and change nothing (no download, no agreement prompt)"),
         ],
         examples=[

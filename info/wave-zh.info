@@ -87,9 +87,6 @@ File: wave-zh.info, Node: 全局旗标, Up: Top
   -F, --force
       当前 macOS 版本低于软件包声明要求时仍继续安装
 
-  --install-python-from-source
-      从上游地址取自带的 Python，而不是 Summerwave 自己的仓库
-
   MACWAVE_PIP_INDEX
       环境变量。Python 依赖的 pip 源，默认 pypi.org/simple
 
@@ -331,9 +328,6 @@ File: wave-zh.info, Node: selfupdate, Next: link, Prev: info, Up: Top
 
   --content-time <string>
       接收数据的最大时长
-
-  --install-python-from-source
-      从上游地址取自带的 Python，而不是 Summerwave 自己的仓库
 
   --dry-run
       只打印会更新到什么、会做什么，不做任何改动（不下载、不询问协议）

@@ -47,7 +47,6 @@ GLOBAL = {
     "--connect-timeout",
     "--content-time",
     "--ver",
-    "--install-python-from-source",
     # 注意没有 --help / --version：那两条在分发之前就被拦下，
     # 不算「某条命令接受的旗标」，但仍然是合法输入，所以在 ALL 里单独补。
     # 也没有 -s / -S：它们不是「任何命令都接受」，见下面的 silent 一组。

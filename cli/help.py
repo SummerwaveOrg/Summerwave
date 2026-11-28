@@ -97,8 +97,6 @@ GLOBAL_FLAGS = [
     ("--content-time <string>", "Maximum time to receive data"),
     ("--ver <string>", "Install a specific version (install only; --ver=1.0 works too)"),
     ("-F, --force", "Install anyway when the running macOS is older than the package declares"),
-    ("--install-python-from-source",
-                "Fetch the bundled Python from its upstream URL instead of Summerwave's own repository"),
     ("MACWAVE_PIP_INDEX", "Env var. pip index for the Python deps; default pypi.org/simple"),
     ("MACWAVE_CACERT", "Env var. PEM file with extra root certificates for corporate TLS "
                        "inspection or a private-CA mirror (unset = system trust store)"),

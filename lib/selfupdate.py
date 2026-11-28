@@ -484,7 +484,6 @@ def _handle_selfupdate_locked(input_string=""):
     options = options_from(input_string)
     timeout_raws = options.timeout_raws
     budget = options.timeouts
-    install_python_from_source = options.install_python_from_source
     dry_run = wants_dry_run(input_string)
 
     print("🌊 Fetching the latest version...")
@@ -593,9 +592,6 @@ def _handle_selfupdate_locked(input_string=""):
         environment["MACWAVE_FULL_INSTALL"] = "1"
     if data.get("branch"):
         environment["MACWAVE_UPDATE_BRANCH"] = data["branch"]
-    if install_python_from_source:
-        # 解释器默认从我们自己的 Python 仓库取；这个开关让 selfupdate.sh 回上游取
-        environment["MACWAVE_INSTALL_PYTHON_FROM_SOURCE"] = "1"
     # 三档超时原样交给脚本，由它自己再解析一次
     for flag, value in timeout_raws.items():
         environment[TIMEOUT_ENV[flag]] = value

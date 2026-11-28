@@ -5,8 +5,7 @@
 # 公共旗标的**唯一解析入口**。
 #
 # 「公共」= cli/flags.py 里 GLOBAL 那一组：-v / -C / --skip-ssl / --limit-rate /
-# --proxy / --max-time / --connect-timeout / --content-time /
-# --install-python-from-source。
+# --proxy / --max-time / --connect-timeout / --content-time。
 #
 # 为什么必须只有一份：同一个 --proxy，install 会校验协议、再写进 requests 的
 # proxies；selfupdate 只从环境变量拿值，于是 `wave selfupdate --proxy foo` 一声不响
@@ -59,14 +58,13 @@ VALUE_EXAMPLES = {
 class Options:
     """一次命令行的公共选项。字段都是「解析完、校验过」的终值。"""
 
-    __slots__ = ("verbose", "resume", "skip_ssl", "install_python_from_source",
+    __slots__ = ("verbose", "resume", "skip_ssl",
                  "proxy", "limit_rate", "timeout_raws", "timeouts")
 
     def __init__(self):
         self.verbose = False
         self.resume = False
         self.skip_ssl = False
-        self.install_python_from_source = False
         self.proxy = ""
         self.limit_rate = None
         self.timeout_raws = {}
@@ -122,8 +120,6 @@ def parse(source):
             options.resume = True
         elif name == "--skip-ssl":
             options.skip_ssl = True
-        elif name == "--install-python-from-source":
-            options.install_python_from_source = True
         elif name in VALUE_EXAMPLES:
             raw, index = _take(words, index, name, has_inline, inline)
             _apply(options, raws, name, raw)
